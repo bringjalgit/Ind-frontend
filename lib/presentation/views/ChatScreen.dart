@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:classifieds/Components/debugPrint.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -75,7 +76,9 @@ class _ChatScreenState extends State<ChatScreen> {
   List<_ListItem> _lastItems = const [];
 
   final ValueNotifier<String?> mobileNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String?> receiverName = ValueNotifier<String?>("User");
+  final ValueNotifier<String?> receiverName = ValueNotifier<String?>(
+    "IND User",
+  );
   final ValueNotifier<String?> receiverImage = ValueNotifier<String?>(null);
 
   // "show while scrolling" state
@@ -222,14 +225,21 @@ class _ChatScreenState extends State<ChatScreen> {
       (receiverImage.value ?? "").trim().isNotEmpty &&
       Uri.tryParse(receiverImage.value ?? "")?.hasAbsolutePath == true;
 
-  String _initials(String name) {
+  String _initials1(String? name) {
+    if (name == null || name.trim().isEmpty) {
+      return ""; // 👈 return empty instead of "?"
+    }
+
     final parts = name
         .trim()
         .split(RegExp(r'\s+'))
         .where((e) => e.isNotEmpty)
         .toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+
+    if (parts.length == 1) {
+      return parts.first.characters.first.toUpperCase();
+    }
+
     final first = parts[0].characters.first.toUpperCase();
     final second = parts[1].characters.first.toUpperCase();
     return '$first$second';
@@ -255,23 +265,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _profileAvatar({double size = 36}) {
-    final initials = _initials(receiverImage.value ?? "");
-    if (_hasReceiverImage) {
-      return ClipOval(
-        child: Image.network(
-          receiverImage.value ?? "",
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          // If network image fails, show initials
-          errorBuilder: (_, __, ___) => _fallbackAvatar(size, initials),
-        ),
-      );
-    }
-    return _fallbackAvatar(size, initials);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Builder(
@@ -290,11 +283,34 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Row(
                   children: [
-                    _profileAvatar(size: 36),
+                    ClipOval(
+                      child:
+                          (_hasReceiverImage &&
+                              receiverImage.value != null &&
+                              receiverImage.value!.isNotEmpty)
+                          ? Image.network(
+                              receiverImage.value!,
+                              width: 36,
+                              height: 36,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) {
+                                final initials = _initials1(
+                                  capitalize(receiverName.value ?? ""),
+                                );
+                                return _fallbackAvatar(36, initials);
+                              },
+                            )
+                          : _fallbackAvatar(
+                              36,
+                              _initials1(capitalize(receiverName.value ?? "")),
+                            ),
+                    ),
+
                     const SizedBox(width: 10),
+
                     Expanded(
                       child: Text(
-                        receiverName.value ?? "",
+                        capitalize(receiverName.value ?? ""),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.titleLarge(

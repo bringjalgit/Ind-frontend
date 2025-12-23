@@ -370,61 +370,7 @@ class _BikeAdState extends State<BikeAd> {
                             ),
                           ),
                         ],
-                        // GestureDetector(
-                        //   onTap: () async {
-                        //     final selectedCity = await showModalBottomSheet(
-                        //       context: context,
-                        //       isScrollControlled: true,
-                        //       backgroundColor: Colors.transparent,
-                        //       builder: (context) {
-                        //         return SelectCityBottomSheet(
-                        //           stateId: selectedStateId ?? 0,
-                        //         );
-                        //       },
-                        //     );
-                        //
-                        //     if (selectedCity != null) {
-                        //       cityController.text = selectedCity.name ?? "";
-                        //       selectedCityId = selectedCity.id ?? "";
-                        //       setState(() {});
-                        //     }
-                        //   },
-                        //   child: AbsorbPointer(
-                        //     child: CommonTextField1(
-                        //       lable: 'City',
-                        //       hint: 'Select City',
-                        //       controller: cityController,
-                        //       color: textColor,
-                        //       keyboardType: TextInputType.text,
-                        //       isRead: true,
-                        //       prefixIcon: Icon(
-                        //         Icons.location_city_outlined,
-                        //         color: textColor,
-                        //         size: 16,
-                        //       ),
-                        //     ),
-                        //   ),
-                        // ),
-                        // if (_showCityError) ...[
-                        //   Padding(
-                        //     padding: const EdgeInsets.only(top: 5),
-                        //     child: ShakeWidget(
-                        //       key: Key(
-                        //         "dropdown_city_error_${DateTime.now().millisecondsSinceEpoch}",
-                        //       ),
-                        //       duration: const Duration(milliseconds: 700),
-                        //       child: const Text(
-                        //         'Please Select City',
-                        //         style: TextStyle(
-                        //           fontFamily: 'roboto_serif',
-                        //           fontSize: 12,
-                        //           color: Colors.red,
-                        //           fontWeight: FontWeight.w500,
-                        //         ),
-                        //       ),
-                        //     ),
-                        //   ),
-                        // ],
+
                         SizedBox(height: 12),
                         CommonImagePicker(
                           title: "Upload Product Images",
