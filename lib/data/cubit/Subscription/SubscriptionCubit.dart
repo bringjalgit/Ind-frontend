@@ -1,4 +1,3 @@
-// lib/cubit/subscription_cubit.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../../model/PlanModel.dart';

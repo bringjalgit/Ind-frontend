@@ -13,7 +13,6 @@ import 'package:classifieds/widgets/CommonLoader.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../Components/CustomAppButton.dart';
 import '../../Components/CustomSnackBar.dart';
-import '../../Components/ShakeWidget.dart';
 import '../../data/cubit/Profile/profile_cubit.dart';
 import '../../data/cubit/States/states_cubit.dart';
 import '../../data/cubit/States/states_repository.dart';
