@@ -31,7 +31,7 @@ android {
 
     defaultConfig {
         applicationId = "com.ind.classifieds"
-        minSdkVersion(24) // Correct function syntax
+        minSdkVersion(24)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
