@@ -67,7 +67,6 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.ind.classifieds',
   );
 
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyAWwkPzhNKIjI4HCy3rFT7FjMF2ZtgfvWo',
     appId: '1:427341683657:ios:23d6849f9e9c0c4bd3e618',

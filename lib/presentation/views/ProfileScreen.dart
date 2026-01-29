@@ -220,8 +220,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           user_data?.name ?? "",
                           style: AppTextStyles.headlineSmall(textColor),
                         ),
+                        const SizedBox(height: 8),
                         Text(
                           user_data?.email ?? "",
+                          style: AppTextStyles.bodySmall(textColor),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          user_data?.mobile ?? "",
                           style: AppTextStyles.bodySmall(textColor),
                         ),
                         const SizedBox(height: 8),

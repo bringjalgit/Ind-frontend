@@ -23,7 +23,7 @@ import '../../data/cubit/Location/location_cubit.dart';
 import '../../data/cubit/Location/location_state.dart';
 import '../../data/cubit/UserActivePlans/user_active_plans_cubit.dart';
 import '../../data/cubit/theme_cubit.dart';
-import '../../main.dart';
+import '../../services/NotificationService.dart';
 import '../../services/SocketService.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../utils/DeepLinkMapper.dart';
@@ -52,7 +52,9 @@ class _DashboardState extends State<Dashboard> {
     _selectedIndex = widget.initialTab;
     pageController = PageController(initialPage: _selectedIndex);
     getData();
-    _requestPushPermissions();
+
+    // ✅ correct call
+    NotificationService.instance.requestPermissions();
     context.read<LocationCubit>().checkLocationPermission();
     initDeepLinks(); // start deep link handling
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -98,24 +100,6 @@ class _DashboardState extends State<Dashboard> {
     debugPrint('DeepLink: dispose, cancelling subscription');
     _linkSubscription?.cancel();
     super.dispose();
-  }
-
-  Future<void> _requestPushPermissions() async {
-    if (Platform.isIOS) {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-    } else if (Platform.isAndroid) {
-      // Android 13+ runtime permission
-      final plugin = flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      await plugin?.requestNotificationsPermission();
-    }
   }
 
   Future<void> getData() async {

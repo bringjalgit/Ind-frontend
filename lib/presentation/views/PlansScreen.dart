@@ -761,19 +761,19 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
                                           //         .externalApplication,
                                           //   );
                                           // } else {
-                                            final Map<String, dynamic> data = {
-                                              "plan_id": plan_id.value,
-                                              "package_id": packageId.value,
-                                              "price": price.value,
-                                            };
-                                            context
-                                                .read<PaymentCubit>()
-                                                .createPayment(data);
-                                            await MetaEventTracker.subscribePremium(
-                                              plan: plan_id.value.toString(),
-                                              price: price.value.toString(),
-                                              currency: "Rupee"
-                                            );
+                                          final Map<String, dynamic> data = {
+                                            "plan_id": plan_id.value,
+                                            "package_id": packageId.value,
+                                            "price": price.value,
+                                          };
+                                          context
+                                              .read<PaymentCubit>()
+                                              .createPayment(data);
+                                          await MetaEventTracker.subscribePremium(
+                                            plan: plan_id.value.toString(),
+                                            price: price.value.toString(),
+                                            currency: "Rupee",
+                                          );
                                           // }
                                         }
                                       },
@@ -1157,8 +1157,7 @@ _BadgeColors _badgeColorsFor(int index) {
 /// From listings_count -> “1”, “3”, “10+”
 String _formatBadgeCount(int? count) {
   if (count == null) return "0";
-  if (count > 9) return "10+";
-  return "$count";
+  return count.toString(); // ✅ always show real count
 }
 
 /// —— Helpers ——

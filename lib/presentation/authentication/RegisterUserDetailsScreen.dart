@@ -11,10 +11,16 @@ import 'package:classifieds/data/cubit/Register/register_states.dart';
 import 'package:classifieds/services/AuthService.dart';
 import 'package:classifieds/theme/app_colors.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+import '../../Components/ShakeWidget.dart';
 import '../../data/cubit/EmailVerification/EmailVerificationCubit.dart';
 import '../../data/cubit/EmailVerification/EmailVerificationStates.dart';
+import '../../data/cubit/States/states_cubit.dart';
+import '../../data/cubit/States/states_repository.dart';
+import '../../data/remote_data_source.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
+import '../../widgets/CommonTextField.dart';
+import '../../widgets/SelectStateBottomSheet.dart';
 
 class RegisterUserDetailsScreen extends StatefulWidget {
   final String from;
@@ -28,9 +34,11 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController(text: '');
   final _emailCtrl = TextEditingController(text: '');
+  final stateController = TextEditingController();
   final _nameFocus = FocusNode();
   final _emailFocus = FocusNode();
-
+  bool _showStateError = false;
+  int? selectedStateId;
   bool _submitting = false;
 
   @override
@@ -43,13 +51,26 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   }
 
   Future<void> _submit() async {
+    // Validate text fields first
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _submitting = true);
+    // 🔴 Validate State selection
+    if (selectedStateId == null || stateController.text.trim().isEmpty) {
+      setState(() {
+        _showStateError = true;
+      });
+      return;
+    }
+
+    setState(() {
+      _showStateError = false;
+      _submitting = true;
+    });
 
     Map<String, dynamic> data = {
       "name": _nameCtrl.text.trim(),
       "email": _emailCtrl.text.trim(),
+      "state_id": selectedStateId, // 👈 IMPORTANT
     };
 
     context.read<RegisterCubit>().register(data);
@@ -260,6 +281,73 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
                                     onFieldSubmitted: (_) => _submit(),
                                   ),
                                 ),
+                                GestureDetector(
+                                  onTap: () async {
+                                    final selectedState =
+                                        await showModalBottomSheet(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          backgroundColor: Colors.transparent,
+                                          builder: (context) {
+                                            return BlocProvider(
+                                              create: (_) => SelectStatesCubit(
+                                                SelectStatesImpl(
+                                                  remoteDataSource:
+                                                      RemoteDataSourceImpl(),
+                                                ),
+                                              ),
+                                              child: SelectStateBottomSheet(),
+                                            );
+                                          },
+                                        );
+
+                                    if (selectedState != null) {
+                                      stateController.text =
+                                          selectedState.name ?? "";
+                                      selectedStateId = selectedState.id;
+                                      setState(() {});
+                                    }
+                                  },
+                                  child: AbsorbPointer(
+                                    child: CommonTextField1(
+                                      lable: 'State',
+                                      hint: 'Select State',
+                                      controller: stateController,
+                                      color: textColor,
+                                      keyboardType: TextInputType.text,
+                                      isRead: true,
+                                      prefixIcon: Icon(
+                                        Icons.location_city_outlined,
+                                        color: textColor,
+                                        size: 16,
+                                      ),
+                                      validator: (v) =>
+                                          (v == null || v.trim().isEmpty)
+                                          ? 'State required'
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                                if (_showStateError) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 5),
+                                    child: ShakeWidget(
+                                      key: Key("state"),
+                                      duration: const Duration(
+                                        milliseconds: 700,
+                                      ),
+                                      child: const Text(
+                                        'Please Select State',
+                                        style: TextStyle(
+                                          fontFamily: 'roboto_serif',
+                                          fontSize: 12,
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
 
                                 const SizedBox(height: 32),
 
