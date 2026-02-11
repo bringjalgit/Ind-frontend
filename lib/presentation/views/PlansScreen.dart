@@ -761,19 +761,19 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
                                           //         .externalApplication,
                                           //   );
                                           // } else {
-                                            final Map<String, dynamic> data = {
-                                              "plan_id": plan_id.value,
-                                              "package_id": packageId.value,
-                                              "price": price.value,
-                                            };
-                                            context
-                                                .read<PaymentCubit>()
-                                                .createPayment(data);
-                                            await MetaEventTracker.subscribePremium(
-                                              plan: plan_id.value.toString(),
-                                              price: price.value.toString(),
-                                              currency: "Rupee"
-                                            );
+                                          final Map<String, dynamic> data = {
+                                            "plan_id": plan_id.value,
+                                            "package_id": packageId.value,
+                                            "price": price.value,
+                                          };
+                                          context
+                                              .read<PaymentCubit>()
+                                              .createPayment(data);
+                                          await MetaEventTracker.subscribePremium(
+                                            plan: plan_id.value.toString(),
+                                            price: price.value.toString(),
+                                            currency: "Rupee",
+                                          );
                                           // }
                                         }
                                       },
