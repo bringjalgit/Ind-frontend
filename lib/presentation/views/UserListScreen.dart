@@ -502,7 +502,7 @@ class _ChatCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          if(pinned)Icon(Icons.push_pin,color: textColor,)
+                          if (pinned) Icon(Icons.push_pin, color: textColor),
                         ],
                       ),
                       const SizedBox(height: 4),
