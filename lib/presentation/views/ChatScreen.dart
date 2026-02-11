@@ -227,7 +227,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String _initials1(String? name) {
     if (name == null || name.trim().isEmpty) {
-      return ""; // 👈 return empty instead of "?"
+      return "";
     }
 
     final parts = name
