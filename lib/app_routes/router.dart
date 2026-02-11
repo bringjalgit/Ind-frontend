@@ -86,27 +86,48 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/chat',
       builder: (context, state) {
-        final receiverId = state.uri.queryParameters['receiverId']!;
+        final receiverId =
+            state.uri.queryParameters['receiverId'] ?? "";
+
+        final listingId =
+            state.uri.queryParameters['listingId'] ?? "0";
+
+        final listingTitle =
+        Uri.decodeComponent(
+          state.uri.queryParameters['listingTitle'] ?? "",
+        );
+
         return FutureBuilder<String?>(
           future: AuthService.getId(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
               return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
               );
             }
+
             final currentUserId = snapshot.data ?? "";
+
             return BlocProvider(
-              create: (_) => PrivateChatCubit(currentUserId, receiverId),
+              create: (_) => PrivateChatCubit(
+                currentUserId,
+                receiverId,
+                listingId, // 🔥 REQUIRED NOW
+              ),
               child: ChatScreen(
                 currentUserId: currentUserId,
                 receiverId: receiverId,
+                listingId: listingId,
+                listingTitle: listingTitle,
               ),
             );
           },
         );
       },
     ),
+
     GoRoute(
       path: '/dashboard',
       pageBuilder: (context, state) =>

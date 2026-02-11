@@ -41,11 +41,15 @@ class _ListItem {
 class ChatScreen extends StatefulWidget {
   final String currentUserId;
   final String receiverId;
+  final String listingId;
+  final String listingTitle;
 
   const ChatScreen({
     super.key,
     required this.currentUserId,
     required this.receiverId,
+    required this.listingId,
+    required this.listingTitle,
   });
 
   @override
@@ -97,6 +101,14 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // 🔥 Notify cubit that chat opened
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        context.read<PrivateChatCubit>().chatOpened();
+        context.read<PrivateChatCubit>().markAsRead();
+      } catch (_) {}
+    });
+
     try {
       context.read<ChatMessagesCubit>().fetchMessages(widget.receiverId);
     } catch (_) {}
@@ -188,8 +200,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _scrollIdleTimer?.cancel();
     _controller.dispose();
+
+    try {
+      context.read<PrivateChatCubit>().chatClosed();
+    } catch (_) {}
+
     super.dispose();
   }
+
 
   void _scrollToBottom() {
     if (_lastItems.isEmpty) return;
@@ -842,20 +860,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     vertical: 10,
                   ),
                 ),
-                onChanged: (text) {
-                  try {
-                    final cubit = context.read<PrivateChatCubit>();
-                    if (text.isNotEmpty) {
-                      cubit.startTyping();
-                    } else {
-                      cubit.stopTyping();
-                    }
-                  } catch (e) {
-                    debugPrint(
-                      'Error accessing PrivateChatCubit in onChanged: $e',
-                    );
-                  }
-                },
                 onSubmitted: (_) => _sendText(context),
               ),
             ),
@@ -875,7 +879,6 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       context.read<PrivateChatCubit>().sendMessage(text);
       _controller.clear();
-      context.read<PrivateChatCubit>().stopTyping();
     } catch (e) {
       debugPrint('Error accessing PrivateChatCubit in _sendText: $e');
     }

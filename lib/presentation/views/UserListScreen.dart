@@ -32,28 +32,28 @@ class _UserListScreenState extends State<UserListScreen>
     with SingleTickerProviderStateMixin {
   String? userId;
   final TextEditingController _search = TextEditingController();
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  Timer? _searchDebounce;
-  static const _searchDelay = Duration(milliseconds: 350);
-  String _lastFiredQuery = '';
   String _query = '';
-
   bool? _isGuestUser;
 
   @override
   void initState() {
     super.initState();
     _init();
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
+
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeInOut,
     );
+
     _animationController.forward();
   }
 
@@ -61,48 +61,31 @@ class _UserListScreenState extends State<UserListScreen>
     final isGuest = await AuthService.isGuest;
     setState(() => _isGuestUser = isGuest);
 
-    final userId = await AuthService.getId();
-    SocketService.connect(userId ?? "");
-    // only fetch if NOT guest
-    if (!isGuest) {
-      context.read<ChatUsersCubit>().fetchChatUsers("");
-      getUserId();
-    }
-  }
+    final id = await AuthService.getId();
+    userId = id;
 
-  Future<void> getUserId() async {
-    userId = await AuthService.getId();
-    if (mounted) setState(() {});
+    if (!isGuest && id != null) {
+      // ✅ Initialize socket-based cubit
+      context.read<ChatUsersCubit>().initSocket(id);
+    }
   }
 
   @override
   void dispose() {
     _search.dispose();
-    _search.clear();
-    _searchDebounce?.cancel();
     _animationController.dispose();
     super.dispose();
   }
 
   void _onSearchChanged(String v) {
-    if (_isGuestUser ?? true) return; // block in guest mode
     setState(() => _query = v);
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(_searchDelay, () {
-      if (!mounted) return;
-      final q = _query.trim();
-      if (q == _lastFiredQuery) return;
-      _lastFiredQuery = q;
-      context.read<ChatUsersCubit>().fetchChatUsers(q);
-    });
   }
 
   void _clearSearch() {
-    if (_isGuestUser ?? true) return; // block in guest mode
-    _searchDebounce?.cancel();
-    setState(() => _query = '');
-    _lastFiredQuery = '';
-    context.read<ChatUsersCubit>().fetchChatUsers('');
+    setState(() {
+      _query = '';
+      _search.clear();
+    });
   }
 
   @override
@@ -126,92 +109,34 @@ class _UserListScreenState extends State<UserListScreen>
         ),
       ),
       body: (_isGuestUser == null)
-          ? Center(child: DottedProgressWithLogo()) // determining guest status
+          ? Center(child: DottedProgressWithLogo())
           : (_isGuestUser == true)
-          // ---------- Guest placeholder (no API calls, no search) ----------
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/nodata/no_data.png',
-                    width: SizeConfig.screenWidth * 0.4,
-                    height: SizeConfig.screenHeight * 0.12,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Login to view your messages',
-                    style: AppTextStyles.headlineSmall(textColor),
-                  ),
-                ],
-              ),
-            )
-          // -------------------- Logged-in UI --------------------
+          ? _buildGuestUI(textColor)
           : Column(
               children: [
                 FadeTransition(
                   opacity: _fadeAnimation,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceVariant.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _search,
-                        onChanged: _onSearchChanged,
-                        style: AppTextStyles.bodyMedium(textColor),
-                        decoration: InputDecoration(
-                          hintText: 'Search by name…',
-                          hintStyle: AppTextStyles.bodyMedium(
-                            textColor.withOpacity(0.6),
-                          ),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: textColor.withOpacity(0.8),
-                          ),
-                          suffixIcon: _query.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: textColor.withOpacity(0.8),
-                                  ),
-                                  onPressed: _clearSearch,
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 16,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _buildSearchBar(textColor),
                 ),
                 Expanded(
                   child: BlocBuilder<ChatUsersCubit, ChatUsersStates>(
                     builder: (context, state) {
                       if (state is ChatUsersLoading) {
-                        return _buildShimmerList(card, textColor);
-                      } else if (state is ChatUsersFailure) {
+                        return _buildShimmerList(card);
+                      }
+
+                      if (state is ChatUsersFailure) {
                         return _buildErrorState(
                           context,
                           state.error,
                           textColor,
                         );
-                      } else if (state is ChatUsersLoaded) {
+                      }
+
+                      if (state is ChatUsersLoaded) {
                         final users = state.chatUsersModel.data ?? [];
+
+                        // ✅ Local filtering only
                         final filtered = _query.trim().isEmpty
                             ? users
                             : users
@@ -223,37 +148,19 @@ class _UserListScreenState extends State<UserListScreen>
                                   .toList();
 
                         if (filtered.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/nodata/no_data.png',
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.4,
-                                  height:
-                                      MediaQuery.of(context).size.height * 0.15,
-                                ),
-                                Text(
-                                  'No Users Found!',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: ThemeHelper.textColor(context),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
+                          return _buildEmptyState(textColor);
                         }
 
                         return RefreshIndicator(
-                          onRefresh: () async =>
-                              context.read<ChatUsersCubit>().fetchChatUsers(""),
-                          color: textColor,
-                          backgroundColor: card,
+                          onRefresh: () async {
+                            if (userId != null) {
+                              // ✅ Re-request via socket
+                              SocketService.emit("get_chat_list", {
+                                "userId": userId,
+                              });
+                            }
+                          },
                           child: ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                             itemCount: filtered.length,
                             separatorBuilder: (_, __) =>
@@ -261,72 +168,33 @@ class _UserListScreenState extends State<UserListScreen>
                             itemBuilder: (context, i) {
                               final user = filtered[i];
                               final id = user.userId ?? 0;
-                              final name = user.name ?? '';
-                              final imageUrl = user.profileImage ?? '';
-                              final isPinned =
-                                  user.pinned ==
-                                  true; // assuming backend returns this flag
 
-                              return BlocListener<
-                                ChatUserPinCubit,
-                                ChatUserPinStates
-                              >(
-                                listener: (context, state) {
-                                  if (state is ChatUserPinLoaded) {
-                                    context
-                                        .read<ChatUsersCubit>()
-                                        .fetchChatUsers("");
-                                  } else if (state is ChatUserPinFailure) {
-                                    CustomSnackBar1.show(context, state.error);
-                                  }
+                              return _ChatCard(
+                                id: id,
+                                listingId: user.listingId ?? 0,
+                                listingTitle: user.listingTitle ?? "",
+                                name: user.name ?? '',
+                                imageUrl: user.profileImage ?? '',
+                                onTap: () {
+                                  context.push(
+                                    '/chat'
+                                    '?receiverId=$id'
+                                    '&listingId=${user.listingId ?? 0}'
+                                    '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}',
+                                  );
                                 },
-                                child: Slidable(
-                                  key: ValueKey(id),
-                                  endActionPane: ActionPane(
-                                    motion: const DrawerMotion(),
-                                    extentRatio: 0.3,
-                                    children: [
-                                      SlidableAction(
-                                        onPressed: (_) {
-                                          final pinData = {
-                                            "pinned_user_id": id,
-                                          };
-                                          context
-                                              .read<ChatUserPinCubit>()
-                                              .chatUserPin(pinData);
-                                        },
-                                        backgroundColor: isPinned
-                                            ? Colors.orangeAccent
-                                            : Colors.teal,
-                                        foregroundColor: Colors.white,
-                                        icon: isPinned
-                                            ? Icons.push_pin_outlined
-                                            : Icons.push_pin,
-                                        label: isPinned ? 'Unpin' : 'Pin',
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ],
-                                  ),
-                                  child: _ChatCard(
-                                    id: id,
-                                    name: name,
-                                    imageUrl: imageUrl,
-                                    onTap: () {
-                                      context.push('/chat?receiverId=$id');
-                                    },
-                                    card: isPinned
-                                        ? Colors.teal.withOpacity(0.1)
-                                        : card,
-                                    textColor: textColor,
-                                    animationDelay: i * 100,
-                                    pinned: isPinned,
-                                  ),
-                                ),
+                                card: user.pinned == true
+                                    ? Colors.teal.withOpacity(0.1)
+                                    : card,
+                                textColor: textColor,
+                                animationDelay: i * 100,
+                                pinned: user.pinned ?? false,
                               );
                             },
                           ),
                         );
                       }
+
                       return const SizedBox();
                     },
                   ),
@@ -336,49 +204,92 @@ class _UserListScreenState extends State<UserListScreen>
     );
   }
 
-  // Shimmer effect for loading state
-  Widget _buildShimmerList(Color card, Color textColor) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      itemCount: 6,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: card.withOpacity(0.5),
-        highlightColor: card.withOpacity(0.8),
-        child: Container(
-          height: 72,
-          decoration: BoxDecoration(
-            color: card,
-            borderRadius: BorderRadius.circular(16),
+  // ------------------ Widgets ------------------
+
+  Widget _buildGuestUI(Color textColor) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/nodata/no_data.png',
+            width: MediaQuery.of(context).size.width * 0.4,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Login to view your messages',
+            style: AppTextStyles.headlineSmall(textColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar(Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: TextField(
+          controller: _search,
+          onChanged: _onSearchChanged,
+          style: AppTextStyles.bodyMedium(textColor),
+          decoration: InputDecoration(
+            hintText: 'Search by name…',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _query.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: _clearSearch,
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 14,
+              horizontal: 16,
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Error state with retry button
+  Widget _buildEmptyState(Color textColor) {
+    return Center(
+      child: Text(
+        'No Users Found!',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerList(Color card) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      itemCount: 6,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (_, __) => Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: card.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+    );
+  }
+
   Widget _buildErrorState(BuildContext context, String error, Color textColor) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            error,
-            style: AppTextStyles.bodyLarge(textColor.withOpacity(0.7)),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => context.read<ChatUsersCubit>().fetchChatUsers(""),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text('Retry', style: AppTextStyles.bodyMedium(Colors.white)),
-          ),
-        ],
+      child: Text(
+        error,
+        style: AppTextStyles.bodyLarge(textColor.withOpacity(0.7)),
       ),
     );
   }
@@ -387,6 +298,8 @@ class _UserListScreenState extends State<UserListScreen>
 class _ChatCard extends StatelessWidget {
   const _ChatCard({
     required this.id,
+    required this.listingId,
+    required this.listingTitle,
     required this.name,
     required this.imageUrl,
     required this.onTap,
@@ -398,6 +311,8 @@ class _ChatCard extends StatelessWidget {
 
   final int id;
   final String name;
+  final int listingId;
+  final String listingTitle;
   final String imageUrl; // ← new
   final VoidCallback onTap;
   final Color card;
@@ -502,7 +417,7 @@ class _ChatCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          if(pinned)Icon(Icons.push_pin,color: textColor,)
+                          if (pinned) Icon(Icons.push_pin, color: textColor),
                         ],
                       ),
                       const SizedBox(height: 4),

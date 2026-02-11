@@ -22,200 +22,74 @@ class PrivateChatState {
 class PrivateChatCubit extends Cubit<PrivateChatState> {
   final String currentUserId;
   final String receiverId;
+  final String listingId;
 
   late final IO.Socket _socket;
   late final String _room;
-  Timer? _typingDebounce;
 
-  Timer? _peerTypingClearTimer; // clears peer typing after a quiet period
-  Timer? _myTypingThrottle; // throttles how often we emit 'typing'
+  Timer? _peerTypingClearTimer;
+  Timer? _myTypingThrottle;
 
-  PrivateChatCubit(this.currentUserId, this.receiverId)
-    : super(const PrivateChatState()) {
-    _socket = SocketService.connect(currentUserId); // shared instance
+  PrivateChatCubit(
+      this.currentUserId,
+      this.receiverId,
+      this.listingId,
+      ) : super(const PrivateChatState()) {
+    _socket = SocketService.connect(currentUserId);
     _room = _getPrivateRoomName(currentUserId, receiverId);
     _init();
   }
 
+  // ================= INIT =================
+
   void _init() {
-    // Remove old handlers (shared socket)
     _socket.off('receive_private_message', _onReceiveMessage);
     _socket.off('user_typing', _onUserTyping);
     _socket.off('connect');
 
-    // Add listeners
     _socket.on('receive_private_message', _onReceiveMessage);
-    _socket.on('user_typing', _onUserTyping); // ← only this for typing status
-    _socket.on('connection', (_) {
-      AppLogger.info('[socket] connected: ${_socket.id}');
+    _socket.on('user_typing', _onUserTyping);
+
+    _socket.onConnect((_) {
       _joinRoom();
     });
 
     if (_socket.connected) {
       _joinRoom();
-    } else {
-      AppLogger.info('[socket] not connected yet; will join on connect');
     }
   }
+
+  // ================= JOIN PRIVATE =================
 
   void _joinRoom() {
-    // Send whatever your server expects. Common patterns:
-    // 1) join with a room name
-    _socket.emit('join_private', {
-      'userId1': currentUserId,
-      'userId2': receiverId,
-    });
-    AppLogger.info(
-      '[socket] join_private -> room: $_room '
-      '(u1=$currentUserId, u2=$receiverId)',
-    );
-  }
+    final payload = {
+      "listingId": listingId,
+      "userId1": currentUserId,
+      "userId2": receiverId,
+    };
 
-  // Map a generic socket map to your Messages model
-  Messages _mapSocketToMessages(Map<String, dynamic> map) {
-    return Messages(
-      id: _safeInt(map['id']),
-      senderId: _safeInt(map['senderId'] ?? map['sender_id']),
-      receiverId: _safeInt(map['receiverId'] ?? map['receiver_id']),
-      type: map['type']?.toString(),
-      message: map['message']?.toString(),
-      imageUrl: (map['image_url'] ?? map['imageUrl'])?.toString(),
-      createdAt:
-          (map['createdAt'] ?? map['created_at'])?.toString() ??
-          DateTime.now().toIso8601String(),
-      updatedAt: (map['updatedAt'] ?? map['updated_at'])?.toString(),
-    );
-  }
+    _socket.emit("join_private", payload);
 
-  int? _safeInt(dynamic v) {
-    if (v == null) return null;
-    if (v is int) return v;
-    return int.tryParse(v.toString());
-  }
-
-  Map<String, dynamic> _toStringKeyMap(dynamic data) {
-    if (data is Map) {
-      return data.map((k, v) => MapEntry(k.toString(), v));
-    }
-    return <String, dynamic>{};
-  }
-
-  // ---- Helper Methods for Duplicate Check ----
-  bool _sameContent(Messages a, Messages b) {
-    final aMsg = a.message ?? '';
-    final bMsg = b.message ?? '';
-    final aImg = a.imageUrl ?? '';
-    final bImg = b.imageUrl ?? '';
-    final aType = (a.type ?? '');
-    final bType = (b.type ?? '');
-    final aSender = a.senderId?.toString() ?? '';
-    final bSender = b.senderId?.toString() ?? '';
-    final aReceiver = a.receiverId?.toString() ?? '';
-    final bReceiver = b.receiverId?.toString() ?? '';
-
-    return aType == bType &&
-        aMsg == bMsg &&
-        aImg == bImg &&
-        aSender == bSender &&
-        aReceiver == bReceiver;
-  }
-
-  bool _closeInTime(
-    DateTime a,
-    DateTime b, {
-    Duration tolerance = const Duration(seconds: 5),
-  }) {
-    return (a.difference(b).abs() <= tolerance);
-  }
-
-  void _replaceTempWithServer(Messages serverMsg) {
-    // Find a temp message (id < 0) with same content and close timestamps
-    final serverCreated =
-        DateTime.tryParse(serverMsg.createdAt ?? '') ?? DateTime.now();
-    final idx = state.messages.indexWhere((m) {
-      if ((m.id ?? 0) >= 0) return false; // only temp
-      if (!_sameContent(m, serverMsg)) return false;
-      final mCreated = DateTime.tryParse(m.createdAt ?? '') ?? DateTime.now();
-      return _closeInTime(mCreated, serverCreated);
+    // Notify server chat opened
+    _socket.emit("chat_opened", {
+      "listingId": listingId,
     });
 
-    if (idx != -1) {
-      final updated = [...state.messages];
-      updated[idx] = serverMsg; // replace temp with server copy
-      emit(state.copyWith(messages: updated));
-    } else {
-      // No temp found — proceed to append if not already present by id
-      final existsById = state.messages.any(
-        (m) => m.id != null && m.id == serverMsg.id,
-      );
-      if (!existsById) {
-        emit(state.copyWith(messages: [...state.messages, serverMsg]));
-      }
-    }
+    // Mark messages as read
+    _socket.emit("mark_as_read", {
+      "listingId": listingId,
+      "otherUserId": receiverId,
+    });
+
+    AppLogger.info("[socket] join_private -> $payload");
   }
 
-  void _onUserTyping(dynamic data) {
-    try {
-      final map = (data is Map) ? Map<String, dynamic>.from(data) : {};
-      final senderId = map['senderId']?.toString();
-      final room = map['room']?.toString();
-      final sameRoom = room == _room;
-      final fromPeer = senderId != null && senderId != currentUserId;
+  // ================= SEND MESSAGE =================
 
-      if (!sameRoom || !fromPeer) return;
+  void sendMessage(String message, {String type = "text"}) {
+    if (message.trim().isEmpty) return;
 
-      // Mark peer as typing now
-      emit(state.copyWith(isPeerTyping: true));
-
-      // Safety: auto-clear after 3s of silence
-      _peerTypingClearTimer?.cancel();
-      _peerTypingClearTimer = Timer(const Duration(seconds: 3), () {
-        if (!isClosed) emit(state.copyWith(isPeerTyping: false));
-      });
-    } catch (e) {
-      AppLogger.info("[socket] error in _onUserTyping: $e");
-    }
-  }
-
-  // ---- Listeners ----
-  void _onReceiveMessage(dynamic data) {
-    try {
-      AppLogger.info("[socket] receive_private_message payload: $data");
-      final map = _toStringKeyMap(data);
-      final msg = _mapSocketToMessages(map);
-
-      // Prefer replacing the temp optimistic message with the server message
-      _replaceTempWithServer(msg);
-    } catch (e, st) {
-      AppLogger.info('[socket] malformed receive_private_message: $e\n$st');
-    }
-  }
-
-  void _onPeerTyping(dynamic data) {
-    try {
-      final map = (data is Map) ? Map<String, dynamic>.from(data) : {};
-      final senderId = map['senderId']?.toString();
-      final isTyping = map['isTyping'] == true;
-      final sameRoom = (map['room']?.toString() ?? '') == _room;
-
-      if (sameRoom && senderId != null && senderId != currentUserId) {
-        emit(state.copyWith(isPeerTyping: isTyping));
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  String _getPrivateRoomName(String id1, String id2) {
-    final ids = [id1, id2]..sort();
-    return ids.join('_'); // must match server
-  }
-
-  /// Optimistic send (text or image)
-  void sendMessage(String message, {String type = 'text', String? imageUrl}) {
-    if (message.isEmpty && imageUrl == null) return;
-
-    final nowIso = DateTime.now().toIso8601String();
+    final now = DateTime.now().toIso8601String();
     final tempId = -DateTime.now().microsecondsSinceEpoch;
 
     final local = Messages(
@@ -224,61 +98,158 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
       receiverId: int.tryParse(receiverId),
       type: type,
       message: message,
-      imageUrl: imageUrl,
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      createdAt: now,
+      updatedAt: now,
     );
 
     emit(state.copyWith(messages: [...state.messages, local]));
 
     final payload = {
-      'room': _room,
-      'senderId': currentUserId,
-      'receiverId': receiverId,
-      'message': message,
-      'type': type,
-      'image_url': imageUrl,
-      'createdAt': nowIso,
+      "listingId": listingId,
+      "senderId": currentUserId,
+      "receiverId": receiverId,
+      "message": message,
+      "type": type,
     };
 
-    AppLogger.info('[socket] send_private_message -> $payload');
-    _socket.emit('send_private_message', payload);
+    _socket.emit("send_private_message", payload);
+
+    AppLogger.info("[socket] send_private_message -> $payload");
   }
+
+  // ================= RECEIVE MESSAGE =================
+
+  void _onReceiveMessage(dynamic data) {
+    try {
+      final map = Map<String, dynamic>.from(data);
+
+      // Only handle if same listing
+      if (map['listingId'].toString() != listingId) return;
+
+      final msg = Messages(
+        id: _safeInt(map['id']),
+        senderId: _safeInt(map['senderId']),
+        receiverId: _safeInt(map['receiverId']),
+        type: map['type'],
+        message: map['message'],
+        createdAt: map['created_at'],
+        updatedAt: map['created_at'],
+      );
+
+      _replaceTempWithServer(msg);
+
+      // Auto mark as read if message from peer
+      if (msg.senderId.toString() == receiverId) {
+        _socket.emit("mark_as_read", {
+          "listingId": listingId,
+          "otherUserId": receiverId,
+        });
+      }
+    } catch (e) {
+      AppLogger.info("receive_private_message error: $e");
+    }
+  }
+
+  // ================= MARK AS READ =================
+
+  void markAsRead() {
+    _socket.emit("mark_as_read", {
+      "listingId": listingId,
+      "otherUserId": receiverId,
+    });
+  }
+
+  // ================= CHAT OPEN / CLOSE =================
+
+  void chatOpened() {
+    _socket.emit("chat_opened", {
+      "listingId": listingId,
+    });
+  }
+
+  void chatClosed() {
+    _socket.emit("chat_closed", {
+      "listingId": listingId,
+    });
+  }
+
+  // ================= TYPING =================
 
   void startTyping() {
-    // throttle to avoid spamming the server
     if (_myTypingThrottle?.isActive == true) return;
-    _emitTyping(); // no payload boolean needed if server doesn't use it
-    _myTypingThrottle = Timer(
-      const Duration(seconds: 2),
-      () {},
-    ); // reopen window
+
+    _socket.emit("typing", {
+      "room": _room,
+      "senderId": currentUserId,
+      "receiverId": receiverId,
+    });
+
+    _myTypingThrottle =
+        Timer(const Duration(seconds: 2), () {});
   }
 
-  void stopTyping() {
-    // optional: emit one more 'typing' if your server treats it as a ping
-    // _emitTyping();
-    _myTypingThrottle?.cancel();
-    _myTypingThrottle = null;
+  void _onUserTyping(dynamic data) {
+    try {
+      final map = Map<String, dynamic>.from(data);
+
+      final senderId = map['senderId']?.toString();
+      final room = map['room']?.toString();
+
+      if (room != _room) return;
+      if (senderId == currentUserId) return;
+
+      emit(state.copyWith(isPeerTyping: true));
+
+      _peerTypingClearTimer?.cancel();
+      _peerTypingClearTimer =
+          Timer(const Duration(seconds: 3), () {
+            if (!isClosed) {
+              emit(state.copyWith(isPeerTyping: false));
+            }
+          });
+    } catch (_) {}
   }
 
-  void _emitTyping() {
-    final payload = {
-      'room': _room,
-      'senderId': currentUserId,
-      'receiverId': receiverId,
-    };
-    AppLogger.info('[socket] typing -> $payload');
-    _socket.emit('typing', payload);
+  // ================= HELPERS =================
+
+  String _getPrivateRoomName(String id1, String id2) {
+    final ids = [id1, id2]..sort();
+    return ids.join('_');
   }
+
+  int? _safeInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    return int.tryParse(v.toString());
+  }
+
+  void _replaceTempWithServer(Messages serverMsg) {
+    final idx = state.messages.indexWhere(
+          (m) => (m.id ?? 0) < 0 &&
+          m.message == serverMsg.message &&
+          m.senderId == serverMsg.senderId,
+    );
+
+    if (idx != -1) {
+      final updated = [...state.messages];
+      updated[idx] = serverMsg;
+      emit(state.copyWith(messages: updated));
+    } else {
+      emit(state.copyWith(
+          messages: [...state.messages, serverMsg]));
+    }
+  }
+
+  // ================= CLOSE =================
 
   @override
   Future<void> close() {
-    _typingDebounce?.cancel();
+    chatClosed(); // 🔥 important
+
     _socket.off('receive_private_message', _onReceiveMessage);
-    _socket.off('typing', _onPeerTyping);
-    _socket.off('user_typing', _onUserTyping); // Remove listener on close
-    _socket.off('connect');
+    _socket.off('user_typing', _onUserTyping);
+
     return super.close();
   }
 }
+

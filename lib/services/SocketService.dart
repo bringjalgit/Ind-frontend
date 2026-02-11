@@ -29,4 +29,17 @@ class SocketService {
     _socket?.disconnect();
     _socket = null;
   }
+
+  static void emit(String event, dynamic data) {
+    _socket?.emit(event, data);
+  }
+
+  static void on(String event, Function(dynamic) callback) {
+    _socket?.on(event, callback);
+  }
+
+  static void off(String event) {
+    _socket?.off(event);
+  }
+
 }

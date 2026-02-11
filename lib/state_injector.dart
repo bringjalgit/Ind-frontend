@@ -423,7 +423,7 @@ class StateInjector {
       create: (context) => PaymentCubit(context.read<PaymentRepository>()),
     ),
     BlocProvider<ChatUsersCubit>(
-      create: (context) => ChatUsersCubit(context.read<ChatUsersRepo>()),
+      create: (context) => ChatUsersCubit(),
     ),
 
     BlocProvider<ChatMessagesCubit>(

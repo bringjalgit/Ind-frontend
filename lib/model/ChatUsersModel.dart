@@ -1,108 +1,73 @@
 class ChatUsersModel {
   bool? success;
   List<Data>? data;
-  Settings? settings;
 
-  ChatUsersModel({this.success, this.data, this.settings});
+  ChatUsersModel({this.success, this.data});
 
   ChatUsersModel.fromJson(Map<String, dynamic> json) {
     success = json['success'];
     if (json['data'] != null) {
       data = <Data>[];
       json['data'].forEach((v) {
-        data!.add(new Data.fromJson(v));
+        data!.add(Data.fromJson(v));
       });
     }
-    settings = json['settings'] != null
-        ? new Settings.fromJson(json['settings'])
-        : null;
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['success'] = this.success;
-    if (this.data != null) {
-      data['data'] = this.data!.map((v) => v.toJson()).toList();
-    }
-    if (this.settings != null) {
-      data['settings'] = this.settings!.toJson();
-    }
-    return data;
+    return {
+      'success': success,
+      'data': data?.map((v) => v.toJson()).toList(),
+    };
   }
 }
 
 class Data {
+  int? listingId;
+  String? listingTitle;
+
   int? userId;
   String? name;
-  String? email;
   String? profileImage;
-  bool? pinned;
+
   String? lastMessageTime;
+  int? unreadCount;
+  bool? pinned;
 
   Data({
+    this.listingId,
+    this.listingTitle,
     this.userId,
     this.name,
-    this.email,
     this.profileImage,
-    this.pinned,
     this.lastMessageTime,
+    this.unreadCount,
+    this.pinned,
   });
 
   Data.fromJson(Map<String, dynamic> json) {
+    listingId = json['listing_id'];
+    listingTitle = json['listing_title'];
+
     userId = json['user_id'];
     name = json['name'];
-    email = json['email'];
     profileImage = json['profile_image'];
-    pinned = json['pinned'];
+
     lastMessageTime = json['last_message_time'];
+    unreadCount = json['unread_count'];
+    pinned = json['pinned'];
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['user_id'] = this.userId;
-    data['name'] = this.name;
-    data['email'] = this.email;
-    data['profile_image'] = this.profileImage;
-    data['pinned'] = this.pinned;
-    data['last_message_time'] = this.lastMessageTime;
-    return data;
-  }
-}
-
-class Settings {
-  int? count;
-  int? page;
-  int? rowsPerPage;
-  int? totalPages;
-  bool? nextPage;
-  bool? prevPage;
-
-  Settings({
-    this.count,
-    this.page,
-    this.rowsPerPage,
-    this.totalPages,
-    this.nextPage,
-    this.prevPage,
-  });
-
-  Settings.fromJson(Map<String, dynamic> json) {
-    count = json['count'];
-    page = json['page'];
-    rowsPerPage = json['rows_per_page'];
-    totalPages = json['total_pages'];
-    nextPage = json['next_page'];
-    prevPage = json['prev_page'];
-  }
-
-  Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['count'] = this.count;
-    data['page'] = this.page;
-    data['rows_per_page'] = this.rowsPerPage;
-    data['total_pages'] = this.totalPages;
-    data['next_page'] = this.nextPage;
-    data['prev_page'] = this.prevPage;
-    return data;
+    return {
+      'listing_id': listingId,
+      'listing_title': listingTitle,
+      'user_id': userId,
+      'name': name,
+      'profile_image': profileImage,
+      'last_message_time': lastMessageTime,
+      'unread_count': unreadCount,
+      'pinned': pinned,
+    };
   }
 }
