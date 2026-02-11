@@ -16,12 +16,13 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
   bool _isLoadingMore = false;
 
   // Fetch initial chat messages (make newest-first for reverse:true lists)
-  Future<void> fetchMessages(String userId) async {
+  Future<void> fetchMessages(String userId, String listingId) async {
     emit(ChatMessagesLoading());
     _currentPage = 1;
     try {
       final res = await chatMessagesRepository.getChatMessages(
         userId,
+        listingId,
         _currentPage,
       );
       if (res != null && res.success == true) {
@@ -50,7 +51,7 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
   }
 
   // Load older messages: APPEND (at end) because list is newest-first
-  Future<void> getMoreMessages(String userId) async {
+  Future<void> getMoreMessages(String userId, String listingId) async {
     if (_isLoadingMore || !_hasNextPage) return;
 
     _isLoadingMore = true;
@@ -60,6 +61,7 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
     try {
       final newData = await chatMessagesRepository.getChatMessages(
         userId,
+        listingId,
         _currentPage,
       );
       final pageAsc = newData?.data?.messages ?? const <Messages>[];

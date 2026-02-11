@@ -70,7 +70,7 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
     Map<String, dynamic> data = {
       "name": _nameCtrl.text.trim(),
       "email": _emailCtrl.text.trim(),
-      "state_id": selectedStateId, // 👈 IMPORTANT
+      "state_id": selectedStateId,
     };
 
     context.read<RegisterCubit>().register(data);

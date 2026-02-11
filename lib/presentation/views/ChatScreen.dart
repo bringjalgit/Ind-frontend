@@ -110,7 +110,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      context.read<ChatMessagesCubit>().fetchMessages(widget.receiverId);
+      context.read<ChatMessagesCubit>().fetchMessages(widget.receiverId,widget.listingId);
     } catch (_) {}
 
     _positionsListener.itemPositions.addListener(() {
@@ -159,7 +159,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final nearTop = positions.any((p) => p.index >= _lastItems.length - 3);
       if (nearTop && !_isLoadingMore && _hasMoreMessages) {
         setState(() => _isLoadingMore = true);
-        context.read<ChatMessagesCubit>().getMoreMessages(widget.receiverId);
+        context.read<ChatMessagesCubit>().getMoreMessages(widget.receiverId,widget.listingId);
       }
 
       // Important: do NOT call _onScrollActivity() here,
@@ -323,17 +323,28 @@ class _ChatScreenState extends State<ChatScreen> {
                               _initials1(capitalize(receiverName.value ?? "")),
                             ),
                     ),
-
-                    const SizedBox(width: 10),
-
+                    SizedBox(width: 10,),
                     Expanded(
-                      child: Text(
-                        capitalize(receiverName.value ?? ""),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.titleLarge(
-                          textColor,
-                        ).copyWith(fontWeight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            capitalize(receiverName.value ?? ""),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.titleLarge(
+                              textColor,
+                            ).copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            capitalize(widget.listingTitle ?? ""),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.titleSmall(
+                              textColor,
+                            ).copyWith(fontWeight: FontWeight.w400),
+                          ),
+                        ],
                       ),
                     ),
                   ],

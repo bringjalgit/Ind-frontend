@@ -521,7 +521,8 @@ class _AstrologyAdState extends State<AstrologyAd> {
                                     appendToExisting: false,
                                     components: 'country:in',
                                     language: 'en',
-                                    stateName: stateController.text, // Pass the state name
+                                    stateName: stateController
+                                        .text, // Pass the state name
                                     initialQuery:
                                         stateController.text.isNotEmpty
                                         ? "${locationController.text}, ${stateController.text}"

@@ -67,6 +67,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Set<Marker> _markers = {};
   bool _isResolvingLocation = false;
 
+  String? receiverId;
+  String? receiverName;
+  String? receiverImage;
+  int? listingId;
+  String? listingTitle;
+
   @override
   void initState() {
     super.initState();
@@ -80,11 +86,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     if (raw == null) return null;
     final s = raw.trim();
 
-    // Common shapes handled:
-    // "17.3850,78.4867"
-    // "lat=17.3850,lng=78.4867"
-    // "lat: 17.3850, lon: 78.4867"
-    // "17.3850 , 78.4867"
     final re = RegExp(r'(-?\d+(?:\.\d+)?)\D+(-?\d+(?:\.\d+)?)');
     final m = re.firstMatch(s);
     if (m != null && m.groupCount >= 2) {
@@ -186,10 +187,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return 'https://indclassifieds.in/category/$slugTitle-$subCategoryId?detailId=$detailId';
   }
 
-  String? receiverId;
-  String? receiverName;
-  String? receiverImage;
-
   @override
   void dispose() {
     _pgCtrl.dispose();
@@ -265,7 +262,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     context.push("/login");
                   }
                 : () {
-                    context.push('/chat?receiverId=$receiverId');
+                    context.push(
+                      '/chat'
+                      '?receiverId=$receiverId'
+                      '&listingId=$listingId'
+                      '&listingTitle=${Uri.encodeComponent(listingTitle ?? "")}',
+                    );
                   },
           );
         },
@@ -281,6 +283,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             _didInitFromBloc = true;
 
             receiverId = data.postedBy?.id.toString() ?? "";
+            listingId = data.listing?.id;
+            listingTitle = data.listing?.title ?? "";
             receiverName = data.postedBy?.name ?? "";
             receiverImage = data.postedBy?.image ?? "";
             mobile_number = listing.mobileNumber ?? "";

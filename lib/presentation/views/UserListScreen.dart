@@ -56,11 +56,7 @@ class _UserListScreenState extends State<UserListScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  Timer? _searchDebounce;
-  static const _searchDelay = Duration(milliseconds: 350);
-
   String _query = '';
-  String _lastFiredQuery = '';
   bool? _isGuestUser;
 
   @override
@@ -97,7 +93,6 @@ class _UserListScreenState extends State<UserListScreen>
   @override
   void dispose() {
     _search.dispose();
-    _searchDebounce?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -105,28 +100,19 @@ class _UserListScreenState extends State<UserListScreen>
   void _onSearchChanged(String value) {
     if (_isGuestUser ?? true) return;
 
-    setState(() => _query = value);
-
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(_searchDelay, () {
-      final q = _query.trim();
-      if (q == _lastFiredQuery) return;
-      _lastFiredQuery = q;
-
-      // context.read<ChatUsersCubit>().fetchChatUsers(q);
+    setState(() {
+      _query = value;
     });
   }
 
   void _clearSearch() {
     if (_isGuestUser ?? true) return;
 
-    _searchDebounce?.cancel();
     _search.clear();
 
-    setState(() => _query = '');
-    _lastFiredQuery = '';
-
-    // context.read<ChatUsersCubit>().fetchChatUsers('');
+    setState(() {
+      _query = '';
+    });
   }
 
   @override
@@ -171,8 +157,14 @@ class _UserListScreenState extends State<UserListScreen>
 
                       if (state is ChatUsersLoaded) {
                         final users = state.chatUsersModel.data ?? [];
+                        final filteredUsers = _query.trim().isEmpty
+                            ? users
+                            : users.where((user) {
+                                final name = (user.name ?? '').toLowerCase();
+                                return name.contains(_query.toLowerCase());
+                              }).toList();
 
-                        if (users.isEmpty) {
+                        if (filteredUsers.isEmpty) {
                           return _buildEmpty(textColor);
                         }
 
@@ -186,11 +178,11 @@ class _UserListScreenState extends State<UserListScreen>
                           },
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                            itemCount: users.length,
+                            itemCount: filteredUsers.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 8),
                             itemBuilder: (context, index) {
-                              final user = users[index];
+                              final user = filteredUsers[index];
                               final id = user.userId ?? 0;
                               final isPinned = user.pinned == true;
 
@@ -222,6 +214,7 @@ class _UserListScreenState extends State<UserListScreen>
                                               .read<ChatUserPinCubit>()
                                               .chatUserPin({
                                                 "pinned_user_id": id,
+                                                "listing_id": user.listingId,
                                               });
                                         },
                                         backgroundColor: isPinned
@@ -287,6 +280,7 @@ class _UserListScreenState extends State<UserListScreen>
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: TextField(
         controller: _search,
+        style: AppTextStyles.bodyMedium(textColor),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: "Search by name...",
@@ -457,6 +451,14 @@ class _ChatCard extends StatelessWidget {
                           const SizedBox(width: 8),
                           if (pinned) Icon(Icons.push_pin, color: textColor),
                         ],
+                      ),
+                      Text(
+                        listingTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.titleSmall(
+                          textColor,
+                        ).copyWith(fontWeight: FontWeight.w400),
                       ),
                       const SizedBox(height: 4),
                       // You can add last message preview/time here later
