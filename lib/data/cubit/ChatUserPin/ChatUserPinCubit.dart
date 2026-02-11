@@ -16,7 +16,6 @@ class ChatUserPinCubit extends Cubit<ChatUserPinStates> {
         emit(ChatUserPinFailure(response?.message ?? ""));
       }
     } catch (e) {
-      // print("Exception: ${e}");
       emit(ChatUserPinFailure(e.toString()));
     }
   }

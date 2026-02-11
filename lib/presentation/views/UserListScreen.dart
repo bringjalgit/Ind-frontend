@@ -21,6 +21,26 @@ import 'ChatScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shimmer/shimmer.dart';
+
+import '../../Components/CustomSnackBar.dart';
+import '../../services/AuthService.dart';
+import '../../services/SocketService.dart';
+
+import '../../data/cubit/ChatUsers/ChatUsersCubit.dart';
+import '../../data/cubit/ChatUsers/ChatUsersStates.dart';
+import '../../data/cubit/ChatUserPin/ChatUserPinCubit.dart';
+import '../../data/cubit/ChatUserPin/ChatUserPinStates.dart';
+
+import '../../theme/AppTextStyles.dart';
+import '../../theme/ThemeHelper.dart';
+import '../../widgets/CommonLoader.dart';
+
 class UserListScreen extends StatefulWidget {
   const UserListScreen({super.key});
 
@@ -36,7 +56,11 @@ class _UserListScreenState extends State<UserListScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
+  Timer? _searchDebounce;
+  static const _searchDelay = Duration(milliseconds: 350);
+
   String _query = '';
+  String _lastFiredQuery = '';
   bool? _isGuestUser;
 
   @override
@@ -65,7 +89,7 @@ class _UserListScreenState extends State<UserListScreen>
     userId = id;
 
     if (!isGuest && id != null) {
-      // ✅ Initialize socket-based cubit
+      SocketService.connect(id);
       context.read<ChatUsersCubit>().initSocket(id);
     }
   }
@@ -73,19 +97,36 @@ class _UserListScreenState extends State<UserListScreen>
   @override
   void dispose() {
     _search.dispose();
+    _searchDebounce?.cancel();
     _animationController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged(String v) {
-    setState(() => _query = v);
+  void _onSearchChanged(String value) {
+    if (_isGuestUser ?? true) return;
+
+    setState(() => _query = value);
+
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDelay, () {
+      final q = _query.trim();
+      if (q == _lastFiredQuery) return;
+      _lastFiredQuery = q;
+
+      // context.read<ChatUsersCubit>().fetchChatUsers(q);
+    });
   }
 
   void _clearSearch() {
-    setState(() {
-      _query = '';
-      _search.clear();
-    });
+    if (_isGuestUser ?? true) return;
+
+    _searchDebounce?.cancel();
+    _search.clear();
+
+    setState(() => _query = '');
+    _lastFiredQuery = '';
+
+    // context.read<ChatUsersCubit>().fetchChatUsers('');
   }
 
   @override
@@ -97,19 +138,18 @@ class _UserListScreenState extends State<UserListScreen>
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        elevation: 0,
-        automaticallyImplyLeading: false,
         backgroundColor: bg,
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         title: Text(
-          'Messages',
+          "Messages",
           style: AppTextStyles.headlineMedium(
             textColor,
           ).copyWith(fontWeight: FontWeight.bold),
         ),
       ),
       body: (_isGuestUser == null)
-          ? Center(child: DottedProgressWithLogo())
+          ? const Center(child: DottedProgressWithLogo())
           : (_isGuestUser == true)
           ? _buildGuestUI(textColor)
           : Column(
@@ -122,39 +162,23 @@ class _UserListScreenState extends State<UserListScreen>
                   child: BlocBuilder<ChatUsersCubit, ChatUsersStates>(
                     builder: (context, state) {
                       if (state is ChatUsersLoading) {
-                        return _buildShimmerList(card);
+                        return _buildShimmer(card);
                       }
 
                       if (state is ChatUsersFailure) {
-                        return _buildErrorState(
-                          context,
-                          state.error,
-                          textColor,
-                        );
+                        return _buildError(state.error, textColor);
                       }
 
                       if (state is ChatUsersLoaded) {
                         final users = state.chatUsersModel.data ?? [];
 
-                        // ✅ Local filtering only
-                        final filtered = _query.trim().isEmpty
-                            ? users
-                            : users
-                                  .where(
-                                    (u) => (u.name ?? '')
-                                        .toLowerCase()
-                                        .contains(_query.toLowerCase()),
-                                  )
-                                  .toList();
-
-                        if (filtered.isEmpty) {
-                          return _buildEmptyState(textColor);
+                        if (users.isEmpty) {
+                          return _buildEmpty(textColor);
                         }
 
                         return RefreshIndicator(
                           onRefresh: () async {
                             if (userId != null) {
-                              // ✅ Re-request via socket
                               SocketService.emit("get_chat_list", {
                                 "userId": userId,
                               });
@@ -162,33 +186,78 @@ class _UserListScreenState extends State<UserListScreen>
                           },
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                            itemCount: filtered.length,
+                            itemCount: users.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 8),
-                            itemBuilder: (context, i) {
-                              final user = filtered[i];
+                            itemBuilder: (context, index) {
+                              final user = users[index];
                               final id = user.userId ?? 0;
+                              final isPinned = user.pinned == true;
 
-                              return _ChatCard(
-                                id: id,
-                                listingId: user.listingId ?? 0,
-                                listingTitle: user.listingTitle ?? "",
-                                name: user.name ?? '',
-                                imageUrl: user.profileImage ?? '',
-                                onTap: () {
-                                  context.push(
-                                    '/chat'
-                                    '?receiverId=$id'
-                                    '&listingId=${user.listingId ?? 0}'
-                                    '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}',
-                                  );
+                              return BlocListener<
+                                ChatUserPinCubit,
+                                ChatUserPinStates
+                              >(
+                                listener: (context, pinState) {
+                                  if (pinState is ChatUserPinLoaded) {
+                                    SocketService.emit("get_chat_list", {
+                                      "userId": userId,
+                                    });
+                                  } else if (pinState is ChatUserPinFailure) {
+                                    CustomSnackBar1.show(
+                                      context,
+                                      pinState.error,
+                                    );
+                                  }
                                 },
-                                card: user.pinned == true
-                                    ? Colors.teal.withOpacity(0.1)
-                                    : card,
-                                textColor: textColor,
-                                animationDelay: i * 100,
-                                pinned: user.pinned ?? false,
+                                child: Slidable(
+                                  key: ValueKey(id),
+                                  endActionPane: ActionPane(
+                                    motion: const DrawerMotion(),
+                                    extentRatio: 0.30,
+                                    children: [
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          context
+                                              .read<ChatUserPinCubit>()
+                                              .chatUserPin({
+                                                "pinned_user_id": id,
+                                              });
+                                        },
+                                        backgroundColor: isPinned
+                                            ? Colors.orangeAccent
+                                            : Colors.teal,
+                                        foregroundColor: Colors.white,
+                                        icon: isPinned
+                                            ? Icons.push_pin_outlined
+                                            : Icons.push_pin,
+                                        label: isPinned ? "Unpin" : "Pin",
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ],
+                                  ),
+                                  child: _ChatCard(
+                                    id: id,
+                                    listingId: user.listingId ?? 0,
+                                    listingTitle: user.listingTitle ?? "",
+                                    name: user.name ?? "",
+                                    imageUrl: user.profileImage ?? "",
+                                    pinned: isPinned,
+                                    card: isPinned
+                                        ? Colors.teal.withOpacity(0.1)
+                                        : card,
+                                    textColor: textColor,
+                                    animationDelay: index * 100,
+                                    onTap: () {
+                                      context.push(
+                                        '/chat'
+                                        '?receiverId=$id'
+                                        '&listingId=${user.listingId ?? 0}'
+                                        '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}',
+                                      );
+                                    },
+                                  ),
+                                ),
                               );
                             },
                           ),
@@ -204,23 +273,11 @@ class _UserListScreenState extends State<UserListScreen>
     );
   }
 
-  // ------------------ Widgets ------------------
-
   Widget _buildGuestUI(Color textColor) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(
-            'assets/nodata/no_data.png',
-            width: MediaQuery.of(context).size.width * 0.4,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Login to view your messages',
-            style: AppTextStyles.headlineSmall(textColor),
-          ),
-        ],
+      child: Text(
+        "Login to view your messages",
+        style: AppTextStyles.headlineSmall(textColor),
       ),
     );
   }
@@ -228,68 +285,51 @@ class _UserListScreenState extends State<UserListScreen>
   Widget _buildSearchBar(Color textColor) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: TextField(
-          controller: _search,
-          onChanged: _onSearchChanged,
-          style: AppTextStyles.bodyMedium(textColor),
-          decoration: InputDecoration(
-            hintText: 'Search by name…',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: _query.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: _clearSearch,
-                  )
-                : null,
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 14,
-              horizontal: 16,
-            ),
-          ),
+      child: TextField(
+        controller: _search,
+        onChanged: _onSearchChanged,
+        decoration: InputDecoration(
+          hintText: "Search by name...",
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _query.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: _clearSearch,
+                )
+              : null,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(Color textColor) {
+  Widget _buildEmpty(Color textColor) {
     return Center(
-      child: Text(
-        'No Users Found!',
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 16,
-          color: textColor,
-        ),
-      ),
+      child: Text("No Users Found!", style: AppTextStyles.bodyLarge(textColor)),
     );
   }
 
-  Widget _buildShimmerList(Color card) {
+  Widget _buildError(String error, Color textColor) {
+    return Center(
+      child: Text(error, style: AppTextStyles.bodyLarge(textColor)),
+    );
+  }
+
+  Widget _buildShimmer(Color card) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       itemCount: 6,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, __) => Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: card.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(16),
+      itemBuilder: (_, __) => Shimmer.fromColors(
+        baseColor: card.withOpacity(0.5),
+        highlightColor: card.withOpacity(0.8),
+        child: Container(
+          height: 72,
+          decoration: BoxDecoration(
+            color: card,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState(BuildContext context, String error, Color textColor) {
-    return Center(
-      child: Text(
-        error,
-        style: AppTextStyles.bodyLarge(textColor.withOpacity(0.7)),
       ),
     );
   }
@@ -398,8 +438,6 @@ class _ChatCard extends StatelessWidget {
               children: [
                 _avatar(size: 48), // ← image or initials
                 const SizedBox(width: 12),
-
-                // Name (and future: last message/time/unread)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
