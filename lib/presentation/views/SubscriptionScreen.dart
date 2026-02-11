@@ -68,11 +68,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               itemCount: state.products.length,
               itemBuilder: (context, index) {
                 final product = state.products[index];
-                final bool purchased = state.purchases.any((p) => p.productID == product.id);
+                final bool purchased = state.purchases.any(
+                  (p) => p.productID == product.id,
+                );
 
                 return Card(
                   elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   margin: const EdgeInsets.symmetric(vertical: 10),
                   color: ThemeHelper.cardColor(context),
                   child: Padding(
@@ -83,10 +87,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         // Title
                         Text(
                           product.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: ThemeHelper.textColor(context),
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: ThemeHelper.textColor(context),
+                              ),
                         ),
 
                         const SizedBox(height: 8),
@@ -94,20 +99,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         // Description
                         Text(
                           product.description,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: ThemeHelper.textColor(context).withOpacity(0.7),
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: ThemeHelper.textColor(
+                                  context,
+                                ).withOpacity(0.7),
+                              ),
                         ),
-
                         const SizedBox(height: 16),
-
                         // Price and Action Row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             // Price tag
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: ThemeHelper.isDarkMode(context)
                                     ? Colors.blueGrey.shade800
@@ -116,53 +125,60 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               ),
                               child: Text(
                                 product.price,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: ThemeHelper.isDarkMode(context)
-                                      ? Colors.white
-                                      : Colors.blueAccent,
-                                ),
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: ThemeHelper.isDarkMode(context)
+                                          ? Colors.white
+                                          : Colors.blueAccent,
+                                    ),
                               ),
                             ),
 
                             // Buy or Purchased button
                             purchased
                                 ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                "Purchased",
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            )
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      "Purchased",
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
                                 : ElevatedButton(
-                              onPressed: () {
-                                final plan = state.plans.firstWhere(
-                                      (p) => p.productId == product.id,
-                                );
-                                cubit.buyPlan(plan);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blueAccent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                              ),
-                              child: const Text(
-                                "Buy Now",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+                                    onPressed: () {
+                                      final plan = state.plans.firstWhere(
+                                        (p) => p.productId == product.id,
+                                      );
+                                      cubit.buyPlan(plan);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      "Buy Now",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
                           ],
                         ),
                       ],
@@ -175,9 +191,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             return Center(
               child: Text(
                 state.message,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.red.shade400,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.red.shade400),
               ),
             );
           }
@@ -187,9 +203,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 }
-
-
-
 
 // class _SubscriptionScreenState extends State<SubscriptionScreen> {
 //   final InAppPurchase _iap = InAppPurchase.instance;
