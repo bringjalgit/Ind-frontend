@@ -18,6 +18,7 @@ import 'package:classifieds/theme/AppTheme.dart';
 import 'package:classifieds/utils/DeepLinkMapper.dart';
 import 'package:classifieds/utils/NotificationIntent.dart';
 import 'package:classifieds/utils/constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app_routes/router.dart';
 import 'data/cubit/theme_cubit.dart';
 import 'firebase_options.dart';
@@ -30,14 +31,13 @@ Future<void> main() async {
 
   ApiClient.setupInterceptors();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-
+  await SecureStorageService.instance.checkFirstLaunch();
   final storage = SecureStorageService.instance;
   final themeCubit = ThemeCubit(storage);
   await themeCubit.hydrate();
 
   await MetaEventTracker.initialize();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await NotificationService.instance.initialize();

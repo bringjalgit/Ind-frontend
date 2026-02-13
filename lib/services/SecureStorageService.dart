@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SecureStorageService {
   // Private constructor
@@ -12,7 +13,26 @@ class SecureStorageService {
   static SecureStorageService get instance => _instance;
 
   // SecureStorage instance
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
+
+  Future<void> checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    const currentVersion = "1.0.5"; // Your new version
+    final savedVersion = prefs.getString('app_version');
+
+    if (savedVersion == null) {
+      // Fresh install only
+      await _storage.deleteAll();
+    }
+
+    await prefs.setString('app_version', currentVersion);
+  }
 
   // ----------- Set Methods -----------
 
