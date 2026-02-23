@@ -41,7 +41,6 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final ScrollController _scrollController = ScrollController();
   final searchController = TextEditingController();
   Timer? _debounce;
 
@@ -69,6 +68,8 @@ class _SearchScreenState extends State<SearchScreen> {
   double? _selectedLat;
   double? _selectedLng;
 
+  final ValueNotifier<String> _locationText = ValueNotifier("");
+
   final List<String> _tabs = ["Category", "Price", "Sort By", "States", "City"];
 
   late stt.SpeechToText _speech;
@@ -77,6 +78,8 @@ class _SearchScreenState extends State<SearchScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _showBottomSheet = false;
   StateSetter? _bottomSheetSetState;
+
+  late bool isGuest;
 
   @override
   void initState() {
@@ -87,18 +90,17 @@ class _SearchScreenState extends State<SearchScreen> {
 
     context.read<ProductsCubit2>().getProducts(search: widget.search_text);
     searchController.text = widget.search_text;
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 200) {
-        context.read<ProductsCubit2>().getMoreProducts();
-      }
-    });
-
     searchController.addListener(() {
       _onSearchChanged(searchController.text);
     });
     _speech = stt.SpeechToText();
     _loadSound();
+    _initGuest();
+  }
+
+  Future<void> _initGuest() async {
+    isGuest = await AuthService.isGuest;
+    setState(() {});
   }
 
   Future<void> _loadSound() async {
@@ -187,7 +189,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
     searchController.dispose();
     _debounce?.cancel();
 
@@ -217,217 +218,212 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final textColor = ThemeHelper.textColor(context);
     final bgColor = ThemeHelper.backgroundColor(context);
-    return FutureBuilder(
-      future: AuthService.isGuest,
-      builder: (context, asyncSnapshot) {
-        final isGuest = asyncSnapshot.data ?? false;
-        return Scaffold(
-          backgroundColor: bgColor,
-          appBar: AppBar(
-            backgroundColor: bgColor,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back, color: textColor),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              "Listings",
-              style: AppTextStyles.headlineSmall(textColor),
-            ),
-            actions: [
-              GestureDetector(
-                onTap:
-                    _openFiltersSheet, // ⬅️ open bottom sheet instead of push
-                child: Icon(Icons.tune, color: textColor),
-              ),
-              const SizedBox(width: 16),
-            ],
+    return Scaffold(
+      backgroundColor: bgColor,
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(
+        backgroundColor: bgColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: textColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text("Listings", style: AppTextStyles.headlineSmall(textColor)),
+        actions: [
+          GestureDetector(
+            onTap: _openFiltersSheet, // ⬅️ open bottom sheet instead of push
+            child: Icon(Icons.tune, color: textColor),
           ),
-          body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
-            listener: (context, state) {
-              if (state is AddToWishlistLoaded) {
-                // fix: update ProductsCubit2
-                context.read<ProductsCubit2>().updateWishlistStatus(
-                  state.product_id,
-                  state.addToWishlistModel.liked ?? false,
-                );
-              } else if (state is AddToWishlistFailure) {
-                CustomSnackBar1.show(context, state.error);
-              }
-            },
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: searchController,
-                          style: AppTextStyles.bodyLarge(textColor),
-                          decoration: InputDecoration(
-                            hintText: "Search for products...",
-                            hintStyle: AppTextStyles.bodyLarge(textColor),
-                            prefixIcon: const Icon(Icons.search),
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
+        listener: (context, state) {
+          if (state is AddToWishlistLoaded) {
+            // fix: update ProductsCubit2
+            context.read<ProductsCubit2>().updateWishlistStatus(
+              state.product_id,
+              state.addToWishlistModel.liked ?? false,
+            );
+          } else if (state is AddToWishlistFailure) {
+            CustomSnackBar1.show(context, state.error);
+          }
+        },
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: searchController,
+                      style: AppTextStyles.bodyLarge(textColor),
+                      decoration: InputDecoration(
+                        hintText: "Search for products...",
+                        hintStyle: AppTextStyles.bodyLarge(textColor),
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
                       ),
-                      IconButton.outlined(
-                        style: IconButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadiusGeometry.circular(10),
-                          ),
-                        ),
-                        onPressed: _isListening
-                            ? _stopListening
-                            : _startListening,
-                        icon: Icon(Icons.mic),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextFormField(
-                    controller: locationController,
-                    readOnly: true,
-                    style: AppTextStyles.bodyLarge(textColor),
-                    decoration: InputDecoration(
-                      hintText: "Select location...",
-                      hintStyle: AppTextStyles.bodyLarge(textColor),
-                      prefixIcon: const Icon(Icons.location_on_outlined),
-                      suffixIcon: locationController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                setState(() {
-                                  locationController.clear();
-                                  _selectedPlace = null;
-                                  _selectedLat = null;
-                                  _selectedLng = null;
-                                });
-                                _applyFiltersAndFetch();
-                              },
-                            )
-                          : null,
-                      border: const OutlineInputBorder(),
                     ),
-                    onTap: () async {
-                      final picked = await openPlacePickerBottomSheet(
-                        context: context,
-                        googleApiKey: google_map_key,
-                        controller: locationController,
-                        language: "en",
-                        components: "country:in",
-                      );
-
-                      if (picked != null) {
-                        setState(() {
-                          _selectedPlace = picked;
-                          _selectedLat = picked.lat;
-                          _selectedLng = picked.lng;
-                        });
-
-                        _applyFiltersAndFetch();
-                      }
-                    },
                   ),
+                  IconButton.outlined(
+                    style: IconButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadiusGeometry.circular(10),
+                      ),
+                    ),
+                    onPressed: _isListening ? _stopListening : _startListening,
+                    icon: Icon(Icons.mic),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextFormField(
+                controller: locationController,
+                readOnly: true,
+                style: AppTextStyles.bodyLarge(textColor),
+                decoration: InputDecoration(
+                  hintText: "Select location...",
+                  hintStyle: AppTextStyles.bodyLarge(textColor),
+                  prefixIcon: const Icon(Icons.location_on_outlined),
+                  suffixIcon: locationController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              locationController.clear();
+                              _selectedPlace = null;
+                              _selectedLat = null;
+                              _selectedLng = null;
+                            });
+                            _applyFiltersAndFetch();
+                          },
+                        )
+                      : null,
+                  border: const OutlineInputBorder(),
                 ),
-                Expanded(
-                  child: BlocBuilder<ProductsCubit2, ProductsStates2>(
-                    builder: (context, state) {
-                      if (state is Products2Loading) {
-                        return const Center(child: DottedProgressWithLogo());
-                      } else if (state is Products2Failure) {
-                        return Center(child: Text(state.error));
-                      } else if (state is Products2Loaded ||
-                          state is Products2LoadingMore) {
-                        final productsModel = (state as dynamic).productsModel;
-                        final products = productsModel.products ?? [];
-                        final hasNextPage = (state as dynamic).hasNextPage;
+                onTap: () async {
+                  final picked = await openPlacePickerBottomSheet(
+                    context: context,
+                    googleApiKey: google_map_key,
+                    controller: locationController,
+                    language: "en",
+                    components: "country:in",
+                  );
 
-                        if (products.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/nodata/no_data.png',
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.4,
-                                  height:
-                                      MediaQuery.of(context).size.height * 0.15,
-                                ),
-                                Text(
-                                  'No Products Found!',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: ThemeHelper.textColor(context),
-                                  ),
-                                ),
-                              ],
+                  if (picked != null) {
+                    setState(() {
+                      _selectedPlace = picked;
+                      _selectedLat = picked.lat;
+                      _selectedLng = picked.lng;
+                    });
+
+                    _applyFiltersAndFetch();
+                  }
+                },
+              ),
+            ),
+            Expanded(
+              child: BlocBuilder<ProductsCubit2, ProductsStates2>(
+                builder: (context, state) {
+                  if (state is Products2Loading) {
+                    return const Center(child: DottedProgressWithLogo());
+                  } else if (state is Products2Failure) {
+                    return Center(child: Text(state.error));
+                  } else if (state is Products2Loaded ||
+                      state is Products2LoadingMore) {
+                    final productsModel = (state as dynamic).productsModel;
+                    final products = productsModel.products ?? [];
+                    final hasNextPage = (state as dynamic).hasNextPage;
+
+                    if (products.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/nodata/no_data.png',
+                              width: MediaQuery.of(context).size.width * 0.4,
+                              height: MediaQuery.of(context).size.height * 0.15,
                             ),
-                          );
-                        }
-
-                        return CustomScrollView(
-                          controller: _scrollController,
-                          slivers: [
-                            SliverPadding(
-                              padding: const EdgeInsets.all(16),
-                              sliver: SliverList(
-                                delegate: SliverChildBuilderDelegate((
-                                  context,
-                                  index,
-                                ) {
-                                  if (index == products.length) {
-                                    return hasNextPage
-                                        ? const Padding(
-                                            padding: EdgeInsets.all(16.0),
-                                            child: Center(
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 1,
-                                              ),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink();
-                                  }
-                                  final product = products[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: ProductCard(
-                                      products: product,
-                                      onWishlistToggle: isGuest
-                                          ? () => context.push("/login")
-                                          : () {
-                                              if (product.id != null) {
-                                                context
-                                                    .read<AddToWishlistCubit>()
-                                                    .addToWishlist(product.id!);
-                                              }
-                                            },
-                                    ),
-                                  );
-                                }, childCount: products.length + 1),
+                            Text(
+                              'No Products Found!',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                color: ThemeHelper.textColor(context),
                               ),
                             ),
                           ],
-                        );
-                      }
-                      return const SizedBox();
-                    },
-                  ),
-                ),
-              ],
+                        ),
+                      );
+                    }
+
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (scrollInfo) {
+                        if (scrollInfo.metrics.pixels >=
+                            scrollInfo.metrics.maxScrollExtent - 200) {
+                          context.read<ProductsCubit2>().getMoreProducts();
+                        }
+                        return false;
+                      },
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.all(16),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                if (index == products.length) {
+                                  return hasNextPage
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(16.0),
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 1,
+                                            ),
+                                          ),
+                                        )
+                                      : const SizedBox.shrink();
+                                }
+                                final product = products[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: ProductCard(
+                                    products: product,
+                                    onWishlistToggle: isGuest
+                                        ? () => context.push("/login")
+                                        : () {
+                                            if (product.id != null) {
+                                              context
+                                                  .read<AddToWishlistCubit>()
+                                                  .addToWishlist(product.id!);
+                                            }
+                                          },
+                                  ),
+                                );
+                              }, childCount: products.length + 1),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox();
+                },
+              ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 
