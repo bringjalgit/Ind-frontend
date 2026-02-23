@@ -6,6 +6,7 @@ import '../../../model/SubcategoryProductsModel.dart';
 
 class ProductsCubit extends Cubit<ProductsStates> {
   final ProductsRepo productsRepo;
+
   ProductsCubit(this.productsRepo) : super(ProductsInitially());
 
   SubcategoryProductsModel productsModel = SubcategoryProductsModel();
@@ -14,6 +15,20 @@ class ProductsCubit extends Cubit<ProductsStates> {
   bool _hasNextPage = true;
   bool _isLoadingMore = false;
 
+  // ✅ Store last used filters for pagination reuse
+  String? _lastCategoryId;
+  String? _lastSubCategoryId;
+  String? _lastSearch;
+  String? _lastStateId;
+  String? _lastCityId;
+  String? _lastSortBy;
+  String? _lastMinPrice;
+  String? _lastMaxPrice;
+  String? _lastLocationKey;
+
+  // ==========================================================
+  // 🔹 INITIAL LOAD / REFRESH
+  // ==========================================================
   Future<void> getProducts({
     String? categoryId,
     String? subCategoryId,
@@ -23,10 +38,26 @@ class ProductsCubit extends Cubit<ProductsStates> {
     String? sort_by,
     String? minPrice,
     String? maxPrice,
-
+    String? locationKey,
   }) async {
+    // ✅ Save filters for later pagination reuse
+    _lastCategoryId = categoryId;
+    _lastSubCategoryId = subCategoryId;
+    _lastSearch = search;
+    _lastStateId = state_id;
+    _lastCityId = city_id;
+    _lastSortBy = sort_by;
+    _lastMinPrice = minPrice;
+    _lastMaxPrice = maxPrice;
+    _lastLocationKey = locationKey;
+
     emit(ProductsLoading());
+
     _currentPage = 1;
+    _hasNextPage = true;
+    _isLoadingMore = false;
+    productsModel = SubcategoryProductsModel();
+
     try {
       final response = await productsRepo.getProducts(
         categoryId: categoryId,
@@ -38,6 +69,7 @@ class ProductsCubit extends Cubit<ProductsStates> {
         minPrice: minPrice,
         maxPrice: maxPrice,
         page: _currentPage,
+        locationKey: locationKey,
       );
 
       if (response != null && response.success == true) {
@@ -53,18 +85,10 @@ class ProductsCubit extends Cubit<ProductsStates> {
     }
   }
 
-
-  Future<void> getMoreProducts({
-    String? categoryId,
-    String? subCategoryId,
-    String? search,
-    String? state_id,
-    String? city_id,
-    String? sort_by,
-    String? minPrice,
-    String? maxPrice,
-
-  }) async {
+  // ==========================================================
+  // 🔹 PAGINATION
+  // ==========================================================
+  Future<void> getMoreProducts() async {
     if (_isLoadingMore || !_hasNextPage) return;
 
     _isLoadingMore = true;
@@ -74,15 +98,16 @@ class ProductsCubit extends Cubit<ProductsStates> {
 
     try {
       final newData = await productsRepo.getProducts(
-        categoryId: categoryId,
-        subCategoryId: subCategoryId,
-        search: search,
-        state_id: state_id,
-        city_id: city_id,
-        sort_by: sort_by,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
+        categoryId: _lastCategoryId,
+        subCategoryId: _lastSubCategoryId,
+        search: _lastSearch,
+        state_id: _lastStateId,
+        city_id: _lastCityId,
+        sort_by: _lastSortBy,
+        minPrice: _lastMinPrice,
+        maxPrice: _lastMaxPrice,
         page: _currentPage,
+        locationKey: _lastLocationKey,
       );
 
       if (newData != null && newData.products?.isNotEmpty == true) {
@@ -101,22 +126,42 @@ class ProductsCubit extends Cubit<ProductsStates> {
         emit(ProductsLoaded(productsModel, _hasNextPage));
       }
     } catch (e) {
-      print("Products pagination error: $e");
+      emit(ProductsFailure(e.toString()));
     } finally {
       _isLoadingMore = false;
     }
   }
 
-  void updateWishlistStatus(int productId, bool isLiked) {
+  // ==========================================================
+  // 🔹 LOCATION UPDATE (Optional Cleaner Method)
+  // ==========================================================
+  Future<void> updateLocation(String locationKey) async {
+    await getProducts(
+      categoryId: _lastCategoryId,
+      subCategoryId: _lastSubCategoryId,
+      search: _lastSearch,
+      state_id: _lastStateId,
+      city_id: _lastCityId,
+      sort_by: _lastSortBy,
+      minPrice: _lastMinPrice,
+      maxPrice: _lastMaxPrice,
+      locationKey: locationKey,
+    );
+  }
 
+  // ==========================================================
+  // 🔹 WISHLIST UPDATE
+  // ==========================================================
+  void updateWishlistStatus(int productId, bool isLiked) {
     final updatedProducts = productsModel.products?.map((p) {
       if (p.id == productId) {
         return p.copyWith(isFavorited: isLiked);
       }
       return p;
     }).toList();
+
     productsModel = productsModel.copyWith(products: updatedProducts);
+
     emit(ProductsLoaded(productsModel, _hasNextPage));
   }
 }
-

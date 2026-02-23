@@ -48,7 +48,7 @@ class _SimilarProductsSection1State extends State<SimilarProductsSection1> {
     _scrollCtrl.addListener(() {
       if (_scrollCtrl.position.pixels >=
           _scrollCtrl.position.maxScrollExtent - 200) {
-        _cubit.getMoreProducts(subCategoryId: widget.subCategoryId);
+        _cubit.getMoreProducts();
       }
     });
   }
