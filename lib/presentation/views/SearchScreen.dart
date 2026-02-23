@@ -25,6 +25,8 @@ import '../../data/cubit/States/states_cubit.dart';
 import '../../data/cubit/States/states_state.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
+import '../../utils/constants.dart';
+import '../../utils/place_picker_bottomsheet.dart';
 import '../../widgets/CommonLoader.dart';
 import '../../widgets/CommonTextField.dart';
 import '../../widgets/ProductCard.dart';
@@ -57,10 +59,15 @@ class _SearchScreenState extends State<SearchScreen> {
   final maxPriceController = TextEditingController();
   final citySearchController = TextEditingController();
   final stateSearchController = TextEditingController();
+  final locationController = TextEditingController();
 
   final double _minPrice = 100;
   final double _maxPrice = 10000000;
   Timer? _stateCityDebounce;
+
+  PickedPlace? _selectedPlace;
+  double? _selectedLat;
+  double? _selectedLng;
 
   final List<String> _tabs = ["Category", "Price", "Sort By", "States", "City"];
 
@@ -83,7 +90,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        context.read<ProductsCubit2>().getMoreProducts(searchController.text);
+        context.read<ProductsCubit2>().getMoreProducts();
       }
     });
 
@@ -178,6 +185,254 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    searchController.dispose();
+    _debounce?.cancel();
+
+    // filters
+    _currentFilterTab.dispose();
+    _selectedRange.dispose();
+    _selectedCategories.dispose();
+    _selectedSort.dispose();
+    _selectedStateId.dispose();
+    _selectedCityId.dispose();
+    minPriceController.dispose();
+    maxPriceController.dispose();
+    citySearchController.dispose();
+    stateSearchController.dispose();
+    _stateCityDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _applyFiltersAndFetch(); // search + filters together
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = ThemeHelper.textColor(context);
+    final bgColor = ThemeHelper.backgroundColor(context);
+    return FutureBuilder(
+      future: AuthService.isGuest,
+      builder: (context, asyncSnapshot) {
+        final isGuest = asyncSnapshot.data ?? false;
+        return Scaffold(
+          backgroundColor: bgColor,
+          appBar: AppBar(
+            backgroundColor: bgColor,
+            elevation: 0,
+            leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: textColor),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              "Listings",
+              style: AppTextStyles.headlineSmall(textColor),
+            ),
+            actions: [
+              GestureDetector(
+                onTap:
+                    _openFiltersSheet, // ⬅️ open bottom sheet instead of push
+                child: Icon(Icons.tune, color: textColor),
+              ),
+              const SizedBox(width: 16),
+            ],
+          ),
+          body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
+            listener: (context, state) {
+              if (state is AddToWishlistLoaded) {
+                // fix: update ProductsCubit2
+                context.read<ProductsCubit2>().updateWishlistStatus(
+                  state.product_id,
+                  state.addToWishlistModel.liked ?? false,
+                );
+              } else if (state is AddToWishlistFailure) {
+                CustomSnackBar1.show(context, state.error);
+              }
+            },
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: searchController,
+                          style: AppTextStyles.bodyLarge(textColor),
+                          decoration: InputDecoration(
+                            hintText: "Search for products...",
+                            hintStyle: AppTextStyles.bodyLarge(textColor),
+                            prefixIcon: const Icon(Icons.search),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      IconButton.outlined(
+                        style: IconButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadiusGeometry.circular(10),
+                          ),
+                        ),
+                        onPressed: _isListening
+                            ? _stopListening
+                            : _startListening,
+                        icon: Icon(Icons.mic),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextFormField(
+                    controller: locationController,
+                    readOnly: true,
+                    style: AppTextStyles.bodyLarge(textColor),
+                    decoration: InputDecoration(
+                      hintText: "Select location...",
+                      hintStyle: AppTextStyles.bodyLarge(textColor),
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: locationController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  locationController.clear();
+                                  _selectedPlace = null;
+                                  _selectedLat = null;
+                                  _selectedLng = null;
+                                });
+                                _applyFiltersAndFetch();
+                              },
+                            )
+                          : null,
+                      border: const OutlineInputBorder(),
+                    ),
+                    onTap: () async {
+                      final picked = await openPlacePickerBottomSheet(
+                        context: context,
+                        googleApiKey: google_map_key,
+                        controller: locationController,
+                        language: "en",
+                        components: "country:in",
+                      );
+
+                      if (picked != null) {
+                        setState(() {
+                          _selectedPlace = picked;
+                          _selectedLat = picked.lat;
+                          _selectedLng = picked.lng;
+                        });
+
+                        _applyFiltersAndFetch();
+                      }
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: BlocBuilder<ProductsCubit2, ProductsStates2>(
+                    builder: (context, state) {
+                      if (state is Products2Loading) {
+                        return const Center(child: DottedProgressWithLogo());
+                      } else if (state is Products2Failure) {
+                        return Center(child: Text(state.error));
+                      } else if (state is Products2Loaded ||
+                          state is Products2LoadingMore) {
+                        final productsModel = (state as dynamic).productsModel;
+                        final products = productsModel.products ?? [];
+                        final hasNextPage = (state as dynamic).hasNextPage;
+
+                        if (products.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  'assets/nodata/no_data.png',
+                                  width:
+                                      MediaQuery.of(context).size.width * 0.4,
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.15,
+                                ),
+                                Text(
+                                  'No Products Found!',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    color: ThemeHelper.textColor(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return CustomScrollView(
+                          controller: _scrollController,
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.all(16),
+                              sliver: SliverList(
+                                delegate: SliverChildBuilderDelegate((
+                                  context,
+                                  index,
+                                ) {
+                                  if (index == products.length) {
+                                    return hasNextPage
+                                        ? const Padding(
+                                            padding: EdgeInsets.all(16.0),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 1,
+                                              ),
+                                            ),
+                                          )
+                                        : const SizedBox.shrink();
+                                  }
+                                  final product = products[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: ProductCard(
+                                      products: product,
+                                      onWishlistToggle: isGuest
+                                          ? () => context.push("/login")
+                                          : () {
+                                              if (product.id != null) {
+                                                context
+                                                    .read<AddToWishlistCubit>()
+                                                    .addToWishlist(product.id!);
+                                              }
+                                            },
+                                    ),
+                                  );
+                                }, childCount: products.length + 1),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return const SizedBox();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------- FILTER PANELS (same logic reused) ----------
+
   Widget _buildBottomSheet() {
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
@@ -209,34 +464,6 @@ class _SearchScreenState extends State<SearchScreen> {
         );
       },
     );
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    searchController.dispose();
-    _debounce?.cancel();
-
-    // filters
-    _currentFilterTab.dispose();
-    _selectedRange.dispose();
-    _selectedCategories.dispose();
-    _selectedSort.dispose();
-    _selectedStateId.dispose();
-    _selectedCityId.dispose();
-    minPriceController.dispose();
-    maxPriceController.dispose();
-    citySearchController.dispose();
-    stateSearchController.dispose();
-    _stateCityDebounce?.cancel();
-    super.dispose();
-  }
-
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _applyFiltersAndFetch(); // search + filters together
-    });
   }
 
   void _openFiltersSheet() {
@@ -426,6 +653,8 @@ class _SearchScreenState extends State<SearchScreen> {
       "maxPrice": maxPriceController.text.isNotEmpty
           ? maxPriceController.text
           : _selectedRange.value.end.toInt().toString(),
+      "location_key":
+          "${_selectedLat?.toString()}, ${_selectedLng?.toString()}",
     };
 
     context.read<ProductsCubit2>().getProducts(
@@ -436,181 +665,9 @@ class _SearchScreenState extends State<SearchScreen> {
       city_id: filters["city_id"],
       minPrice: filters["minPrice"],
       maxPrice: filters["maxPrice"],
+      locationKey: filters["location_key"],
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = ThemeHelper.textColor(context);
-    final bgColor = ThemeHelper.backgroundColor(context);
-
-    return FutureBuilder(
-      future: AuthService.isGuest,
-      builder: (context, asyncSnapshot) {
-        final isGuest = asyncSnapshot.data ?? false;
-        return Scaffold(
-          backgroundColor: bgColor,
-          appBar: AppBar(
-            backgroundColor: bgColor,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back, color: textColor),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              "Listings",
-              style: AppTextStyles.headlineSmall(textColor),
-            ),
-            actions: [
-              GestureDetector(
-                onTap:
-                    _openFiltersSheet, // ⬅️ open bottom sheet instead of push
-                child: Icon(Icons.tune, color: textColor),
-              ),
-              const SizedBox(width: 16),
-            ],
-          ),
-          body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
-            listener: (context, state) {
-              if (state is AddToWishlistLoaded) {
-                // fix: update ProductsCubit2
-                context.read<ProductsCubit2>().updateWishlistStatus(
-                  state.product_id,
-                  state.addToWishlistModel.liked ?? false,
-                );
-              } else if (state is AddToWishlistFailure) {
-                CustomSnackBar1.show(context, state.error);
-              }
-            },
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: searchController,
-                          style: AppTextStyles.bodyLarge(textColor),
-                          decoration: InputDecoration(
-                            hintText: "Search for products...",
-                            hintStyle: AppTextStyles.bodyLarge(textColor),
-                            prefixIcon: const Icon(Icons.search),
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      IconButton.outlined(
-                        style: IconButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadiusGeometry.circular(10),
-                          ),
-                        ),
-                        onPressed: _isListening
-                            ? _stopListening
-                            : _startListening,
-                        icon: Icon(Icons.mic),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: BlocBuilder<ProductsCubit2, ProductsStates2>(
-                    builder: (context, state) {
-                      if (state is Products2Loading) {
-                        return const Center(child: DottedProgressWithLogo());
-                      } else if (state is Products2Failure) {
-                        return Center(child: Text(state.error));
-                      } else if (state is Products2Loaded ||
-                          state is Products2LoadingMore) {
-                        final productsModel = (state as dynamic).productsModel;
-                        final products = productsModel.products ?? [];
-                        final hasNextPage = (state as dynamic).hasNextPage;
-
-                        if (products.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Image.asset(
-                                  'assets/nodata/no_data.png',
-                                  width:
-                                      MediaQuery.of(context).size.width * 0.4,
-                                  height:
-                                      MediaQuery.of(context).size.height * 0.15,
-                                ),
-                                Text(
-                                  'No Products Found!',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: ThemeHelper.textColor(context),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return CustomScrollView(
-                          controller: _scrollController,
-                          slivers: [
-                            SliverPadding(
-                              padding: const EdgeInsets.all(16),
-                              sliver: SliverList(
-                                delegate: SliverChildBuilderDelegate((
-                                  context,
-                                  index,
-                                ) {
-                                  if (index == products.length) {
-                                    return hasNextPage
-                                        ? const Padding(
-                                            padding: EdgeInsets.all(16.0),
-                                            child: Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink();
-                                  }
-                                  final product = products[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: ProductCard(
-                                      products: product,
-                                      onWishlistToggle: isGuest
-                                          ? () => context.push("/login")
-                                          : () {
-                                              if (product.id != null) {
-                                                context
-                                                    .read<AddToWishlistCubit>()
-                                                    .addToWishlist(product.id!);
-                                              }
-                                            },
-                                    ),
-                                  );
-                                }, childCount: products.length + 1),
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return const SizedBox();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ---------- FILTER PANELS (same logic reused) ----------
 
   Widget _buildCategoryWidget() {
     return BlocBuilder<CategoriesCubit, CategoriesStates>(
@@ -664,98 +721,6 @@ class _SearchScreenState extends State<SearchScreen> {
       },
     );
   }
-
-  // Widget _buildPriceWidget() {
-  //   final priceRanges = [
-  //     {"label": "Below Rs.1000", "min": 0, "max": 1000},
-  //     {"label": "Rs.1001 - 5000", "min": 1001, "max": 5000},
-  //     {"label": "Rs.5001 - 10000", "min": 5001, "max": 10000},
-  //     {"label": "Rs.10001 - 25000", "min": 10001, "max": 25000},
-  //     {"label": "Rs.25001 - 50000", "min": 25001, "max": 50000},
-  //     {"label": "Above Rs.50000", "min": 50001, "max": 1000000},
-  //   ];
-  //
-  //   return ValueListenableBuilder<RangeValues>(
-  //     valueListenable: _selectedRange,
-  //     builder: (context, range, _) {
-  //       final textColor = ThemeHelper.textColor(context);
-  //       return SingleChildScrollView(
-  //         child: Column(
-  //           mainAxisAlignment: MainAxisAlignment.start,
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             ...priceRanges.map((r) {
-  //               final isSelected =
-  //                   range.start.toInt() == r["min"] &&
-  //                   (r["max"] == null || range.end.toInt() == r["max"]);
-  //               return CheckboxListTile(
-  //                 value: isSelected,
-  //                 onChanged: (val) {
-  //                   if (val == true) {
-  //                     _selectedRange.value = RangeValues(
-  //                       ((r["min"] as num?) ?? _minPrice).toDouble(),
-  //                       ((r["max"] as num?) ?? _maxPrice).toDouble(),
-  //                     );
-  //                   } else {
-  //                     _selectedRange.value = RangeValues(_minPrice, _maxPrice);
-  //                   }
-  //                 },
-  //                 title: Text(
-  //                   r["label"] as String,
-  //                   style: AppTextStyles.titleSmall(textColor),
-  //                 ),
-  //               );
-  //             }),
-  //             const SizedBox(height: 20),
-  //             Row(
-  //               children: [
-  //                 Expanded(
-  //                   child: TextField(
-  //                     style: TextStyle(color: textColor),
-  //                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-  //                     keyboardType: TextInputType.number,
-  //                     controller: minPriceController,
-  //                     decoration: const InputDecoration(
-  //                       hintText: "Min",
-  //                       border: OutlineInputBorder(),
-  //                     ),
-  //                     onChanged: (val) {
-  //                       final minVal = int.tryParse(val) ?? _minPrice.toInt();
-  //                       _selectedRange.value = RangeValues(
-  //                         minVal.toDouble(),
-  //                         range.end,
-  //                       );
-  //                     },
-  //                   ),
-  //                 ),
-  //                 const SizedBox(width: 10),
-  //                 Expanded(
-  //                   child: TextField(
-  //                     style: TextStyle(color: textColor),
-  //                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-  //                     keyboardType: TextInputType.number,
-  //                     controller: maxPriceController,
-  //                     decoration: const InputDecoration(
-  //                       hintText: "Max",
-  //                       border: OutlineInputBorder(),
-  //                     ),
-  //                     onChanged: (val) {
-  //                       final maxVal = int.tryParse(val) ?? _maxPrice.toInt();
-  //                       _selectedRange.value = RangeValues(
-  //                         range.start,
-  //                         maxVal.toDouble(),
-  //                       );
-  //                     },
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ],
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
 
   Widget _buildPriceWidget() {
     final double priceMin = _minPrice; // e.g., 100 (must be > 0 for log)

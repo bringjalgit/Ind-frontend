@@ -74,7 +74,7 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        context.read<ProductsCubit2>().getMoreProducts(widget.subCategoryId);
+        context.read<ProductsCubit2>().getMoreProducts();
       }
     });
 

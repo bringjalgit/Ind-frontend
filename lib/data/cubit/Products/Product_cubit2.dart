@@ -13,6 +13,17 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
   bool _hasNextPage = true;
   bool _isLoadingMore = false;
 
+  // store last applied filters
+  String? _categoryId;
+  String? _subCategoryId;
+  String? _search;
+  String? _stateId;
+  String? _cityId;
+  String? _sortBy;
+  String? _minPrice;
+  String? _maxPrice;
+  String? _locationKey;
+
   Future<void> getProducts({
     String? categoryId,
     String? subCategoryId,
@@ -22,27 +33,39 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     String? sort_by,
     String? minPrice,
     String? maxPrice,
-
+    String? locationKey,
   }) async {
     emit(Products2Loading());
     _currentPage = 1;
+
+    // 👇 Save filters for pagination
+    _categoryId = categoryId;
+    _subCategoryId = subCategoryId;
+    _search = search;
+    _stateId = state_id;
+    _cityId = city_id;
+    _sortBy = sort_by;
+    _minPrice = minPrice;
+    _maxPrice = maxPrice;
+    _locationKey = locationKey;
+
     try {
       final response = await productsRepo.getProducts(
-        categoryId: categoryId,
-        subCategoryId: subCategoryId,
-        search: search,
-        state_id: state_id,
-        city_id: city_id,
-        sort_by: sort_by,
-        minPrice: minPrice,
-        maxPrice: maxPrice,
+        categoryId: _categoryId,
+        subCategoryId: _subCategoryId,
+        search: _search,
+        state_id: _stateId,
+        city_id: _cityId,
+        sort_by: _sortBy,
+        minPrice: _minPrice,
+        maxPrice: _maxPrice,
+        locationKey: _locationKey,
         page: _currentPage,
       );
 
       if (response != null && response.success == true) {
         productsModel = response;
         _hasNextPage = response.settings?.nextPage ?? false;
-
         emit(Products2Loaded(productsModel, _hasNextPage));
       } else {
         emit(Products2Failure(response?.message ?? "Failed to load products"));
@@ -52,8 +75,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     }
   }
 
-
-  Future<void> getMoreProducts(String subCategoryId) async {
+  Future<void> getMoreProducts() async {
     if (_isLoadingMore || !_hasNextPage) return;
 
     _isLoadingMore = true;
@@ -63,17 +85,23 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
 
     try {
       final newData = await productsRepo.getProducts(
-        subCategoryId: subCategoryId,
-        page: _currentPage, // 👈 pass next page
+        categoryId: _categoryId,
+        subCategoryId: _subCategoryId,
+        search: _search,
+        state_id: _stateId,
+        city_id: _cityId,
+        sort_by: _sortBy,
+        minPrice: _minPrice,
+        maxPrice: _maxPrice,
+        locationKey: _locationKey,
+        page: _currentPage,
       );
 
       if (newData != null && newData.products?.isNotEmpty == true) {
         final combinedData = List<Products>.from(productsModel.products ?? [])
           ..addAll(newData.products!);
 
-        productsModel = SubcategoryProductsModel(
-          success: newData.success,
-          message: newData.message,
+        productsModel = productsModel.copyWith(
           products: combinedData,
           settings: newData.settings,
         );
@@ -90,7 +118,6 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
   }
 
   void updateWishlistStatus(int productId, bool isLiked) {
-
     final updatedProducts = productsModel.products?.map((p) {
       if (p.id == productId) {
         return p.copyWith(isFavorited: isLiked);
@@ -101,4 +128,3 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     emit(Products2Loaded(productsModel, _hasNextPage));
   }
 }
-

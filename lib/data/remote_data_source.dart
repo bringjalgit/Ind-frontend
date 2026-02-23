@@ -49,6 +49,7 @@ abstract class RemoteDataSource {
     String? sort_by,
     String? minPrice,
     String? maxPrice,
+    String? locationKey,
   });
   Future<ProductDetailsModel?> getProductDetails(int id);
   Future<WishlistModel?> getWishlistProducts(int page);
@@ -689,39 +690,32 @@ class RemoteDataSourceImpl implements RemoteDataSource {
     String? sort_by,
     String? minPrice,
     String? maxPrice,
+    String? locationKey,
     required int page,
   }) async {
     try {
-      String url =
-          "${APIEndpointUrls.get_all_listings_with_pagination}?page=$page";
+      final Map<String, dynamic> queryParams = {
+        "page": page,
+        if (categoryId != null && categoryId.isNotEmpty)
+          "category_id": categoryId,
+        if (subCategoryId != null && subCategoryId.isNotEmpty)
+          "sub_category_id": subCategoryId,
+        if (search != null && search.isNotEmpty) "search": search,
+        if (sort_by != null && sort_by.isNotEmpty) "sort_by": sort_by,
+        if (minPrice != null && minPrice.isNotEmpty) "min_price": minPrice,
+        if (maxPrice != null && maxPrice.isNotEmpty) "max_price": maxPrice,
+        if (state_id != null && state_id.isNotEmpty) "state_id": state_id,
+        if (city_id != null && city_id.isNotEmpty) "city_id": city_id,
+        if (locationKey != null && locationKey.isNotEmpty)
+          "location_key": locationKey,
+      };
 
-      if (categoryId != null && categoryId.isNotEmpty) {
-        url += "&category_id=$categoryId";
-      }
-      if (subCategoryId != null && subCategoryId.isNotEmpty) {
-        url += "&sub_category_id=$subCategoryId";
-      }
-      if (search != null && search.isNotEmpty) {
-        url += "&search=$search";
-      }
-      if (sort_by != null && sort_by.isNotEmpty) {
-        url += "&sort_by=$sort_by";
-      }
-      if (minPrice != null && minPrice.isNotEmpty) {
-        url += "&min_price=$minPrice";
-      }
-      if (maxPrice != null && maxPrice.isNotEmpty) {
-        url += "&max_price=$maxPrice";
-      }
-      if (state_id != null && state_id.isNotEmpty) {
-        url += "&state_id=$state_id";
-      }
-      if (city_id != null && city_id.isNotEmpty) {
-        url += "&city_id=$city_id";
-      }
+      Response response = await ApiClient.get(
+        APIEndpointUrls.get_all_listings_with_pagination,
+        queryParameters: queryParams,
+      );
 
-      Response response = await ApiClient.get(url);
-      AppLogger.log('getProducts request: $url');
+      AppLogger.log('getProducts request: ${response.realUri}');
       AppLogger.log('getProducts response: ${response.data}');
 
       return SubcategoryProductsModel.fromJson(response.data);

@@ -3,18 +3,18 @@ import 'package:classifieds/data/remote_data_source.dart';
 import '../../../model/SubcategoryProductsModel.dart';
 
 abstract class ProductsRepo {
-  Future<SubcategoryProductsModel?> getProducts(
-      {required int page,
-        String? categoryId,
-        String? subCategoryId,
-        String? search,
-        String? state_id,
-        String? city_id,
-        String? sort_by,
-        String? minPrice,
-        String? maxPrice,
-      }
-      );
+  Future<SubcategoryProductsModel?> getProducts({
+    required int page,
+    String? categoryId,
+    String? subCategoryId,
+    String? search,
+    String? state_id,
+    String? city_id,
+    String? sort_by,
+    String? minPrice,
+    String? maxPrice,
+    String? locationKey,
+  });
 }
 
 class ProductsRepoImpl implements ProductsRepo {
@@ -33,6 +33,7 @@ class ProductsRepoImpl implements ProductsRepo {
     String? sort_by,
     String? minPrice,
     String? maxPrice,
+    String? locationKey,
   }) async {
     return await remoteDataSource.getProducts(
       categoryId: categoryId,
@@ -44,7 +45,7 @@ class ProductsRepoImpl implements ProductsRepo {
       minPrice: minPrice,
       maxPrice: maxPrice,
       page: page,
+      locationKey: locationKey,
     );
   }
 }
-
