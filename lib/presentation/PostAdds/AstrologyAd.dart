@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:classifieds/data/cubit/FreeAd/FreeAdCubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -551,6 +552,7 @@ class _AstrologyAdState extends State<AstrologyAd> {
                               context
                                   .read<UserActivePlanCubit>()
                                   .getUserActivePlansData();
+                              context.read<FreeAdCubit>().getFreeAd();
                               showPlanBottomSheet(
                                 context: context,
                                 controller: planController,

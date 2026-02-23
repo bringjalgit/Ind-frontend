@@ -59,7 +59,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        context.read<ProductsCubit>().getMoreProducts();
+        final productsState = context.read<ProductsCubit>().state;
+
+        if (productsState is ProductsLoaded && productsState.hasNextPage) {
+          context.read<ProductsCubit>().getMoreProducts();
+        }
       }
     });
     _speech = stt.SpeechToText();
@@ -190,11 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
     double screenWidth = MediaQuery.of(context).size.width;
     double screenHeight = MediaQuery.of(context).size.height;
     SizeConfig.init(context);
-    return FutureBuilder(
-      future: AuthService.isGuest,
-      builder: (context, asyncSnapshot) {
-        final isGuest = asyncSnapshot.data ?? false;
-        return Scaffold(
+    return Scaffold(
           appBar: AppBar(
             elevation: 0,
             automaticallyImplyLeading: false,
@@ -285,6 +285,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final category_data = state.categoryModel;
                 final new_category_data = state.NewcategoryModel;
                 return SingleChildScrollView(
+                  controller: _scrollController,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: Column(
@@ -716,11 +717,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   SizedBox(height: 16),
                                   CustomScrollView(
                                     shrinkWrap: true,
-                                    physics: NeverScrollableScrollPhysics(),
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
                                     slivers: [
                                       SliverGrid(
                                         gridDelegate:
-                                            SliverGridDelegateWithFixedCrossAxisCount(
+                                            const SliverGridDelegateWithFixedCrossAxisCount(
                                               crossAxisCount: 2,
                                               mainAxisSpacing: 12,
                                               crossAxisSpacing: 12,
@@ -728,23 +730,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                             ),
                                         delegate: SliverChildBuilderDelegate(
                                           (context, index) {
-                                            if (index == products.length) {
-                                              if (hasNextPage) {
-                                                context
-                                                    .read<ProductsCubit>()
-                                                    .getMoreProducts();
-                                                return const Padding(
-                                                  padding: EdgeInsets.all(16.0),
-                                                  child: Center(
-                                                    child:
-                                                        CircularProgressIndicator(),
-                                                  ),
-                                                );
-                                              } else {
-                                                return const SizedBox.shrink();
-                                              }
-                                            }
                                             final p = products[index];
+
                                             return BlocListener<
                                               AddToWishlistCubit,
                                               AddToWishlistStates
@@ -770,51 +757,69 @@ class _HomeScreenState extends State<HomeScreen> {
                                                   );
                                                 }
                                               },
-                                              child: SimilarProductCard(
-                                                title: p.title ?? "—",
-                                                isFeatured:
-                                                    p.featured_status ?? false,
-                                                price:
-                                                    "₹${_formatINR(p.price)}",
-                                                location: p.location ?? "",
-                                                imageUrl: p.image,
-                                                isLiked: p.isFavorited ?? false,
-                                                onLikeToggle: isGuest
-                                                    ? () {
-                                                        context.push("/login");
+                                              child: FutureBuilder(
+                                                future: AuthService.isGuest,
+                                                builder: (context, asyncSnapshot) {
+                                                  final isGuest = asyncSnapshot.data ?? false;
+                                                  return SimilarProductCard(
+                                                    title: p.title ?? "—",
+                                                    isFeatured:
+                                                        p.featured_status ?? false,
+                                                    price:
+                                                        "₹${_formatINR(p.price)}",
+                                                    location: p.location ?? "",
+                                                    imageUrl: p.image,
+                                                    isLiked: p.isFavorited ?? false,
+                                                    onLikeToggle: isGuest
+                                                        ? () {
+                                                            context.push("/login");
+                                                          }
+                                                        : () {
+                                                            if (p.id != null) {
+                                                              context
+                                                                  .read<
+                                                                    AddToWishlistCubit
+                                                                  >()
+                                                                  .addToWishlist(
+                                                                    p.id!,
+                                                                  );
+                                                            }
+                                                          },
+                                                    onTap: () async {
+                                                      final shouldRefresh =
+                                                          await context.push<bool>(
+                                                            "/products_details?listingId=${p.id}&subcategory_id=${p.subCategory?.id}",
+                                                          );
+                                                      if (shouldRefresh == true) {
+                                                        context
+                                                            .read<DashboardCubit>()
+                                                            .fetchDashboard();
                                                       }
-                                                    : () {
-                                                        if (p.id != null) {
-                                                          context
-                                                              .read<
-                                                                AddToWishlistCubit
-                                                              >()
-                                                              .addToWishlist(
-                                                                p.id!,
-                                                              );
-                                                        }
-                                                      },
-                                                onTap: () async {
-                                                  final shouldRefresh =
-                                                      await context.push<bool>(
-                                                        "/products_details?listingId=${p.id}&subcategory_id=${p.subCategory?.id}",
-                                                      );
-                                                  if (shouldRefresh == true) {
-                                                    context
-                                                        .read<DashboardCubit>()
-                                                        .fetchDashboard();
-                                                  }
-                                                },
-                                                borderColor: borderColor,
+                                                    },
+                                                    borderColor: borderColor,
+                                                  );
+                                                }
                                               ),
                                             );
                                           },
-                                          // 🔹 +1 for loader slot
-                                          childCount: products.length + 1,
+                                          childCount:
+                                              products.length, // ✅ Removed +1
                                         ),
                                       ),
                                     ],
                                   ),
+
+                                  // ✅ Centered Pagination Loader (Outside Grid)
+                                  if (state is ProductsLoadingMore &&
+                                      hasNextPage)
+                                    const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 20,
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(strokeWidth: 1,),
+                                      ),
+                                    ),
                                 ],
                               );
                             }
@@ -835,8 +840,7 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
         );
-      },
-    );
+
   }
 
   String _formatINR(String? price) {

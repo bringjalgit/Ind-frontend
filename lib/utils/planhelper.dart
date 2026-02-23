@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:classifieds/data/cubit/FreeAd/FreeAdCubit.dart';
+import 'package:classifieds/data/cubit/FreeAd/FreeAdStates.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -100,118 +102,225 @@ void showPlanBottomSheet({
 
                   // If the user is eligible for a free plan and there are no plans, show the dummy free plan
                   if (isEligibleForFree && plans.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // if (!(mobile_no == "9999999999" &&
-                            //     Platform.isIOS)) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 16.0),
-                              child: Text(
-                                "You have 1 Free Ad to post!",
-                                textAlign: TextAlign.center,
-                                style: AppTextStyles.headlineSmall(textColor)
-                                    .copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
+                    return BlocBuilder<FreeAdCubit, FreeAdStates>(
+                      builder: (context, states) {
+                        String freeExpiry = "N/A";
+
+                        if (states is FreeAdLoaded) {
+                          freeExpiry =
+                              states.freeAdModel.data?.expiryDate
+                                  .toLocal()
+                                  .toString()
+                                  .split(" ")
+                                  .first ??
+                              "N/A";
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (title != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: 16.0,
+                                    left: 8.0,
+                                  ),
+                                  child: Text(
+                                    title,
+                                    style:
+                                        AppTextStyles.headlineSmall(
+                                          textColor,
+                                        ).copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                  ),
+                                ),
+
+                              /// 🔥 FREE AD CARD (REAL DATA)
+                              if (isEligibleForFree)
+                                BlocBuilder<FreeAdCubit, FreeAdStates>(
+                                  builder: (context, freeState) {
+                                    if (freeState is FreeAdLoading) {
+                                      return const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+
+                                    if (freeState is FreeAdLoaded) {
+                                      return _buildPlanCard(
+                                        context,
+                                        Plans(
+                                          planName: 'Free Ad',
+                                          packageName: 'Basic Free Ad',
+                                          remaining: 1,
+                                          endDate: freeExpiry,
+                                        ),
+                                        textColor,
+                                        cardColor,
+                                        controller,
+                                        onSelectPlan,
+                                      );
+                                    }
+
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+
+                              if (isEligibleForFree) const SizedBox(height: 15),
+
+                              /// 🔥 SUBSCRIPTION PLANS
+                              if (plans.isNotEmpty)
+                                Expanded(
+                                  child: ListView.separated(
+                                    controller: scrollController,
+                                    itemCount: plans.length,
+                                    itemBuilder: (context, index) {
+                                      final plan = plans[index];
+                                      return _buildPlanCard(
+                                        context,
+                                        plan,
+                                        textColor,
+                                        cardColor,
+                                        controller,
+                                        onSelectPlan,
+                                      );
+                                    },
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 12),
+                                  ),
+                                ),
+
+                              if (!isEligibleForFree && plans.isEmpty)
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      "No Plans Available",
+                                      style: AppTextStyles.bodyLarge(textColor),
                                     ),
-                              ),
-                            ),
-                            // ],
-                            _buildPlanCard(
-                              context,
-                              Plans(
-                                planName: 'Free Ad',
-                                packageName: 'Basic Free Ad',
-                                remaining: 1,
-                                endDate: 'N/A',
-                              ),
-                              textColor,
-                              cardColor,
-                              controller,
-                              onSelectPlan,
-                            ),
-                            SizedBox(height: 15),
-                            // if (!(mobile_no == "9999999999" &&
-                            //     Platform.isIOS)) ...[
-                            Text(
-                              "Your Free Ad allows you to post only one listing. "
-                              "To continue posting more ads and access extra features, "
-                              "please subscribe to one of our premium options.",
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.bodyMedium(textColor),
-                            ),
-                            SizedBox(height: 24),
-                            _buildSubscribeButton(context, textColor),
-                          ],
-                          // ],
-                        ),
-                      ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     );
                   }
 
                   // Show dummy free plan card along with subscription plans
                   if (isEligibleForFree && plans.isNotEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (title != null)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 16.0,
-                                left: 8.0,
-                              ),
-                              child: Text(
-                                title,
-                                style: AppTextStyles.headlineSmall(textColor)
-                                    .copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
+                    return BlocBuilder<FreeAdCubit, FreeAdStates>(
+                      builder: (context, states) {
+                        String freeExpiry = "N/A";
+
+                        if (states is FreeAdLoaded) {
+                          freeExpiry =
+                              states.freeAdModel.data?.expiryDate
+                                  .toLocal()
+                                  .toString()
+                                  .split(" ")
+                                  .first ??
+                              "N/A";
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (title != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: 16.0,
+                                    left: 8.0,
+                                  ),
+                                  child: Text(
+                                    title,
+                                    style:
+                                        AppTextStyles.headlineSmall(
+                                          textColor,
+                                        ).copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                  ),
+                                ),
+
+                              /// 🔥 FREE AD CARD (REAL DATA)
+                              if (isEligibleForFree)
+                                BlocBuilder<FreeAdCubit, FreeAdStates>(
+                                  builder: (context, freeState) {
+                                    if (freeState is FreeAdLoading) {
+                                      return const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      );
+                                    }
+
+                                    if (freeState is FreeAdLoaded) {
+                                      return _buildPlanCard(
+                                        context,
+                                        Plans(
+                                          planName: 'Free Ad',
+                                          packageName: 'Basic Free Ad',
+                                          remaining: 1,
+                                          endDate: freeExpiry,
+                                        ),
+                                        textColor,
+                                        cardColor,
+                                        controller,
+                                        onSelectPlan,
+                                      );
+                                    }
+
+                                    return const SizedBox.shrink();
+                                  },
+                                ),
+
+                              if (isEligibleForFree) const SizedBox(height: 15),
+
+                              /// 🔥 SUBSCRIPTION PLANS
+                              if (plans.isNotEmpty)
+                                Expanded(
+                                  child: ListView.separated(
+                                    controller: scrollController,
+                                    itemCount: plans.length,
+                                    itemBuilder: (context, index) {
+                                      final plan = plans[index];
+                                      return _buildPlanCard(
+                                        context,
+                                        plan,
+                                        textColor,
+                                        cardColor,
+                                        controller,
+                                        onSelectPlan,
+                                      );
+                                    },
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 12),
+                                  ),
+                                ),
+
+                              if (!isEligibleForFree && plans.isEmpty)
+                                Expanded(
+                                  child: Center(
+                                    child: Text(
+                                      "No Plans Available",
+                                      style: AppTextStyles.bodyLarge(textColor),
                                     ),
-                              ),
-                            ),
-                          _buildPlanCard(
-                            context,
-                            Plans(
-                              planName: 'Free Ad',
-                              packageName: 'Basic Free Ad',
-                              remaining: 1,
-                              endDate: 'N/A',
-                            ),
-                            textColor,
-                            cardColor,
-                            controller,
-                            onSelectPlan,
+                                  ),
+                                ),
+                            ],
                           ),
-                          SizedBox(height: 15),
-                          // Display subscription plans
-                          Expanded(
-                            child: ListView.separated(
-                              controller: scrollController,
-                              itemCount: plans.length,
-                              itemBuilder: (context, index) {
-                                final plan = plans[index];
-                                return _buildPlanCard(
-                                  context,
-                                  plan,
-                                  textColor,
-                                  cardColor,
-                                  controller,
-                                  onSelectPlan,
-                                );
-                              },
-                              separatorBuilder: (context, index) =>
-                                  SizedBox(height: 12),
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   }
 

@@ -10,6 +10,7 @@ import '../../Components/CustomSnackBar.dart';
 import '../../Components/CutomAppBar.dart';
 import '../../Components/ShakeWidget.dart';
 import '../../data/cubit/Ad/PetsAd/pets_ad_states.dart';
+import '../../data/cubit/FreeAd/FreeAdCubit.dart';
 import '../../data/cubit/Location/location_cubit.dart';
 import '../../data/cubit/MyAds/GetMarkAsListing/get_listing_ad_cubit.dart';
 import '../../data/cubit/MyAds/MarkAsListing/mark_as_listing_cubit.dart';
@@ -512,6 +513,7 @@ class _PetAdScreenState extends State<PetAdScreen> {
                               context
                                   .read<UserActivePlanCubit>()
                                   .getUserActivePlansData();
+                              context.read<FreeAdCubit>().getFreeAd();
                               showPlanBottomSheet(
                                 context: context,
                                 controller: planController,

@@ -462,7 +462,6 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
                     ),
 
                     const SizedBox(height: 14),
-
                     SizedBox(
                       height: 53,
                       width: double.infinity,

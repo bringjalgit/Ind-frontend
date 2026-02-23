@@ -11,6 +11,7 @@ import '../model/ChatMessagesModel.dart';
 import '../model/ChatUsersModel.dart';
 import '../model/ContactInfoModel.dart';
 import '../model/CreatePaymentModel.dart';
+import '../model/FreeAdModel.dart';
 import '../model/MarkAsListingModel.dart';
 import '../model/MyAdsModel.dart';
 import '../model/PackagesModel.dart';
@@ -105,6 +106,7 @@ abstract class RemoteDataSource {
   Future<VerifyOtpModel?> byPassLogin(Map<String, dynamic> data);
   Future<ContactInfoModel?> getContactInfo();
   Future<AdSuccessModel?> chatUserPin(Map<String, dynamic> data);
+  Future<FreeAdModel?> getFreeAd();
 }
 
 class RemoteDataSourceImpl implements RemoteDataSource {
@@ -140,6 +142,20 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       }
     }
     return FormData.fromMap(formMap);
+  }
+
+  @override
+  Future<FreeAdModel?> getFreeAd() async {
+    try {
+      Response response = await ApiClient.get(
+        "${APIEndpointUrls.get_free_ad_info}",
+      );
+      AppLogger.log('getFreeAd:${response.data}');
+      return FreeAdModel.fromJson(response.data);
+    } catch (e) {
+      AppLogger.error('getFreeAd :: $e');
+      return null;
+    }
   }
 
   @override

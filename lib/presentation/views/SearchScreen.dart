@@ -32,6 +32,8 @@ import '../../widgets/CommonTextField.dart';
 import '../../widgets/ProductCard.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import '../../widgets/SimilarProductCard.dart';
+
 class SearchScreen extends StatefulWidget {
   final String search_text;
   const SearchScreen({super.key, required this.search_text});
@@ -44,6 +46,7 @@ class _SearchScreenState extends State<SearchScreen> {
   final searchController = TextEditingController();
   Timer? _debounce;
 
+  bool _isGridView = false;
   // ⬇️ Filters state (same as Products screen)
   final ValueNotifier<int> _currentFilterTab = ValueNotifier(0);
   final ValueNotifier<RangeValues> _selectedRange = ValueNotifier(
@@ -230,8 +233,19 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
         title: Text("Listings", style: AppTextStyles.headlineSmall(textColor)),
         actions: [
+          IconButton(
+            icon: Icon(
+              _isGridView ? Icons.view_list : Icons.grid_view,
+              color: textColor,
+            ),
+            onPressed: () {
+              setState(() {
+                _isGridView = !_isGridView;
+              });
+            },
+          ),
           GestureDetector(
-            onTap: _openFiltersSheet, // ⬅️ open bottom sheet instead of push
+            onTap: _openFiltersSheet,
             child: Icon(Icons.tune, color: textColor),
           ),
           const SizedBox(width: 16),
@@ -373,46 +387,107 @@ class _SearchScreenState extends State<SearchScreen> {
                         }
                         return false;
                       },
-                      child: CustomScrollView(
-                        slivers: [
-                          SliverPadding(
-                            padding: const EdgeInsets.all(16),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate((
-                                context,
-                                index,
-                              ) {
-                                if (index == products.length) {
-                                  return hasNextPage
-                                      ? const Padding(
-                                          padding: EdgeInsets.all(16.0),
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 1,
-                                            ),
-                                          ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: CustomScrollView(
+                              slivers: [
+                                SliverPadding(
+                                  padding: const EdgeInsets.all(16),
+                                  sliver: _isGridView
+                                      ? SliverGrid(
+                                          gridDelegate:
+                                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: 2,
+                                                mainAxisSpacing: 12,
+                                                crossAxisSpacing: 12,
+                                                childAspectRatio: 0.85,
+                                              ),
+                                          delegate: SliverChildBuilderDelegate((
+                                            context,
+                                            index,
+                                          ) {
+                                            final product = products[index];
+                                            return SimilarProductCard(
+                                              title: product.title ?? "—",
+                                              price: "₹${product.price ?? 0}",
+                                              location: product.location ?? "",
+                                              imageUrl: product.image,
+                                              isLiked:
+                                                  product.isFavorited ?? false,
+                                              isFeatured:
+                                                  product.featured_status ??
+                                                  false,
+                                              borderColor: Theme.of(
+                                                context,
+                                              ).dividerColor,
+                                              onLikeToggle: isGuest
+                                                  ? () => context.push("/login")
+                                                  : () {
+                                                      if (product.id != null) {
+                                                        context
+                                                            .read<
+                                                              AddToWishlistCubit
+                                                            >()
+                                                            .addToWishlist(
+                                                              product.id!,
+                                                            );
+                                                      }
+                                                    },
+                                              onTap: () async {
+                                                final shouldRefresh =
+                                                    await context.push<bool>(
+                                                      "/products_details?listingId=${product.id}&subcategory_id=${product.subCategory?.id}",
+                                                    );
+                                                if (shouldRefresh == true) {
+                                                  context
+                                                      .read<ProductsCubit2>()
+                                                      .getProducts();
+                                                }
+                                              },
+                                            );
+                                          }, childCount: products.length),
                                         )
-                                      : const SizedBox.shrink();
-                                }
-                                final product = products[index];
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: ProductCard(
-                                    products: product,
-                                    onWishlistToggle: isGuest
-                                        ? () => context.push("/login")
-                                        : () {
-                                            if (product.id != null) {
-                                              context
-                                                  .read<AddToWishlistCubit>()
-                                                  .addToWishlist(product.id!);
-                                            }
-                                          },
+                                  // ✅ LIST VIEW → ProductCard (Your Previous Card)
+                                      : SliverList(
+                                    delegate: SliverChildBuilderDelegate(
+                                          (context, index) {
+                                        final product = products[index];
+                                        return Padding(
+                                          padding:
+                                          const EdgeInsets.only(bottom: 16),
+                                          child: ProductCard(
+                                            products: product,
+                                            onWishlistToggle: isGuest
+                                                ? () => context.push("/login")
+                                                : () {
+                                              if (product.id != null) {
+                                                context
+                                                    .read<AddToWishlistCubit>()
+                                                    .addToWishlist(product.id!);
+                                              }
+                                            },
+                                          ),
+                                        );
+                                      },
+                                      childCount: products.length,
+                                    ),
                                   ),
-                                );
-                              }, childCount: products.length + 1),
+                                ),
+                              ],
                             ),
                           ),
+
+                          // ✅ Centered Pagination Loader
+                          if (state is Products2LoadingMore && hasNextPage)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     );

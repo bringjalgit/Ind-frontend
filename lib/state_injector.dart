@@ -1,3 +1,5 @@
+import 'package:classifieds/data/cubit/FreeAd/FreeAdCubit.dart';
+import 'package:classifieds/data/cubit/FreeAd/FreeAdRepository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:classifieds/data/cubit/AddToWishlist/addToWishlistCubit.dart';
 import 'package:classifieds/data/cubit/Advertisement/advertisement_cubit.dart';
@@ -281,6 +283,11 @@ class StateInjector {
         remoteDataSource: context.read<RemoteDataSource>(),
       ),
     ),
+    RepositoryProvider<FreeAdRepository>(
+      create: (context) => FreeAdRepositoryImpl(
+        remoteDataSource: context.read<RemoteDataSource>(),
+      ),
+    ),
   ];
 
   static List<BlocProvider> blocProviders(ThemeCubit themeCubit) => [
@@ -422,9 +429,7 @@ class StateInjector {
     BlocProvider<PaymentCubit>(
       create: (context) => PaymentCubit(context.read<PaymentRepository>()),
     ),
-    BlocProvider<ChatUsersCubit>(
-      create: (context) => ChatUsersCubit(),
-    ),
+    BlocProvider<ChatUsersCubit>(create: (context) => ChatUsersCubit()),
 
     BlocProvider<ChatMessagesCubit>(
       create: (context) =>
@@ -463,6 +468,9 @@ class StateInjector {
     ),
     BlocProvider<ChatUserPinCubit>(
       create: (context) => ChatUserPinCubit(context.read<ChatUsersRepo>()),
+    ),
+    BlocProvider<FreeAdCubit>(
+      create: (context) => FreeAdCubit(context.read<FreeAdRepository>()),
     ),
     BlocProvider<DashboardCubit>(
       create: (context) => DashboardCubit(

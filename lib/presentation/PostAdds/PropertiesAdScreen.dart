@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:classifieds/data/cubit/Ad/PropertyAd/popperty_ad_cubit.dart';
 import 'package:classifieds/data/cubit/Ad/PropertyAd/property_ad_states.dart';
+import '../../data/cubit/FreeAd/FreeAdCubit.dart';
 import '../../data/cubit/Location/location_cubit.dart';
 import '../../data/cubit/MyAds/GetMarkAsListing/get_listing_ad_cubit.dart';
 import '../../data/cubit/MyAds/MarkAsListing/mark_as_listing_cubit.dart';
@@ -183,7 +184,7 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
           nameController.text = data.name ?? "";
           emailController.text = data.email ?? "";
           phoneController.text = data.mobile?.toString() ?? "";
-          mobile_no = data.mobile??"";
+          mobile_no = data.mobile ?? "";
           stateController.text = data.state_name ?? "";
           selectedStateId = data.state_id;
           selectedCityId = data.city_id;
@@ -611,31 +612,30 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                       isRead: true,
                       onTap: selectedStateId == null
                           ? () {
-                        CustomSnackBar1.show(
-                          context,
-                          "Please select a state first",
-                        );
-                      }
+                              CustomSnackBar1.show(
+                                context,
+                                "Please select a state first",
+                              );
+                            }
                           : () async {
-                        FocusScope.of(context).unfocus();
-                        final picked = await openPlacePickerBottomSheet(
-                          context: context,
-                          googleApiKey: google_map_key,
-                          controller: locationController,
-                          appendToExisting: false,
-                          components: 'country:in',
-                          language: 'en',
-                          stateName: stateController
-                              .text, // Pass the state name
-                          initialQuery:
-                          stateController.text.isNotEmpty
-                              ? "${locationController.text}, ${stateController.text}"
-                              : locationController.text,
-                        );
-                        if (picked != null) {
-                          latlng = "${picked.lat}, ${picked.lng}";
-                        }
-                      },
+                              FocusScope.of(context).unfocus();
+                              final picked = await openPlacePickerBottomSheet(
+                                context: context,
+                                googleApiKey: google_map_key,
+                                controller: locationController,
+                                appendToExisting: false,
+                                components: 'country:in',
+                                language: 'en',
+                                stateName:
+                                    stateController.text, // Pass the state name
+                                initialQuery: stateController.text.isNotEmpty
+                                    ? "${locationController.text}, ${stateController.text}"
+                                    : locationController.text,
+                              );
+                              if (picked != null) {
+                                latlng = "${picked.lat}, ${picked.lng}";
+                              }
+                            },
                     ),
                     if (widget.editId == null ||
                         widget.editId.replaceAll('"', '').trim().isEmpty) ...[
@@ -652,6 +652,7 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                           context
                               .read<UserActivePlanCubit>()
                               .getUserActivePlansData();
+                          context.read<FreeAdCubit>().getFreeAd();
                           showPlanBottomSheet(
                             context: context,
                             controller: planController,

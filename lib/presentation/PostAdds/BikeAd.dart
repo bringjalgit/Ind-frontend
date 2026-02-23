@@ -11,6 +11,7 @@ import '../../Components/ShakeWidget.dart';
 import '../../data/cubit/Ad/BikesAd/bikes_ad_cubit.dart';
 import '../../data/cubit/Ad/BikesAd/bikes_ad_states.dart';
 import '../../data/cubit/City/city_cubit.dart';
+import '../../data/cubit/FreeAd/FreeAdCubit.dart';
 import '../../data/cubit/Location/location_cubit.dart';
 import '../../data/cubit/MyAds/GetMarkAsListing/get_listing_ad_cubit.dart';
 import '../../data/cubit/MyAds/MarkAsListing/mark_as_listing_cubit.dart';
@@ -510,6 +511,7 @@ class _BikeAdState extends State<BikeAd> {
                               context
                                   .read<UserActivePlanCubit>()
                                   .getUserActivePlansData();
+                              context.read<FreeAdCubit>().getFreeAd();
                               showPlanBottomSheet(
                                 context: context,
                                 controller: planController,
