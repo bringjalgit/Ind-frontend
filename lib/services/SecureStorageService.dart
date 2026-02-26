@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -23,15 +25,33 @@ class SecureStorageService {
   Future<void> checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
 
-    const currentVersion = "1.0.5"; // Your new version
-    final savedVersion = prefs.getString('app_version');
+    // Define platform specific versions
+    const androidVersion = "1.0.17";
+    const iosVersion = "1.0.3";
+
+    String currentVersion;
+    String versionKey;
+
+    if (Platform.isAndroid) {
+      currentVersion = androidVersion;
+      versionKey = 'app_version_android';
+    } else if (Platform.isIOS) {
+      currentVersion = iosVersion;
+      versionKey = 'app_version_ios';
+    } else {
+      // For web/other platforms (optional fallback)
+      currentVersion = "1.0.0";
+      versionKey = 'app_version_other';
+    }
+
+    final savedVersion = prefs.getString(versionKey);
 
     if (savedVersion == null) {
-      // Fresh install only
+      // Fresh install for this platform only
       await _storage.deleteAll();
     }
 
-    await prefs.setString('app_version', currentVersion);
+    await prefs.setString(versionKey, currentVersion);
   }
 
   // ----------- Set Methods -----------

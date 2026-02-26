@@ -430,38 +430,38 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
                       ),
 
                     const SizedBox(height: 12),
+                    //
+                    // // bullets
+                    // Column(
+                    //   children: features
+                    //       .map(
+                    //         (f) => Padding(
+                    //           padding: const EdgeInsets.symmetric(vertical: 4),
+                    //           child: Row(
+                    //             crossAxisAlignment: CrossAxisAlignment.start,
+                    //             children: [
+                    //               const Icon(
+                    //                 Icons.check_circle,
+                    //                 color: Colors.blue,
+                    //                 size: 18,
+                    //               ),
+                    //               const SizedBox(width: 8),
+                    //               Expanded(
+                    //                 child: Text(
+                    //                   f,
+                    //                   style: AppTextStyles.bodyMedium(
+                    //                     textColor,
+                    //                   ),
+                    //                 ),
+                    //               ),
+                    //             ],
+                    //           ),
+                    //         ),
+                    //       )
+                    //       .toList(),
+                    // ),
 
-                    // bullets
-                    Column(
-                      children: features
-                          .map(
-                            (f) => Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle,
-                                    color: Colors.blue,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      f,
-                                      style: AppTextStyles.bodyMedium(
-                                        textColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-
-                    const SizedBox(height: 14),
+                    // const SizedBox(height: 14),
                     SizedBox(
                       height: 53,
                       width: double.infinity,

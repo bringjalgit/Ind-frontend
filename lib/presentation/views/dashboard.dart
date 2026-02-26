@@ -17,6 +17,7 @@ import 'package:classifieds/utils/AppLogger.dart';
 import 'package:classifieds/utils/color_constants.dart';
 import 'package:classifieds/utils/constants.dart';
 import 'package:permission_handler/permission_handler.dart' as OpenAppSettings;
+import 'package:upgrader/upgrader.dart';
 
 import '../../data/bloc/internet_status/internet_status_bloc.dart';
 import '../../data/cubit/Location/location_cubit.dart';
@@ -28,6 +29,7 @@ import '../../services/SocketService.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../utils/DeepLinkMapper.dart';
 import '../../utils/NotificationIntent.dart';
+import '../../widgets/PremiumUpgradeDialog.dart';
 import 'AddsScreen.dart';
 import 'UserListScreen.dart';
 
@@ -46,9 +48,18 @@ class _DashboardState extends State<Dashboard> {
 
   StreamSubscription<Uri>? _linkSubscription;
 
+  late final Upgrader _upgrader;
+
   @override
   void initState() {
     super.initState();
+
+    _upgrader = Upgrader();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkForUpgrade();
+    });
+
     _selectedIndex = widget.initialTab;
     pageController = PageController(initialPage: _selectedIndex);
     getData();
@@ -63,6 +74,45 @@ class _DashboardState extends State<Dashboard> {
         context.push('/chat?receiverId=$toChat');
       }
     });
+  }
+
+  Future<void> _checkForUpgrade() async {
+    await _upgrader.initialize();
+
+    if (_upgrader.shouldDisplayUpgrade() && mounted) {
+      _showCustomUpgradeDialog();
+    }
+  }
+
+  void _showCustomUpgradeDialog() {
+    final isForceUpdate = _upgrader.blocked(); // true if below min version
+
+    showCustomUpgradeDialog(
+      context,
+      isForceUpdate: isForceUpdate,
+      releaseNotes: _upgrader.releaseNotes,
+      onUpdatePressed: () {
+        _upgrader.sendUserToAppStore();
+      },
+    );
+  }
+
+  void showCustomUpgradeDialog(
+    BuildContext context, {
+    required bool isForceUpdate,
+    required String? releaseNotes,
+    required Function() onUpdatePressed,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: !isForceUpdate,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (dialogContext) => PremiumUpgradeDialog(
+        isForceUpdate: isForceUpdate,
+        releaseNotes: releaseNotes,
+        onUpdatePressed: onUpdatePressed,
+      ),
+    );
   }
 
   Future<void> initDeepLinks() async {

@@ -20,27 +20,19 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
         if (payload == null) return;
 
         if (payload is List) {
-          _chatUsers =
-              payload.map((e) => Data.fromJson(e)).toList();
+          _chatUsers = payload.map((e) => Data.fromJson(e)).toList();
         } else if (payload is Map<String, dynamic>) {
           _chatUsers = [Data.fromJson(payload)];
         }
 
-        emit(ChatUsersLoaded(
-          ChatUsersModel(
-            success: true,
-            data: _chatUsers,
-          ),
-        ));
+        emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
       } catch (e) {
         emit(ChatUsersFailure(e.toString()));
       }
     });
 
     // 3️⃣ Emit request to get chat list
-    SocketService.emit("get_chat_list", {
-      "userId": userId,
-    });
+    SocketService.emit("get_chat_list", {"userId": userId});
   }
 
   /// If single chat updates (like new message)
@@ -48,8 +40,7 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
     final updated = Data.fromJson(payload);
 
     final index = _chatUsers.indexWhere(
-          (e) => e.userId == updated.userId &&
-          e.listingId == updated.listingId,
+      (e) => e.userId == updated.userId && e.listingId == updated.listingId,
     );
 
     if (index != -1) {
@@ -58,12 +49,7 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
       _chatUsers.insert(0, updated);
     }
 
-    emit(ChatUsersLoaded(
-      ChatUsersModel(
-        success: true,
-        data: _chatUsers,
-      ),
-    ));
+    emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
   }
 
   @override
@@ -72,4 +58,3 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
     return super.close();
   }
 }
-
