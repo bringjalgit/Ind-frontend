@@ -79,7 +79,7 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      initSettings,
+      settings: initSettings,
       onDidReceiveNotificationResponse: (resp) {
         final payload = resp.payload;
         if (payload?.isNotEmpty == true) {
@@ -172,10 +172,10 @@ class NotificationService {
     final details = NotificationDetails(android: androidDetails);
 
     await _localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      details,
+      id: notification.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: details,
       payload: jsonEncode(data),
     );
   }
