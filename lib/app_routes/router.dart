@@ -44,6 +44,7 @@ import '../presentation/views/ChatScreen.dart';
 import '../presentation/views/EditProfile.dart';
 import '../presentation/views/FavouritesScreen.dart';
 import '../presentation/views/FilterScreen.dart';
+import '../presentation/views/HoliSplash.dart';
 import '../presentation/views/NotificationScreen.dart';
 import '../presentation/views/CategoryScreen.dart';
 import '../presentation/views/PostAdvertisementScreen.dart';
@@ -63,7 +64,7 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/',
       pageBuilder: (context, state) =>
-          buildSlideTransitionPage(Splashscreen(), state),
+          buildSlideTransitionPage(HoliSplashscreen(), state),
     ),
     GoRoute(
       path: '/no_internet',
