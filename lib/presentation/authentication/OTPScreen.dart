@@ -256,6 +256,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                         ),
                                       ),
 
+
                                       const SizedBox(height: 20),
                                       // OTP field wrapper
                                       PinCodeTextField(
