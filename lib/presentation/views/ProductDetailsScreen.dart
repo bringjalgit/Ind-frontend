@@ -64,6 +64,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final PageController _pgCtrl = PageController();
 
   final Completer<GoogleMapController> _mapCtrl = Completer();
+
   LatLng? _listingLatLng;
   Set<Marker> _markers = {};
   bool _isResolvingLocation = false;
@@ -123,7 +124,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           listing.location,
           listing.city_name,
           listing.state_name,
-        ].where((e) => e != null && e!.trim().isNotEmpty).toList();
+        ].where((e) => e != null && e.trim().isNotEmpty).toList();
 
         if (addressParts.isNotEmpty) {
           final addr = addressParts.join(', ');
