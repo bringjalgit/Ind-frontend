@@ -31,6 +31,7 @@ import '../../utils/DeepLinkMapper.dart';
 import '../../utils/NotificationIntent.dart';
 import '../../widgets/PremiumUpgradeDialog.dart';
 import 'AddsScreen.dart';
+import 'HoliHomeScreen.dart';
 import 'UserListScreen.dart';
 
 class Dashboard extends StatefulWidget {
@@ -223,7 +224,8 @@ class _DashboardState extends State<Dashboard> {
                   },
                   physics: const NeverScrollableScrollPhysics(),
                   children: const [
-                    HomeScreen(),
+                    // HomeScreen(),
+                    HoliHomeScreen(),
                     AdsScreen(),
                     UserListScreen(),
                     ProfileScreen(),
