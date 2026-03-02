@@ -6,6 +6,7 @@ import 'package:classifieds/services/AuthService.dart';
 import 'package:classifieds/utils/AppLogger.dart';
 import 'package:classifieds/utils/media_query_helper.dart';
 import 'package:go_router/go_router.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/MyAds/my_ads_cubit.dart';
 import '../../data/cubit/MyAds/my_ads_states.dart';
 import '../../theme/AppTextStyles.dart';
@@ -64,7 +65,6 @@ class _AdsScreenState extends State<AdsScreen> {
 
   Future<void> getUserStatus() async {
     final isGuest = await AuthService.isGuest;
-    AppLogger.info("isGuest: $isGuest");
     setState(() => isGuestUser = isGuest);
     if (!isGuest) {
       context.read<MyAdsCubit>().getMyAds(selectedStatus.apiParam);
@@ -182,7 +182,7 @@ class _AdsScreenState extends State<AdsScreen> {
                           ? state.hasNextPage
                           : false;
                       if (isLoading) {
-                        return Center(child: DottedProgressWithLogo());
+                        return const MyAdsShimmer();
                       }
                       if (state is MyAdsFailure) {
                         return Center(
@@ -244,7 +244,8 @@ class _AdsScreenState extends State<AdsScreen> {
                               isDark: isDark,
                               textColor: textColor,
                               boostAdCallback: () {
-                                if ((mobile_no == "9999999999" && Platform.isIOS)) {
+                                if ((mobile_no == "9999999999" &&
+                                    Platform.isIOS)) {
                                   context.push("/subscription_plans");
                                 } else {
                                   showDialog(
@@ -254,7 +255,6 @@ class _AdsScreenState extends State<AdsScreen> {
                                     ),
                                   );
                                 }
-
                               },
                             );
                           },
@@ -265,6 +265,146 @@ class _AdsScreenState extends State<AdsScreen> {
                 ),
               ],
             ),
+    );
+  }
+}
+
+class MyAdsShimmer extends StatelessWidget {
+  const MyAdsShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 5,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (_, __) => const AdCardShimmer(),
+    );
+  }
+}
+
+class AdCardShimmer extends StatelessWidget {
+  const AdCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black12.withOpacity(0.03),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          /// TOP ROW
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              /// IMAGE (64x64)
+              shimmerRectangle(
+                width: 64,
+                height: 64,
+                context: context,
+                radius: 12,
+              ),
+
+              const SizedBox(width: 12),
+
+              /// TITLE + LOCATION + PRICE
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    /// TITLE
+                    shimmerText(
+                      width: double.infinity,
+                      height: 14,
+                      context: context,
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    /// LOCATION
+                    shimmerText(width: 140, height: 12, context: context),
+
+                    const SizedBox(height: 8),
+
+                    /// PRICE
+                    shimmerText(width: 80, height: 16, context: context),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              /// STATUS BADGE
+              shimmerRectangle(
+                width: 70,
+                height: 26,
+                context: context,
+                radius: 12,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          /// POSTED DATE (Right aligned)
+          Align(
+            alignment: Alignment.centerRight,
+            child: shimmerText(width: 100, height: 12, context: context),
+          ),
+
+          const SizedBox(height: 12),
+
+          /// DIVIDER
+          shimmerLinear(1.2, context),
+
+          const SizedBox(height: 16),
+
+          /// ACTION BUTTONS ROW
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              /// Edit button placeholder
+              shimmerRectangle(
+                width: 90,
+                height: 32,
+                context: context,
+                radius: 20,
+              ),
+
+              /// Boost button placeholder
+              shimmerRectangle(
+                width: 120,
+                height: 32,
+                context: context,
+                radius: 20,
+              ),
+
+              /// Delete / Sold button placeholder
+              shimmerRectangle(
+                width: 90,
+                height: 32,
+                context: context,
+                radius: 20,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

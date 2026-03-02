@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../Components/CustomSnackBar.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistStates.dart';
 import '../../data/cubit/Location/location_cubit.dart';
@@ -307,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: BlocBuilder<DashboardCubit, DashBoardState>(
         builder: (context, state) {
           if (state is DashBoardLoading) {
-            return Center(child: DottedProgressWithLogo());
+            return const HomeShimmerLoader();
           } else if (state is DashBoardLoaded) {
             final banner_data = state.bannersModel;
             final category_data = state.categoryModel;
@@ -864,5 +865,183 @@ class _HomeScreenState extends State<HomeScreen> {
       decimalDigits: 0,
     );
     return f.format(val);
+  }
+}
+
+class HomeShimmerLoader extends StatelessWidget {
+  const HomeShimmerLoader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// 🔍 Search Bar
+          shimmerRectangle(
+            width: double.infinity,
+            height: 50,
+            context: context,
+            radius: 10,
+          ),
+
+          const SizedBox(height: 20),
+
+          /// 🎞 Banner
+          shimmerRectangle(
+            width: double.infinity,
+            height: MediaQuery.of(context).size.height * 0.2,
+            context: context,
+            radius: 12,
+          ),
+
+          const SizedBox(height: 12),
+
+          /// Banner Indicators
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              3,
+              (index) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: shimmerCircle(8, context),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          /// 🔥 What's New Title
+          shimmerText(width: 120, height: 20, context: context),
+
+          const SizedBox(height: 20),
+
+          /// 🔥 What's New Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 8,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.8,
+            ),
+            itemBuilder: (_, __) {
+              return Column(
+                children: [
+                  shimmerRectangle(
+                    width: 60,
+                    height: 60,
+                    context: context,
+                    radius: 8,
+                  ),
+                  const SizedBox(height: 10),
+                  shimmerText(width: 50, height: 10, context: context),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 30),
+
+          /// 📦 Categories Title
+          shimmerText(width: 120, height: 20, context: context),
+
+          const SizedBox(height: 20),
+
+          /// 📦 Categories Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 8,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1,
+            ),
+            itemBuilder: (_, __) {
+              return Column(
+                children: [
+                  shimmerRectangle(
+                    width: 60,
+                    height: 60,
+                    context: context,
+                    radius: 8,
+                  ),
+                  const SizedBox(height: 10),
+                  shimmerText(width: 50, height: 10, context: context),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 30),
+
+          /// 🛍 Listings Title Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              shimmerText(width: 100, height: 20, context: context),
+              shimmerText(width: 60, height: 16, context: context),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          /// 🛍 Listings Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 6,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.95,
+            ),
+            itemBuilder: (_, __) {
+              return _productCardShimmer(context);
+            },
+          ),
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  /// 🛍 Product Card Shimmer
+  Widget _productCardShimmer(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// Image
+        shimmerRectangle(
+          width: double.infinity,
+          height: 140,
+          context: context,
+          radius: 12,
+        ),
+
+        const SizedBox(height: 10),
+
+        /// Title
+        shimmerText(width: double.infinity, context: context),
+
+        const SizedBox(height: 8),
+
+        /// Price
+        shimmerText(width: 80, height: 14, context: context),
+
+        const SizedBox(height: 6),
+
+        /// Location
+        shimmerText(width: 120, height: 12, context: context),
+      ],
+    );
   }
 }

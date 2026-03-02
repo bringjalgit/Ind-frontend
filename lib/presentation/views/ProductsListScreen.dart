@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:classifieds/Components/CustomSnackBar.dart';
 import 'package:classifieds/services/AuthService.dart';
 import '../../Components/CustomAppButton.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistStates.dart';
 import '../../data/cubit/Categories/categories_cubit.dart';
@@ -349,96 +350,100 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
               const SizedBox(width: 16),
             ],
           ),
-          body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
-            listener: (context, state) {
-              if (state is AddToWishlistLoaded) {
-                context.read<ProductsCubit2>().updateWishlistStatus(
-                  state.product_id,
-                  state.addToWishlistModel.liked ?? false,
-                );
-              } else if (state is AddToWishlistFailure) {
-                CustomSnackBar1.show(context, state.error);
-              }
-            },
-            child: BlocBuilder<ProductsCubit2, ProductsStates2>(
-              builder: (context, state) {
-                if (state is Products2Loading) {
-                  return Center(child: DottedProgressWithLogo());
-                } else if (state is Products2Failure) {
-                  return Center(child: Text(state.error));
-                } else if (state is Products2Loaded ||
-                    state is Products2LoadingMore) {
-                  final productsModel = (state as dynamic).productsModel;
-                  final products = productsModel.products ?? [];
-                  final hasNextPage = (state as dynamic).hasNextPage;
-
-                  if (products.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/nodata/no_data.png',
-                            width: MediaQuery.of(context).size.width * 0.4,
-                            height: MediaQuery.of(context).size.height * 0.15,
-                          ),
-                          Text(
-                            'No Products Found!',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                              color: ThemeHelper.textColor(context),
+          body: SafeArea(
+            child: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
+              listener: (context, state) {
+                if (state is AddToWishlistLoaded) {
+                  context.read<ProductsCubit2>().updateWishlistStatus(
+                    state.product_id,
+                    state.addToWishlistModel.liked ?? false,
+                  );
+                } else if (state is AddToWishlistFailure) {
+                  CustomSnackBar1.show(context, state.error);
+                }
+              },
+              child: BlocBuilder<ProductsCubit2, ProductsStates2>(
+                builder: (context, state) {
+                  if (state is Products2Loading) {
+                    return const ProductsListShimmer();
+                  } else if (state is Products2Failure) {
+                    return Center(child: Text(state.error));
+                  } else if (state is Products2Loaded ||
+                      state is Products2LoadingMore) {
+                    final productsModel = (state as dynamic).productsModel;
+                    final products = productsModel.products ?? [];
+                    final hasNextPage = (state as dynamic).hasNextPage;
+            
+                    if (products.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/nodata/no_data.png',
+                              width: MediaQuery.of(context).size.width * 0.4,
+                              height: MediaQuery.of(context).size.height * 0.15,
                             ),
+                            Text(
+                              'No Products Found!',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                color: ThemeHelper.textColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return CustomScrollView(
+                      controller: _scrollController,
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.all(16),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              if (index == products.length) {
+                                return hasNextPage
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink();
+                              }
+                              final product = products[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: ProductCard(
+                                  products: product,
+                                  onWishlistToggle: isGuest
+                                      ? () => context.push("/login")
+                                      : () async {
+                                          if (product.id != null) {
+                                            context
+                                                .read<AddToWishlistCubit>()
+                                                .addToWishlist(product.id!);
+                                            await MetaEventTracker.addToWishlist(
+                                              product.id.toString(),
+                                            );
+                                          }
+                                        },
+                                ),
+                              );
+                            }, childCount: products.length + 1),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     );
                   }
-                  return CustomScrollView(
-                    controller: _scrollController,
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.all(16),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            if (index == products.length) {
-                              return hasNextPage
-                                  ? const Padding(
-                                      padding: EdgeInsets.all(16.0),
-                                      child: Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink();
-                            }
-                            final product = products[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: ProductCard(
-                                products: product,
-                                onWishlistToggle: isGuest
-                                    ? () => context.push("/login")
-                                    : () async {
-                                        if (product.id != null) {
-                                          context.read<AddToWishlistCubit>().addToWishlist(product.id!);
-                                          await MetaEventTracker.addToWishlist(
-                                              product.id.toString()
-                                          );
-                                        }
-                                      },
-                              ),
-                            );
-                          }, childCount: products.length + 1),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-                return const SizedBox();
-              },
+                  return const SizedBox();
+                },
+              ),
             ),
           ),
         );
@@ -502,96 +507,6 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
       },
     );
   }
-
-  // Widget _buildPriceWidget() {
-  //   final priceRanges = [
-  //     {"label": "Below Rs.1000", "min": 0, "max": 1000},
-  //     {"label": "Rs.1001 - 5000", "min": 1001, "max": 5000},
-  //     {"label": "Rs.5001 - 10000", "min": 5001, "max": 10000},
-  //     {"label": "Rs.10001 - 25000", "min": 10001, "max": 25000},
-  //     {"label": "Rs.25001 - 50000", "min": 25001, "max": 50000},
-  //     {"label": "Above Rs.50000", "min": 50001, "max": 1000000},
-  //   ];
-  //
-  //   return ValueListenableBuilder<RangeValues>(
-  //     valueListenable: _selectedRange,
-  //     builder: (context, range, _) {
-  //       final textColor = ThemeHelper.textColor(context);
-  //       return SingleChildScrollView(
-  //         child: Column(
-  //           children: [
-  //             ...priceRanges.map((r) {
-  //               final isSelected =
-  //                   range.start.toInt() == r["min"] &&
-  //                   (r["max"] == null || range.end.toInt() == r["max"]);
-  //               return CheckboxListTile(
-  //                 value: isSelected,
-  //                 onChanged: (val) {
-  //                   if (val == true) {
-  //                     _selectedRange.value = RangeValues(
-  //                       ((r["min"] as num?) ?? _minPrice).toDouble(),
-  //                       ((r["max"] as num?) ?? _maxPrice).toDouble(),
-  //                     );
-  //                   } else {
-  //                     _selectedRange.value = RangeValues(_minPrice, _maxPrice);
-  //                   }
-  //                 },
-  //                 title: Text(
-  //                   r["label"] as String,
-  //                   style: AppTextStyles.titleSmall(textColor),
-  //                 ),
-  //               );
-  //             }),
-  //             const SizedBox(height: 20),
-  //             Row(
-  //               children: [
-  //                 Expanded(
-  //                   child: TextField(
-  //                     style: TextStyle(color: textColor),
-  //                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-  //                     keyboardType: TextInputType.number,
-  //                     controller: minPriceController,
-  //                     decoration: const InputDecoration(
-  //                       hintText: "Min",
-  //                       border: OutlineInputBorder(),
-  //                     ),
-  //                     onChanged: (val) {
-  //                       final minVal = int.tryParse(val) ?? _minPrice.toInt();
-  //                       _selectedRange.value = RangeValues(
-  //                         minVal.toDouble(),
-  //                         range.end,
-  //                       );
-  //                     },
-  //                   ),
-  //                 ),
-  //                 const SizedBox(width: 10),
-  //                 Expanded(
-  //                   child: TextField(
-  //                     style: TextStyle(color: textColor),
-  //                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-  //                     keyboardType: TextInputType.number,
-  //                     controller: maxPriceController,
-  //                     decoration: const InputDecoration(
-  //                       hintText: "Max",
-  //                       border: OutlineInputBorder(),
-  //                     ),
-  //                     onChanged: (val) {
-  //                       final maxVal = int.tryParse(val) ?? _maxPrice.toInt();
-  //                       _selectedRange.value = RangeValues(
-  //                         range.start,
-  //                         maxVal.toDouble(),
-  //                       );
-  //                     },
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //           ],
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
 
   Widget _buildPriceWidget() {
     final double priceMin = _minPrice; // e.g., 100 (must be > 0 for log)
@@ -960,6 +875,141 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
           Text(
             msg,
             style: AppTextStyles.bodyMedium(ThemeHelper.textColor(context)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProductsListShimmer extends StatelessWidget {
+  const ProductsListShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: ProductCardShimmer(),
+                );
+              },
+              childCount: 8, // Number of shimmer cards
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ProductCardShimmer extends StatelessWidget {
+  const ProductCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// LEFT IMAGE SECTION
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(14),
+            ),
+            child: SizedBox(
+              height: 120,
+              width: 120,
+              child: Stack(
+                children: [
+                  /// Main image shimmer
+                  shimmerRectangle(
+                    width: 120,
+                    height: 120,
+                    context: context,
+                    radius: 0,
+                  ),
+
+                  /// Featured tag placeholder
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: shimmerRectangle(
+                      width: 80,
+                      height: 22,
+                      context: context,
+                      radius: 0,
+                    ),
+                  ),
+
+                  /// Wishlist icon placeholder
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: shimmerCircle(26, context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          /// RIGHT CONTENT
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  /// TITLE (2 lines feel)
+                  shimmerText(
+                    width: double.infinity,
+                    height: 16,
+                    context: context,
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  shimmerText(width: 160, height: 14, context: context),
+
+                  const SizedBox(height: 12),
+
+                  /// LOCATION ROW
+                  Row(
+                    children: [
+                      shimmerCircle(14, context),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: shimmerText(
+                          width: double.infinity,
+                          height: 13,
+                          context: context,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  /// PRICE
+                  shimmerText(width: 90, height: 16, context: context),
+                ],
+              ),
+            ),
           ),
         ],
       ),

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/data/cubit/subCategory/sub_category_state.dart';
 import 'package:classifieds/model/CategoryModel.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/subCategory/sub_category_cubit.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
@@ -47,7 +48,7 @@ class _SubCategoriesScreenState extends State<SubCategoriesScreen> {
       body: BlocBuilder<SubCategoryCubit, SubCategoryStates>(
         builder: (context, state) {
           if (state is SubCategoryLoading) {
-            return Center(child: DottedProgressWithLogo());
+            return const SubCategoryShimmer();
           } else if (state is SubCategoryLoaded) {
             final subcategories = state.subCategoryModel.subcategories;
             return CustomScrollView(
@@ -180,6 +181,126 @@ class _SubCategoriesScreenState extends State<SubCategoriesScreen> {
             return Center(child: Text("No data Found"));
           }
         },
+      ),
+    );
+  }
+
+
+}
+
+class SubCategoryShimmer extends StatelessWidget {
+  const SubCategoryShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = ThemeHelper.backgroundColor(context);
+
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+
+        /// ----- Banner Shimmer -----
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: shimmerRectangle(
+              width: double.infinity,
+              height: 160,
+              context: context,
+              radius: 4,
+            ),
+          ),
+        ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+        /// ----- Grid Shimmer -----
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverGrid(
+            delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                return const SubCategoryCardShimmer();
+              },
+              childCount: 6, // number of shimmer items
+            ),
+            gridDelegate:
+            const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1,
+            ),
+          ),
+        ),
+
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+      ],
+    );
+  }
+}
+
+class SubCategoryCardShimmer extends StatelessWidget {
+  const SubCategoryCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
+
+    return Card(
+      color: ThemeHelper.cardColor(context),
+      margin: EdgeInsets.zero,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+
+          /// IMAGE SECTION (Flex 2 look)
+          Expanded(
+            flex: 2,
+            child: Container(
+              color: isDark
+                  ? const Color(0xFF2A2A2A)
+                  : const Color(0xFFEDF3FD),
+              padding: const EdgeInsets.all(12),
+              child: Center(
+                child: shimmerRectangle(
+                  width: 70,
+                  height: 70,
+                  context: context,
+                  radius: 12,
+                ),
+              ),
+            ),
+          ),
+
+          /// TEXT SECTION
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 10,
+            ),
+            child: Column(
+              children: [
+                shimmerText(
+                  width: double.infinity,
+                  height: 14,
+                  context: context,
+                ),
+                const SizedBox(height: 6),
+                shimmerText(
+                  width: 80,
+                  height: 14,
+                  context: context,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

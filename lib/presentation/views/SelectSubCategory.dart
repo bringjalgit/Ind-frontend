@@ -281,7 +281,7 @@ class _DocAlertIcon extends StatelessWidget {
     return SizedBox(
       height: 56,
       width: 56,
-      child: Image.asset("assets/images/notetext.png")
+      child: Image.asset("assets/images/notetext.png"),
       // Stack(
       //   alignment: Alignment.center,
       //   children: [

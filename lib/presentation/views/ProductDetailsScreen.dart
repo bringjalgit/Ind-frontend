@@ -56,7 +56,7 @@ class ProductDetailsScreen extends StatefulWidget {
 }
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
-  bool _didInitFromBloc = false; // prevents repeated side-effects
+  bool _didInitFromBloc = false;
   String? mobile_number;
 
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
@@ -115,19 +115,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     try {
       LatLng? pos;
 
-      // 1) Try to parse from location_key (preferred) or location (fallback)
       pos = _parseLatLngFromString(listing.location_key);
 
-      // 2) If still null, try geocoding from address
       if (pos == null) {
-        final String addr = [
+        final addressParts = [
           listing.location,
           listing.city_name,
           listing.state_name,
-        ].where((e) => (e ?? '').trim().isNotEmpty).join(', ');
+        ].where((e) => e != null && e!.trim().isNotEmpty).toList();
 
-        if (addr.trim().isNotEmpty) {
-          final results = await geo.locationFromAddress(addr);
+        if (addressParts.isNotEmpty) {
+          final addr = addressParts.join(', ');
+          final results = await geo
+              .locationFromAddress(addr)
+              .timeout(const Duration(seconds: 8));
+
           if (results.isNotEmpty) {
             pos = LatLng(results.first.latitude, results.first.longitude);
           }
@@ -135,24 +137,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       }
 
       if (!mounted) return;
+
       if (pos != null) {
         setState(() {
           _listingLatLng = pos;
           _markers = {
             Marker(
               markerId: const MarkerId('listing'),
-              position: pos!, // force non-null
-              infoWindow: InfoWindow(
-                title: listing.title ?? 'Listing',
-                snippet:
-                    '${listing.location ?? ''}${listing.city_name != null ? ', ${listing.city_name}' : ''}',
-              ),
+              position: pos!,
+              infoWindow: InfoWindow(title: listing.title ?? 'Listing'),
             ),
           };
         });
       }
     } catch (e) {
-      // log if you want: AppLogger.error("Map error: $e");
+      debugPrint("Map error: $e");
     } finally {
       _isResolvingLocation = false;
     }
@@ -204,10 +203,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       bottomNavigationBar: FutureBuilder<List<Object?>>(
         future: Future.wait([AuthService.isGuest, AuthService.getId()]),
         builder: (context, asyncSnapshot) {
-          if (asyncSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
           if (asyncSnapshot.hasError) {
             return Center(child: Text('Error: ${asyncSnapshot.error}'));
           }
@@ -295,13 +290,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               itemId: widget.listingId.toString(),
               itemName: data.listing?.title ?? "",
             );
-            if (mounted) setState(() {}); // reflect _listingLatLng/_markers
+            if (mounted) setState(() {});
           }
         },
         builder: (context, state) {
           if (state is ProductDetailsLoading ||
               state is ProductDetailsInitially) {
-            return Center(child: DottedProgressWithLogo());
+            return Center(child: Expanded(child: DottedProgressWithLogo()));
           }
           if (state is ProductDetailsFailure) {
             return _ErrorView(
@@ -311,100 +306,43 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   .getProductDetails(widget.listingId),
             );
           }
-          final model = (state as ProductDetailsLoaded).productDetailsModel;
-          final data = model.data!;
-          final listing = data.listing!;
-          final images = data.images ?? const [];
-          final details = data.details;
-          final posted = data.postedBy;
+          if (state is ProductDetailsLoaded) {
+            final model = (state as ProductDetailsLoaded).productDetailsModel;
+            final data = model.data!;
+            final listing = data.listing!;
+            final images = data.images ?? const [];
+            final details = data.details;
+            final posted = data.postedBy;
 
-          final title = listing.title ?? "Check this Listing";
-          final priceStr = _formatINR(listing.price);
-          final location =
-              "${listing.location},${listing.city_name},${listing.state_name}" ??
-              "—";
+            final title = listing.title ?? "Check this Listing";
+            final priceStr = _formatINR(listing.price);
+            final location = [
+              listing.location,
+              listing.city_name,
+              listing.state_name,
+            ].where((e) => e != null && e.trim().isNotEmpty).join(', ');
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: Stack(
-                        children: [
-                          // 1) Images
-                          PageView.builder(
-                            controller: _pgCtrl,
-                            onPageChanged: (i) => _pageNotifier.value = i,
-                            itemCount: images.isEmpty ? 1 : images.length,
-                            itemBuilder: (_, i) {
-                              final url = images.isNotEmpty
-                                  ? images[i].image
-                                  : null;
-                              return GestureDetector(
-                                onTap: () {
-                                  if (images.isNotEmpty) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => PhotoViewScreen(
-                                          images: images,
-                                          initialIndex: i,
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: _ImageHero(url: url),
-                              );
-                            },
-                          ),
-
-                          // 2) Watermark (bottom-right)
-                          Positioned(
-                            right: 0,
-                            bottom: 0, // keep above the dots
-                            child: IgnorePointer(
-                              ignoring: true,
-                              child: Image.asset(
-                                'assets/images/watermark.png', // <-- your watermark image
-                                width: 110, // tweak as needed
-                                fit: BoxFit.contain,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),
-                          ),
-
-                          // 3) Top-right actions
-                          Positioned(
-                            top: 12,
-                            right: 12,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _RoundIconButton(
-                                  icon: Icons.ios_share_rounded,
-                                  tooltip: 'Share',
-                                  onTap: () {
-                                    final shareUrl = generateListingUrl(
-                                      data.listing!,
-                                    );
-                                    AppLogger.info("shareUrl:$shareUrl");
-
-                                    Share.share(
-                                      shareUrl,
-                                      subject:
-                                          data.listing?.title ??
-                                          'Check this listing',
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: 8),
-                                _RoundIconButton(
-                                  icon: Icons.fullscreen_rounded,
-                                  tooltip: 'View',
+            final safeLocation = location.isEmpty ? "—" : location;
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Stack(
+                          children: [
+                            // 1) Images
+                            PageView.builder(
+                              controller: _pgCtrl,
+                              onPageChanged: (i) => _pageNotifier.value = i,
+                              itemCount: images.isEmpty ? 1 : images.length,
+                              itemBuilder: (_, i) {
+                                final url = images.isNotEmpty
+                                    ? images[i].image
+                                    : null;
+                                return GestureDetector(
                                   onTap: () {
                                     if (images.isNotEmpty) {
                                       Navigator.push(
@@ -412,134 +350,169 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         MaterialPageRoute(
                                           builder: (context) => PhotoViewScreen(
                                             images: images,
-                                            initialIndex: _pageNotifier.value,
+                                            initialIndex: i,
                                           ),
                                         ),
                                       );
                                     }
                                   },
-                                ),
-                              ],
+                                  child: _ImageHero(url: url),
+                                );
+                              },
                             ),
-                          ),
 
-                          // 4) Dots
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 12,
-                            child: Center(
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _pageNotifier,
-                                builder: (context, page, _) {
-                                  return _Dots(
-                                    count: images.isEmpty ? 1 : images.length,
-                                    index: page,
-                                  );
-                                },
+                            // 2) Watermark (bottom-right)
+                            Positioned(
+                              right: 0,
+                              bottom: 0, // keep above the dots
+                              child: IgnorePointer(
+                                ignoring: true,
+                                child: Image.asset(
+                                  'assets/images/watermark.png', // <-- your watermark image
+                                  width: 110, // tweak as needed
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: AppTextStyles.headlineSmall(textColor),
-                      ),
-                      const SizedBox(height: 6),
-                      listing.price == "0.0" ||
-                              listing.price == "0" ||
-                              listing.price == "0.00"
-                          ? const SizedBox.shrink()
-                          : Text(
-                              "₹${_formatINR(listing.price)}",
-                              style: AppTextStyles.headlineMedium(
-                                textColor,
-                              ).copyWith(fontWeight: FontWeight.w800),
-                            ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    "Item Information",
-                    style: AppTextStyles.headlineSmall(
-                      textColor,
-                    ).copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
-              // Chips (Posted + Location)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    spacing: 16,
-                    runSpacing: 12,
-                    children: [
-                      if (listing.createdAt != null)
-                        _InfoChip(
-                          icon: Icons.calendar_today_rounded,
-                          label: "Posted At",
-                          value: _shortDate(listing.createdAt),
-                        ),
-                      if (location.isNotEmpty)
-                        _InfoChip(
-                          icon: Icons.place_rounded,
-                          label: "",
-                          value: location,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-              // ===== Description =====
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    "Description",
-                    style: AppTextStyles.headlineSmall(
-                      textColor,
-                    ).copyWith(fontWeight: FontWeight.w700),
+                            // 3) Top-right actions
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _RoundIconButton(
+                                    icon: Icons.ios_share_rounded,
+                                    tooltip: 'Share',
+                                    onTap: () {
+                                      if (data.listing != null) {
+                                        final shareUrl = generateListingUrl(
+                                          data.listing!,
+                                        );
+                                        Share.share(shareUrl);
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _RoundIconButton(
+                                    icon: Icons.fullscreen_rounded,
+                                    tooltip: 'View',
+                                    onTap: () {
+                                      if (images.isNotEmpty) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                PhotoViewScreen(
+                                                  images: images,
+                                                  initialIndex:
+                                                      _pageNotifier.value,
+                                                ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // 4) Dots
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 12,
+                              child: Center(
+                                child: ValueListenableBuilder<int>(
+                                  valueListenable: _pageNotifier,
+                                  builder: (context, page, _) {
+                                    return _Dots(
+                                      count: images.isEmpty ? 1 : images.length,
+                                      index: page,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Text(
-                    (listing.description ?? "—").trim(),
-                    style: AppTextStyles.bodyMedium(textColor),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: AppTextStyles.headlineSmall(textColor),
+                        ),
+                        const SizedBox(height: 6),
+                        listing.price == "0.0" ||
+                                listing.price == "0" ||
+                                listing.price == "0.00"
+                            ? const SizedBox.shrink()
+                            : Text(
+                                "₹${_formatINR(listing.price)}",
+                                style: AppTextStyles.headlineMedium(
+                                  textColor,
+                                ).copyWith(fontWeight: FontWeight.w800),
+                              ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-              // ===== Specifications (Dynamic via Map) =====
-              if (details != null) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
-                      "Specifications",
+                      "Item Information",
+                      style: AppTextStyles.headlineSmall(
+                        textColor,
+                      ).copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                // Chips (Posted + Location)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 12,
+                      children: [
+                        if (listing.createdAt != null)
+                          _InfoChip(
+                            icon: Icons.calendar_today_rounded,
+                            label: "Posted At",
+                            value: _shortDate(listing.createdAt),
+                          ),
+                        if (location.isNotEmpty)
+                          _InfoChip(
+                            icon: Icons.place_rounded,
+                            label: "",
+                            value: location,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 20)),
+
+                // ===== Description =====
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      "Description",
                       style: AppTextStyles.headlineSmall(
                         textColor,
                       ).copyWith(fontWeight: FontWeight.w700),
@@ -548,137 +521,163 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 ),
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
-                    child: buildSpecifications(details),
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: Text(
+                      (listing.description ?? "—").trim(),
+                      style: AppTextStyles.bodyMedium(textColor),
+                    ),
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: 20)),
-              ],
-              // ===== AD ID =====
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "AD ID ${listing.id.toString()}",
-                        style: AppTextStyles.bodyLarge(
-                          textColor,
-                        ).copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          openReportSheetForListing(
-                            context,
-                            listingId: widget.listingId,
-                          );
-                        },
-                        child: Text("REPORT THIS AD"),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-              // ===== Location Map =====
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Location",
+                const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                // ===== Specifications (Dynamic via Map) =====
+                if (details != null) ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        "Specifications",
                         style: AppTextStyles.headlineSmall(
                           textColor,
                         ).copyWith(fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 180,
-                          color: ThemeHelper.cardColor(context),
-                          child: _listingLatLng == null
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Text(
-                                      _isResolvingLocation
-                                          ? "Loading map…"
-                                          : "Location unavailable",
-                                      style: AppTextStyles.bodySmall(textColor),
-                                    ),
-                                  ),
-                                )
-                              : GoogleMap(
-                                  initialCameraPosition: CameraPosition(
-                                    target: _listingLatLng!,
-                                    zoom: 14.5,
-                                  ),
-                                  zoomGesturesEnabled:
-                                      false, // ← disables double-tap & pinch zoom
-                                  myLocationButtonEnabled: false,
-                                  zoomControlsEnabled: false,
-                                  rotateGesturesEnabled: false, // optional
-                                  tiltGesturesEnabled: false, // optional
-                                  markers: _markers,
-                                  onMapCreated: (c) => _mapCtrl.complete(c),
-                                  // Important: don't pass an empty set here; use null (default) unless you have a specific need
-                                  // gestureRecognizers: {},
-                                ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: buildSpecifications(details),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                ],
+                // ===== AD ID =====
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "AD ID ${listing.id.toString()}",
+                          style: AppTextStyles.bodyLarge(
+                            textColor,
+                          ).copyWith(fontWeight: FontWeight.w700),
                         ),
-                      ),
-                      if (_listingLatLng != null) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _openInGoogleMaps(_listingLatLng!),
-                            icon: const Icon(Icons.directions),
-                            label: const Text("Open in Google Maps"),
-                          ),
+                        TextButton(
+                          onPressed: () {
+                            openReportSheetForListing(
+                              context,
+                              listingId: widget.listingId,
+                            );
+                          },
+                          child: Text("REPORT THIS AD"),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 10)),
-
-              // ===== Posted By =====
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _PostedByCard(
-                    avatarUrl: posted?.image,
-                    name: posted?.name ?? "—",
-                    postedOn: posted?.postedAt ?? _shortDate(listing.createdAt),
-                    onViewProfile: () {},
+                // ===== Location Map =====
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Location",
+                          style: AppTextStyles.headlineSmall(
+                            textColor,
+                          ).copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            height: 180,
+                            color: ThemeHelper.cardColor(context),
+                            child: _listingLatLng == null
+                                ? Center(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Text(
+                                        _isResolvingLocation
+                                            ? "Loading map…"
+                                            : "Location unavailable",
+                                        style: AppTextStyles.bodySmall(
+                                          textColor,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : GoogleMap(
+                                    initialCameraPosition: CameraPosition(
+                                      target: _listingLatLng!,
+                                      zoom: 14.5,
+                                    ),
+                                    zoomGesturesEnabled: false,
+                                    myLocationButtonEnabled: false,
+                                    zoomControlsEnabled: false,
+                                    rotateGesturesEnabled: false,
+                                    tiltGesturesEnabled: false,
+                                    markers: _markers,
+                                    onMapCreated: (c) => _mapCtrl.complete(c),
+                                  ),
+                          ),
+                        ),
+                        if (_listingLatLng != null) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  _openInGoogleMaps(_listingLatLng!),
+                              icon: const Icon(Icons.directions),
+                              label: const Text("Open in Google Maps"),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 280,
-                  child: SimilarProductsSection(
-                    subCategoryId: listing.subCategoryId!.toString(),
-                    excludeId: listing.id,
-                    onTap: (prod) {
-                      context.pushReplacement(
-                        "/products_details?listingId=${listing.id}&subcategory_id=${listing.subCategoryId}",
-                      );
-                    },
+                const SliverToBoxAdapter(child: SizedBox(height: 10)),
+
+                // ===== Posted By =====
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _PostedByCard(
+                      avatarUrl: posted?.image,
+                      name: posted?.name ?? "—",
+                      postedOn:
+                          posted?.postedAt ?? _shortDate(listing.createdAt),
+                      onViewProfile: () {},
+                    ),
                   ),
                 ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            ],
-          );
+
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 280,
+                    child: SimilarProductsSection(
+                      subCategoryId: listing.subCategoryId?.toString() ?? "",
+                      excludeId: listing.id,
+                      onTap: (prod) {
+                        context.pushReplacement(
+                          "/products_details?listingId=${listing.id}&subcategory_id=${listing.subCategoryId}",
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
+            );
+          }
+          return SizedBox.shrink();
         },
       ),
     );

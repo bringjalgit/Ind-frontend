@@ -6,6 +6,7 @@ import 'package:classifieds/data/cubit/Wishlist/wishlist_cubit.dart';
 import 'package:classifieds/data/cubit/Wishlist/wishlist_states.dart';
 
 import '../../Components/CustomSnackBar.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistStates.dart';
 import '../../theme/AppTextStyles.dart';
@@ -87,8 +88,8 @@ class _WishlistListScreenState extends State<WishlistListScreen> {
         child: BlocBuilder<WishlistCubit, WishlistStates>(
           builder: (context, state) {
             if (state is WishlistLoading) {
-              return Center(child: DottedProgressWithLogo());
-            } else if (state is WishlistFailure) {
+              return const WishlistShimmer();
+            }else if (state is WishlistFailure) {
               return Center(child: Text(state.error));
             } else if (state is WishlistLoaded ||
                 state is WishlistLoadingMore) {
@@ -161,6 +162,154 @@ class _WishlistListScreenState extends State<WishlistListScreen> {
             return const SizedBox();
           },
         ),
+      ),
+    );
+  }
+}
+
+class WishlistShimmer extends StatelessWidget {
+  const WishlistShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 16),
+                  child: WishlistProductCardShimmer(),
+                );
+              },
+              childCount: 6, // number of shimmer items
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class WishlistProductCardShimmer extends StatelessWidget {
+  const WishlistProductCardShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = ThemeHelper.isDarkMode(context)
+        ? Colors.grey[900]
+        : Colors.white;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          /// LEFT IMAGE SECTION
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(12),
+            ),
+            child: SizedBox(
+              width: 120,
+              height: 120,
+              child: Stack(
+                children: [
+
+                  /// Main image shimmer
+                  shimmerRectangle(
+                    width: 120,
+                    height: 120,
+                    context: context,
+                    radius: 0,
+                  ),
+
+                  /// Featured tag placeholder
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: shimmerRectangle(
+                      width: 80,
+                      height: 24,
+                      context: context,
+                      radius: 0,
+                    ),
+                  ),
+
+                  /// Wishlist icon placeholder
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: shimmerCircle(30, context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          /// RIGHT CONTENT SECTION
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: 12,
+                right: 12,
+                top: 12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  /// TITLE
+                  shimmerText(
+                    width: double.infinity,
+                    height: 16,
+                    context: context,
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  /// LOCATION ROW
+                  Row(
+                    children: [
+                      shimmerCircle(15, context),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: shimmerText(
+                          width: double.infinity,
+                          height: 14,
+                          context: context,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  /// PRICE
+                  shimmerText(
+                    width: 90,
+                    height: 16,
+                    context: context,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

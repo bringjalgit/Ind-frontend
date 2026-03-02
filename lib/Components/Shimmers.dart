@@ -1,129 +1,177 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-FadeShimmer_box_elite(height, width, radius) {
-  return Container(
-    margin: EdgeInsets.all(5),
-    decoration: BoxDecoration(
-        color: Color(0xFF3D3D3D), borderRadius: BorderRadius.circular(radius)),
-    height: height,
-    width: width,
-  );
+/// ============================================================
+/// PREMIUM THEME AWARE SHIMMER SYSTEM
+/// Works perfectly for both Light & Dark themes
+/// ============================================================
+
+class AppShimmer {
+  /// Base color depending on theme
+  static Color baseColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? const Color(0xFF2A2A2A) // Deep dark grey
+        : const Color(0xFFE0E0E0); // Soft light grey
+  }
+
+  /// Highlight color depending on theme
+  static Color highlightColor(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return isDark
+        ? const Color(0xFF3A3A3A) // Slight glow in dark
+        : const Color(0xFFF5F5F5); // Soft highlight in light
+  }
 }
 
-FadeShimmer_box_porter(height, width, radius) {
-  return Container(
-    margin: EdgeInsets.all(5),
-    decoration: BoxDecoration(
-        color: Color(0xFF959595), borderRadius: BorderRadius.circular(radius)),
-    height: height,
-    width: width,
-  );
-}
+/// ============================================================
+/// REUSABLE SHIMMER BOX (Main Core Widget)
+/// ============================================================
 
-shimmerCircle(double size, BuildContext context) {
-  // Light mode colors
-  final baseColor = Colors.grey[300]!;
-  final highlightColor = Colors.grey[100]!;
-
+Widget shimmerBox({
+  required double width,
+  required double height,
+  required BuildContext context,
+  double radius = 12,
+  ShapeBorder? shape,
+}) {
   return Shimmer.fromColors(
-    baseColor: baseColor,
-    highlightColor: highlightColor,
+    baseColor: AppShimmer.baseColor(context),
+    highlightColor: AppShimmer.highlightColor(context),
+    period: const Duration(milliseconds: 1500),
+    direction: ShimmerDirection.ltr,
     child: Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
+      width: width,
+      height: height,
+      decoration: ShapeDecoration(
+        shape: shape ??
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(radius),
+            ),
+        color: Theme.of(context).cardColor,
       ),
     ),
   );
 }
 
-Widget shimmerRectangle(double size, BuildContext context) {
-  // Light mode colors
-  final baseColor = Colors.grey[300]!;
-  final highlightColor = Colors.grey[100]!;
+/// ============================================================
+/// CIRCLE SHIMMER
+/// ============================================================
 
-  return Shimmer.fromColors(
-    baseColor: baseColor,
-    highlightColor: highlightColor,
-    child: Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.rectangle,
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-    ),
+Widget shimmerCircle(double size, BuildContext context) {
+  return shimmerBox(
+    width: size,
+    height: size,
+    context: context,
+    shape: const CircleBorder(),
   );
 }
 
-shimmerDivider(double height, double width, BuildContext context) {
-  final baseColor = Colors.grey[300]!;
-  final highlightColor = Colors.grey[100]!;
-  return Shimmer.fromColors(
-      child: Container(
+/// ============================================================
+/// RECTANGLE SHIMMER
+/// ============================================================
 
-          height: height,
-          width: width,
-          decoration: BoxDecoration(color: Colors.white)),
-      baseColor: baseColor,
-      highlightColor: highlightColor);
+Widget shimmerRectangle({
+  required double width,
+  required double height,
+  required BuildContext context,
+  double radius = 12,
+}) {
+  return shimmerBox(
+    width: width,
+    height: height,
+    context: context,
+    radius: radius,
+  );
 }
 
-shimmerContainer(double width, double height, BuildContext context,
-    {bool isButton = false}) {
-  // Light mode colors
-  final baseColor = Colors.grey[300]!;
-  final highlightColor = Colors.grey[100]!;
+/// ============================================================
+/// TEXT SHIMMER (Rounded Premium Style)
+/// ============================================================
 
+Widget shimmerText({
+  required double width,
+  double height = 14,
+  required BuildContext context,
+}) {
+  return shimmerBox(
+    width: width,
+    height: height,
+    context: context,
+    radius: 20,
+  );
+}
+
+/// ============================================================
+/// BUTTON SHIMMER (Modern Gradient Feel)
+/// ============================================================
+
+Widget shimmerButton(
+    double width,
+    double height,
+    BuildContext context,
+    ) {
   return Shimmer.fromColors(
-    baseColor: baseColor,
-    highlightColor: highlightColor,
+    baseColor: AppShimmer.baseColor(context),
+    highlightColor: AppShimmer.highlightColor(context),
+    period: const Duration(milliseconds: 1500),
     child: Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: isButton ? Colors.grey : Colors.grey[200],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            AppShimmer.baseColor(context),
+            AppShimmer.highlightColor(context),
+            AppShimmer.baseColor(context),
+          ],
+        ),
       ),
-      child:
-      isButton ? Center(child: shimmerText(80, 18, context)) : SizedBox(),
     ),
   );
 }
 
-// Shimmer component for text
-shimmerText(double width, double height, BuildContext context) {
-  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-  final baseColor = isDarkMode ? Colors.grey[800]! : Colors.grey[300]!;
-  final highlightColor = isDarkMode ? Colors.grey[700]! : Colors.grey[100]!;
-  return Shimmer.fromColors(
-    baseColor: baseColor,
-    highlightColor: highlightColor,
-    child: Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-          color: Color(0xffE6E8EB), borderRadius: BorderRadius.circular(18)),
-    ),
+/// ============================================================
+/// FULL WIDTH LINEAR SHIMMER (Progress / Divider)
+/// ============================================================
+
+Widget shimmerLinear(
+    double height,
+    BuildContext context,
+    ) {
+  return shimmerBox(
+    width: double.infinity,
+    height: height,
+    context: context,
+    radius: 30,
   );
 }
 
-// Shimmer component for linear progress bar
-shimmerLinearProgress(double height, BuildContext context) {
-  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-  final baseColor = isDarkMode ? Colors.grey[800]! : Colors.grey[300]!;
-  final highlightColor = isDarkMode ? Colors.grey[700]! : Colors.grey[100]!;
-  return Shimmer.fromColors(
-    baseColor: baseColor,
-    highlightColor: highlightColor,
-    child: Container(
-      height: height,
-      decoration: BoxDecoration(
-          color: Color(0xffE6E8EB), borderRadius: BorderRadius.circular(18)),
+/// ============================================================
+/// LIST TILE SHIMMER (Commonly Used in Apps)
+/// ============================================================
+
+Widget shimmerListTile(BuildContext context) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    child: Row(
+      children: [
+        shimmerCircle(50, context),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              shimmerText(width: double.infinity, context: context),
+              const SizedBox(height: 8),
+              shimmerText(width: 150, context: context),
+            ],
+          ),
+        ),
+      ],
     ),
   );
 }
