@@ -10,6 +10,7 @@ import 'package:classifieds/data/cubit/Profile/profile_states.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../Components/CustomAppButton.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/theme_cubit.dart';
 import '../../services/AuthService.dart';
 import '../../services/MetaEventTracker.dart';
@@ -70,10 +71,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: Text('Profile', style: AppTextStyles.headlineSmall(textColor)),
       ),
       body: (_isGuestUser == null)
-          ? SizedBox(
-              height: height * 0.75,
-              child: const Center(child: DottedProgressWithLogo()),
-            )
+          ? const ProfileShimmer()
           : (_isGuestUser == true)
           // ── Guest view: no API, simple prompt
           ? _GuestProfilePlaceholder(textColor: textColor)
@@ -88,10 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
                 builder: (context, state) {
                   if (state is ProfileLoading) {
-                    return SizedBox(
-                      height: height * 0.75,
-                      child: const Center(child: DottedProgressWithLogo()),
-                    );
+                    return const ProfileShimmer();
                   } else if (state is ProfileLoaded) {
                     final user_data = state.profileModel.data;
                     return Column(
@@ -752,6 +747,94 @@ class _GuestProfilePlaceholder extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+class ProfileShimmer extends StatelessWidget {
+  const ProfileShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+          /// PROFILE IMAGE (160 circle)
+          shimmerCircle(160, context),
+
+          const SizedBox(height: 16),
+
+          /// NAME
+          shimmerText(
+            width: 160,
+            height: 18,
+            context: context,
+          ),
+
+          const SizedBox(height: 12),
+
+          /// EMAIL
+          shimmerText(
+            width: 220,
+            context: context,
+          ),
+
+          const SizedBox(height: 8),
+
+          /// MOBILE
+          shimmerText(
+            width: 150,
+            context: context,
+          ),
+
+          const SizedBox(height: 16),
+
+          /// EDIT PROFILE BUTTON
+          shimmerButton(
+            140,
+            40,
+            context,
+          ),
+
+          const SizedBox(height: 24),
+
+          /// SETTINGS TILES
+          ...List.generate(6, (index) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: shimmerRectangle(
+                width: double.infinity,
+                height: 56,
+                context: context,
+                radius: 12,
+              ),
+            );
+          }),
+
+          const SizedBox(height: 20),
+
+          /// LOGOUT BUTTON
+          shimmerButton(
+            double.infinity,
+            48,
+            context,
+          ),
+
+          const SizedBox(height: 20),
+
+          /// DELETE ACCOUNT BUTTON
+          shimmerRectangle(
+            width: double.infinity,
+            height: 48,
+            context: context,
+            radius: 8,
+          ),
+        ],
       ),
     );
   }

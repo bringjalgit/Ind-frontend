@@ -8,6 +8,7 @@ import 'package:classifieds/widgets/CommonLoader.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../Components/CustomSnackBar.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/Packages/packages_cubit.dart';
 import '../../data/cubit/Packages/packages_states.dart';
 import '../../data/cubit/Payment/payment_cubit.dart';
@@ -123,7 +124,7 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
       body: BlocBuilder<PlansCubit, PlansStates>(
         builder: (context, state) {
           if (state is PlansLoading) {
-            return Center(child: DottedProgressWithLogo());
+            return plansScreenShimmer(context);
           }
           if (state is PlansFailure) {
             return _PlansErrorView(
@@ -271,6 +272,132 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
           // initial
           return Center(child: DottedProgressWithLogo());
         },
+      ),
+    );
+  }
+
+
+  /// ============================================================
+  /// PREMIUM PLAN CARD SHIMMER
+  /// Matches _buildPlanCard UI
+  /// ============================================================
+
+  Widget planCardShimmer(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Container(
+        decoration: BoxDecoration(
+          color: ThemeHelper.cardColor(context),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: ThemeHelper.isDarkMode(context)
+                  ? Colors.black.withOpacity(0.3)
+                  : Colors.black.withOpacity(0.05),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            /// HEADER IMAGE AREA
+            ClipRRect(
+              borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(14)),
+              child: shimmerRectangle(
+                width: double.infinity,
+                height: 120,
+                context: context,
+                radius: 0,
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  shimmerText(width: 180, height: 20, context: context),
+                  const SizedBox(height: 8),
+
+                  shimmerText(width: 220, context: context),
+                  const SizedBox(height: 16),
+
+                  /// PRICE ROW
+                  shimmerText(width: 140, height: 18, context: context),
+
+                  const SizedBox(height: 20),
+
+                  /// BUTTON
+                  shimmerRectangle(
+                    width: double.infinity,
+                    height: 53,
+                    radius: 16,
+                    context: context,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget plansHeaderShimmer(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+        shimmerText(width: 220, height: 22, context: context),
+        const SizedBox(height: 10),
+        shimmerText(width: 260, context: context),
+        const SizedBox(height: 4),
+        shimmerText(width: 200, context: context),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+
+  Widget plansFooterShimmer(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 30),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            shimmerCircle(16, context),
+            const SizedBox(width: 8),
+            shimmerText(width: 90, context: context),
+            const SizedBox(width: 16),
+            shimmerCircle(16, context),
+            const SizedBox(width: 8),
+            shimmerText(width: 90, context: context),
+          ],
+        ),
+        const SizedBox(height: 20),
+        shimmerText(width: 200, context: context),
+        const SizedBox(height: 8),
+        shimmerText(width: 120, context: context),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget plansScreenShimmer(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          plansHeaderShimmer(context),
+
+          /// 3 Plan Cards
+          planCardShimmer(context),
+          planCardShimmer(context),
+          planCardShimmer(context),
+
+          plansFooterShimmer(context),
+        ],
       ),
     );
   }

@@ -214,7 +214,7 @@ class _AdsScreenState extends State<AdsScreen> {
                                 height: SizeConfig.screenHeight * 0.12,
                               ),
                               Text(
-                                'No ${selectedStatus.label.toLowerCase()} Found!',
+                                'No ${selectedStatus.label.toLowerCase()} Listings Found!',
                                 style: AppTextStyles.headlineSmall(textColor),
                               ),
                             ],

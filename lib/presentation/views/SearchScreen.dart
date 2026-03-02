@@ -11,6 +11,7 @@ import 'package:lottie/lottie.dart';
 
 import '../../Components/CustomAppButton.dart';
 import '../../Components/CustomSnackBar.dart';
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistStates.dart';
 import '../../data/cubit/Categories/categories_cubit.dart';
@@ -251,253 +252,334 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(width: 16),
         ],
       ),
-      body: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
-        listener: (context, state) {
-          if (state is AddToWishlistLoaded) {
-            // fix: update ProductsCubit2
-            context.read<ProductsCubit2>().updateWishlistStatus(
-              state.product_id,
-              state.addToWishlistModel.liked ?? false,
-            );
-          } else if (state is AddToWishlistFailure) {
-            CustomSnackBar1.show(context, state.error);
-          }
-        },
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: searchController,
-                      style: AppTextStyles.bodyLarge(textColor),
-                      decoration: InputDecoration(
-                        hintText: "Search for products...",
-                        hintStyle: AppTextStyles.bodyLarge(textColor),
-                        prefixIcon: const Icon(Icons.search),
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  IconButton.outlined(
-                    style: IconButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadiusGeometry.circular(10),
-                      ),
-                    ),
-                    onPressed: _isListening ? _stopListening : _startListening,
-                    icon: Icon(Icons.mic),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextFormField(
-                controller: locationController,
-                readOnly: true,
-                style: AppTextStyles.bodyLarge(textColor),
-                decoration: InputDecoration(
-                  hintText: "Select location...",
-                  hintStyle: AppTextStyles.bodyLarge(textColor),
-                  prefixIcon: const Icon(Icons.location_on_outlined),
-                  suffixIcon: locationController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              locationController.clear();
-                              _selectedPlace = null;
-                              _selectedLat = null;
-                              _selectedLng = null;
-                            });
-                            _applyFiltersAndFetch();
-                          },
-                        )
-                      : null,
-                  border: const OutlineInputBorder(),
+      body: SafeArea(
+        child: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
+          listener: (context, state) {
+            if (state is AddToWishlistLoaded) {
+              // fix: update ProductsCubit2
+              context.read<ProductsCubit2>().updateWishlistStatus(
+                state.product_id,
+                state.addToWishlistModel.liked ?? false,
+              );
+            } else if (state is AddToWishlistFailure) {
+              CustomSnackBar1.show(context, state.error);
+            }
+          },
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8,
                 ),
-                onTap: () async {
-                  final picked = await openPlacePickerBottomSheet(
-                    context: context,
-                    googleApiKey: google_map_key,
-                    controller: locationController,
-                    language: "en",
-                    components: "country:in",
-                  );
-
-                  if (picked != null) {
-                    setState(() {
-                      _selectedPlace = picked;
-                      _selectedLat = picked.lat;
-                      _selectedLng = picked.lng;
-                    });
-
-                    _applyFiltersAndFetch();
-                  }
-                },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: searchController,
+                        style: AppTextStyles.bodyLarge(textColor),
+                        decoration: InputDecoration(
+                          hintText: "Search for products...",
+                          hintStyle: AppTextStyles.bodyLarge(textColor),
+                          prefixIcon: const Icon(Icons.search),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    IconButton.outlined(
+                      style: IconButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadiusGeometry.circular(10),
+                        ),
+                      ),
+                      onPressed: _isListening ? _stopListening : _startListening,
+                      icon: Icon(Icons.mic),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: BlocBuilder<ProductsCubit2, ProductsStates2>(
-                builder: (context, state) {
-                  if (state is Products2Loading) {
-                    return const Center(child: DottedProgressWithLogo());
-                  } else if (state is Products2Failure) {
-                    return Center(child: Text(state.error));
-                  } else if (state is Products2Loaded ||
-                      state is Products2LoadingMore) {
-                    final productsModel = (state as dynamic).productsModel;
-                    final products = productsModel.products ?? [];
-                    final hasNextPage = (state as dynamic).hasNextPage;
-
-                    if (products.isEmpty) {
-                      return Center(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextFormField(
+                  controller: locationController,
+                  readOnly: true,
+                  style: AppTextStyles.bodyLarge(textColor),
+                  decoration: InputDecoration(
+                    hintText: "Select location...",
+                    hintStyle: AppTextStyles.bodyLarge(textColor),
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    suffixIcon: locationController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              setState(() {
+                                locationController.clear();
+                                _selectedPlace = null;
+                                _selectedLat = null;
+                                _selectedLng = null;
+                              });
+                              _applyFiltersAndFetch();
+                            },
+                          )
+                        : null,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onTap: () async {
+                    final picked = await openPlacePickerBottomSheet(
+                      context: context,
+                      googleApiKey: google_map_key,
+                      controller: locationController,
+                      language: "en",
+                      components: "country:in",
+                    );
+        
+                    if (picked != null) {
+                      setState(() {
+                        _selectedPlace = picked;
+                        _selectedLat = picked.lat;
+                        _selectedLng = picked.lng;
+                      });
+        
+                      _applyFiltersAndFetch();
+                    }
+                  },
+                ),
+              ),
+              Expanded(
+                child: BlocBuilder<ProductsCubit2, ProductsStates2>(
+                  builder: (context, state) {
+                    if (state is Products2Loading) {
+                      return _isGridView
+                          ? searchGridShimmer(context)
+                          : searchListShimmer(context);
+                    } else if (state is Products2Failure) {
+                      return Center(child: Text(state.error));
+                    } else if (state is Products2Loaded ||
+                        state is Products2LoadingMore) {
+                      final productsModel = (state as dynamic).productsModel;
+                      final products = productsModel.products ?? [];
+                      final hasNextPage = (state as dynamic).hasNextPage;
+        
+                      if (products.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                'assets/nodata/no_data.png',
+                                width: MediaQuery.of(context).size.width * 0.4,
+                                height: MediaQuery.of(context).size.height * 0.15,
+                              ),
+                              Text(
+                                'No Products Found!',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  color: ThemeHelper.textColor(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+        
+                      return NotificationListener<ScrollNotification>(
+                        onNotification: (scrollInfo) {
+                          if (scrollInfo.metrics.pixels >=
+                              scrollInfo.metrics.maxScrollExtent - 200) {
+                            context.read<ProductsCubit2>().getMoreProducts();
+                          }
+                          return false;
+                        },
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.asset(
-                              'assets/nodata/no_data.png',
-                              width: MediaQuery.of(context).size.width * 0.4,
-                              height: MediaQuery.of(context).size.height * 0.15,
-                            ),
-                            Text(
-                              'No Products Found!',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: ThemeHelper.textColor(context),
+                            Expanded(
+                              child: CustomScrollView(
+                                slivers: [
+                                  SliverPadding(
+                                    padding: const EdgeInsets.all(16),
+                                    sliver: _isGridView
+                                        ? SliverGrid(
+                                            gridDelegate:
+                                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: 2,
+                                                  mainAxisSpacing: 12,
+                                                  crossAxisSpacing: 12,
+                                                  childAspectRatio: 0.85,
+                                                ),
+                                            delegate: SliverChildBuilderDelegate((
+                                              context,
+                                              index,
+                                            ) {
+                                              final product = products[index];
+                                              return SimilarProductCard(
+                                                title: product.title ?? "—",
+                                                price: "₹${product.price ?? 0}",
+                                                location: product.location ?? "",
+                                                imageUrl: product.image,
+                                                isLiked:
+                                                    product.isFavorited ?? false,
+                                                isFeatured:
+                                                    product.featured_status ??
+                                                    false,
+                                                borderColor: Theme.of(
+                                                  context,
+                                                ).dividerColor,
+                                                onLikeToggle: isGuest
+                                                    ? () => context.push("/login")
+                                                    : () {
+                                                        if (product.id != null) {
+                                                          context
+                                                              .read<
+                                                                AddToWishlistCubit
+                                                              >()
+                                                              .addToWishlist(
+                                                                product.id!,
+                                                              );
+                                                        }
+                                                      },
+                                                onTap: () async {
+                                                  final shouldRefresh =
+                                                      await context.push<bool>(
+                                                        "/products_details?listingId=${product.id}&subcategory_id=${product.subCategory?.id}",
+                                                      );
+                                                  if (shouldRefresh == true) {
+                                                    context
+                                                        .read<ProductsCubit2>()
+                                                        .getProducts();
+                                                  }
+                                                },
+                                              );
+                                            }, childCount: products.length),
+                                          )
+                                    // ✅ LIST VIEW → ProductCard (Your Previous Card)
+                                        : SliverList(
+                                      delegate: SliverChildBuilderDelegate(
+                                            (context, index) {
+                                          final product = products[index];
+                                          return Padding(
+                                            padding:
+                                            const EdgeInsets.only(bottom: 16),
+                                            child: ProductCard(
+                                              products: product,
+                                              onWishlistToggle: isGuest
+                                                  ? () => context.push("/login")
+                                                  : () {
+                                                if (product.id != null) {
+                                                  context
+                                                      .read<AddToWishlistCubit>()
+                                                      .addToWishlist(product.id!);
+                                                }
+                                              },
+                                            ),
+                                          );
+                                        },
+                                        childCount: products.length,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+        
+                            // ✅ Centered Pagination Loader
+                            if (state is Products2LoadingMore && hasNextPage)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       );
                     }
+                    return const SizedBox();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                    return NotificationListener<ScrollNotification>(
-                      onNotification: (scrollInfo) {
-                        if (scrollInfo.metrics.pixels >=
-                            scrollInfo.metrics.maxScrollExtent - 200) {
-                          context.read<ProductsCubit2>().getMoreProducts();
-                        }
-                        return false;
-                      },
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: CustomScrollView(
-                              slivers: [
-                                SliverPadding(
-                                  padding: const EdgeInsets.all(16),
-                                  sliver: _isGridView
-                                      ? SliverGrid(
-                                          gridDelegate:
-                                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                                crossAxisCount: 2,
-                                                mainAxisSpacing: 12,
-                                                crossAxisSpacing: 12,
-                                                childAspectRatio: 0.85,
-                                              ),
-                                          delegate: SliverChildBuilderDelegate((
-                                            context,
-                                            index,
-                                          ) {
-                                            final product = products[index];
-                                            return SimilarProductCard(
-                                              title: product.title ?? "—",
-                                              price: "₹${product.price ?? 0}",
-                                              location: product.location ?? "",
-                                              imageUrl: product.image,
-                                              isLiked:
-                                                  product.isFavorited ?? false,
-                                              isFeatured:
-                                                  product.featured_status ??
-                                                  false,
-                                              borderColor: Theme.of(
-                                                context,
-                                              ).dividerColor,
-                                              onLikeToggle: isGuest
-                                                  ? () => context.push("/login")
-                                                  : () {
-                                                      if (product.id != null) {
-                                                        context
-                                                            .read<
-                                                              AddToWishlistCubit
-                                                            >()
-                                                            .addToWishlist(
-                                                              product.id!,
-                                                            );
-                                                      }
-                                                    },
-                                              onTap: () async {
-                                                final shouldRefresh =
-                                                    await context.push<bool>(
-                                                      "/products_details?listingId=${product.id}&subcategory_id=${product.subCategory?.id}",
-                                                    );
-                                                if (shouldRefresh == true) {
-                                                  context
-                                                      .read<ProductsCubit2>()
-                                                      .getProducts();
-                                                }
-                                              },
-                                            );
-                                          }, childCount: products.length),
-                                        )
-                                  // ✅ LIST VIEW → ProductCard (Your Previous Card)
-                                      : SliverList(
-                                    delegate: SliverChildBuilderDelegate(
-                                          (context, index) {
-                                        final product = products[index];
-                                        return Padding(
-                                          padding:
-                                          const EdgeInsets.only(bottom: 16),
-                                          child: ProductCard(
-                                            products: product,
-                                            onWishlistToggle: isGuest
-                                                ? () => context.push("/login")
-                                                : () {
-                                              if (product.id != null) {
-                                                context
-                                                    .read<AddToWishlistCubit>()
-                                                    .addToWishlist(product.id!);
-                                              }
-                                            },
-                                          ),
-                                        );
-                                      },
-                                      childCount: products.length,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
 
-                          // ✅ Centered Pagination Loader
-                          if (state is Products2LoadingMore && hasNextPage)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 1,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  }
-                  return const SizedBox();
-                },
+  Widget searchGridShimmer(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.85,
+            ),
+            delegate: SliverChildBuilderDelegate(
+                  (context, index) => _gridCardShimmer(context),
+              childCount: 6,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  Widget _listCardShimmer(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeHelper.cardColor(context),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(12),
+            ),
+            child: shimmerRectangle(
+              width: 120,
+              height: 120,
+              context: context,
+              radius: 0,
+            ),
+          ),
+
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(
+                left: 12,
+                right: 12,
+                top: 12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  shimmerText(width: 160, context: context),
+                  const SizedBox(height: 8),
+                  shimmerText(width: 120, context: context),
+                  const SizedBox(height: 8),
+                  shimmerText(width: 80, context: context),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1148,6 +1230,61 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ],
       ),
+    );
+  }
+
+
+  Widget _gridCardShimmer(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: ThemeHelper.cardColor(context),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(8),
+            ),
+            child: shimmerRectangle(
+              width: double.infinity,
+              height: 120,
+              context: context,
+              radius: 0,
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                shimmerText(width: 140, context: context),
+                const SizedBox(height: 8),
+                shimmerText(width: 80, context: context),
+                const SizedBox(height: 8),
+                shimmerText(width: 120, context: context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget searchListShimmer(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _listCardShimmer(context),
+        );
+      },
     );
   }
 }

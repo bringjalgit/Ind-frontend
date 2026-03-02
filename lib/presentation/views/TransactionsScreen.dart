@@ -4,6 +4,7 @@ import 'package:classifieds/Components/CutomAppBar.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_cubit.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_states.dart';
 import 'package:classifieds/model/TransectionHistoryModel.dart';
+import '../../Components/Shimmers.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../widgets/CommonLoader.dart';
 
@@ -52,7 +53,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         child: BlocBuilder<TransactionCubit, TransactionsStates>(
           builder: (context, state) {
             if (state is TransactionsLoading) {
-              return const Center(child: DottedProgressWithLogo());
+              return transactionHistoryShimmer(context);
             } else if (state is TransactionsFailure) {
               return Center(child: Text(state.error));
             } else if (state is TransactionsLoaded ||
@@ -72,20 +73,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     padding: const EdgeInsets.all(12),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
-                            (context, index) {
+                        (context, index) {
                           if (index == rows.length) {
                             return hasNextPage
                                 ? const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            )
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  )
                                 : const SizedBox.shrink();
                           }
                           final FormattedRows tx = rows[index];
                           final bool isSuccess =
-                              (tx.paymentStatus ?? "").toLowerCase() == "success";
+                              (tx.paymentStatus ?? "").toLowerCase() ==
+                              "success";
 
                           return Card(
                             color: ThemeHelper.cardColor(context),
@@ -111,25 +113,30 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   const SizedBox(height: 6),
                                   Text(
                                     "Amount: \₹${tx.amountPaid ?? 0}",
-                                    style: TextStyle(fontWeight: FontWeight.w700,
-                                      color: ThemeHelper.textColor(context)
-                                          .withOpacity(0.8),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: ThemeHelper.textColor(
+                                        context,
+                                      ).withOpacity(0.8),
                                     ),
                                   ),
                                   if (tx.paidOn != null)
                                     Text(
                                       "Paid on: ${tx.paidOn!.split("T").first}",
                                       style: TextStyle(
-                                        color: ThemeHelper.textColor(context)
-                                            .withOpacity(0.6),
+                                        color: ThemeHelper.textColor(
+                                          context,
+                                        ).withOpacity(0.6),
                                       ),
                                     ),
-                                  if (tx.startDate != null && tx.endDate != null)
+                                  if (tx.startDate != null &&
+                                      tx.endDate != null)
                                     Text(
                                       "Valid: ${tx.startDate} → ${tx.endDate}",
                                       style: TextStyle(
-                                        color: ThemeHelper.textColor(context)
-                                            .withOpacity(0.6),
+                                        color: ThemeHelper.textColor(
+                                          context,
+                                        ).withOpacity(0.6),
                                       ),
                                     ),
                                   // Additional details based on type
@@ -137,16 +144,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                     Text(
                                       "Boost Type: ${tx.listingTitle ?? 'N/A'}",
                                       style: TextStyle(
-                                        color: ThemeHelper.textColor(context)
-                                            .withOpacity(0.6),
+                                        color: ThemeHelper.textColor(
+                                          context,
+                                        ).withOpacity(0.6),
                                       ),
                                     ),
                                   if (tx.type == 'package')
                                     Text(
                                       "Package: ${tx.packageName ?? 'N/A'}",
                                       style: TextStyle(
-                                        color: ThemeHelper.textColor(context)
-                                            .withOpacity(0.6),
+                                        color: ThemeHelper.textColor(
+                                          context,
+                                        ).withOpacity(0.6),
                                       ),
                                     ),
                                 ],
@@ -165,8 +174,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 child: Text(
                                   (tx.paymentStatus ?? "").toUpperCase(),
                                   style: TextStyle(
-                                    color:
-                                    isSuccess ? Colors.green : Colors.orange,
+                                    color: isSuccess
+                                        ? Colors.green
+                                        : Colors.orange,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
@@ -175,7 +185,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                             ),
                           );
                         },
-                        childCount: rows.length + 1, // Add 1 for the loading indicator
+                        childCount:
+                            rows.length + 1, // Add 1 for the loading indicator
                       ),
                     ),
                   ),
@@ -189,6 +200,69 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       ),
     );
   }
+
+  Widget transactionHistoryShimmer(BuildContext context) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(12),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => transactionCardShimmer(context),
+              childCount: 6, // number of shimmer cards
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// ============================================================
+  /// TRANSACTION HISTORY SHIMMER
+  /// Matches your Transaction Card UI
+  /// ============================================================
+
+  Widget transactionCardShimmer(BuildContext context) {
+    return Card(
+      color: ThemeHelper.cardColor(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// LEFT CONTENT
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  shimmerText(width: 180, height: 16, context: context),
+                  const SizedBox(height: 10),
+
+                  shimmerText(width: 120, height: 14, context: context),
+                  const SizedBox(height: 6),
+
+                  shimmerText(width: 150, height: 12, context: context),
+                  const SizedBox(height: 6),
+
+                  shimmerText(width: 200, height: 12, context: context),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            /// RIGHT STATUS BADGE
+            shimmerRectangle(
+              width: 80,
+              height: 30,
+              radius: 8,
+              context: context,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
-
-

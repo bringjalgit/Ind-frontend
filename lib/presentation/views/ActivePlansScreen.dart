@@ -4,6 +4,7 @@ import 'package:classifieds/Components/CutomAppBar.dart';
 import 'package:classifieds/theme/app_colors.dart';
 import 'package:intl/intl.dart';
 
+import '../../Components/Shimmers.dart';
 import '../../data/cubit/UserActivePlans/user_active_plans_cubit.dart';
 import '../../data/cubit/UserActivePlans/user_active_plans_states.dart';
 import '../../model/UserActivePlansModel.dart';
@@ -28,11 +29,11 @@ class _ActivePlansScreenState extends State<ActivePlansScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ThemeHelper.backgroundColor(context),
-      appBar: CustomAppBar1(title:'Active Plans', actions: [],),
+      appBar: CustomAppBar1(title: 'Active Plans', actions: []),
       body: BlocBuilder<UserActivePlanCubit, UserActivePlanStates>(
         builder: (context, state) {
-          if (state is UserActivePlanInitially) {
-            return const Center(child: CircularProgressIndicator());
+          if (state is UserActivePlanLoading) {
+            return activePlansShimmer(context);
           } else if (state is UserActivePlanLoaded) {
             final plans = state.userActivePlansModel.plans ?? [];
             if (plans.isEmpty) {
@@ -63,6 +64,120 @@ class _ActivePlansScreenState extends State<ActivePlansScreen> {
           }
           return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+
+  Widget activePlansShimmer(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4, // number of shimmer cards
+      itemBuilder: (context, index) {
+        return activePlanCardShimmer(context);
+      },
+    );
+  }
+
+  /// ============================================================
+  /// ACTIVE PLAN CARD SHIMMER
+  /// Matches PlanCard UI exactly
+  /// ============================================================
+
+  Widget activePlanCardShimmer(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
+          width: 1.5,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: isDark
+                ? [Colors.grey[900]!, Colors.grey[850]!]
+                : [Colors.white, Colors.blue[50]!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              /// TOP ROW (Icon + Title + Badge)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      shimmerCircle(24, context),
+                      const SizedBox(width: 10),
+                      shimmerText(width: 160, height: 18, context: context),
+                    ],
+                  ),
+
+                  shimmerRectangle(
+                    width: 80,
+                    height: 28,
+                    radius: 12,
+                    context: context,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              /// Remaining Row
+              Row(
+                children: [
+                  shimmerCircle(20, context),
+                  const SizedBox(width: 10),
+                  shimmerText(width: 200, context: context),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              /// Start Date
+              Row(
+                children: [
+                  shimmerCircle(18, context),
+                  const SizedBox(width: 10),
+                  shimmerText(width: 180, context: context),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              /// End Date
+              Row(
+                children: [
+                  shimmerCircle(18, context),
+                  const SizedBox(width: 10),
+                  shimmerText(width: 180, context: context),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              /// Progress Bar
+              shimmerRectangle(
+                width: double.infinity,
+                height: 8,
+                radius: 8,
+                context: context,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

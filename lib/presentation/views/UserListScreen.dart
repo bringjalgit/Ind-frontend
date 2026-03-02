@@ -310,21 +310,74 @@ class _UserListScreenState extends State<UserListScreen>
   }
 
   Widget _buildShimmer(Color card) {
+    final isDark = card.computeLuminance() < 0.5;
+
+    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+
+    final highlightColor = isDark ? Colors.grey[700]! : Colors.grey[100]!;
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       itemCount: 6,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, __) => Shimmer.fromColors(
-        baseColor: card.withOpacity(0.5),
-        highlightColor: card.withOpacity(0.8),
-        child: Container(
-          height: 72,
-          decoration: BoxDecoration(
-            color: card,
-            borderRadius: BorderRadius.circular(16),
+      itemBuilder: (_, __) {
+        return Shimmer.fromColors(
+          baseColor: baseColor,
+          highlightColor: highlightColor,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: card,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                /// Avatar Circle (48)
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                /// Text Section
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      /// Name
+                      Container(
+                        height: 14,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      /// Listing title
+                      Container(
+                        height: 12,
+                        width: MediaQuery.of(context).size.width * 0.5,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
