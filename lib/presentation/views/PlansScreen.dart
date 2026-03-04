@@ -276,7 +276,6 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
     );
   }
 
-
   /// ============================================================
   /// PREMIUM PLAN CARD SHIMMER
   /// Matches _buildPlanCard UI
@@ -303,8 +302,9 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
           children: [
             /// HEADER IMAGE AREA
             ClipRRect(
-              borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(14),
+              ),
               child: shimmerRectangle(
                 width: double.infinity,
                 height: 120,
@@ -357,7 +357,6 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
       ],
     );
   }
-
 
   Widget plansFooterShimmer(BuildContext context) {
     return Column(

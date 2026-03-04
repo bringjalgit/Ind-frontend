@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../data/cubit/Location/location_cubit.dart';
+import '../presentation/views/HoliHomeScreen.dart';
 import '../presentation/views/Home.dart';
 import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';

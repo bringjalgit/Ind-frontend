@@ -16,7 +16,6 @@ import 'package:classifieds/presentation/PostAdds/EducationalAd.dart';
 import 'package:classifieds/presentation/views/ProductDetailsScreen.dart';
 import 'package:classifieds/presentation/views/RecoverAccountScreen.dart';
 import 'package:classifieds/presentation/views/SearchScreen.dart';
-import 'package:classifieds/presentation/views/SplashScreen.dart';
 import 'package:classifieds/presentation/views/SubCategoriesScreen.dart';
 import 'package:classifieds/presentation/views/SubscriptionScreen.dart';
 import 'package:classifieds/presentation/views/SuccessScreen1.dart';
@@ -35,7 +34,6 @@ import '../presentation/PostAdds/JobAd.dart';
 import '../presentation/PostAdds/MobileAd.dart';
 import '../presentation/PostAdds/PetAdScreen.dart';
 import '../presentation/PostAdds/PropertiesAdScreen.dart';
-
 import 'package:classifieds/presentation/views/ProductsListScreen.dart';
 import '../presentation/authentication/LoginScreen.dart';
 import '../presentation/authentication/OTPScreen.dart';

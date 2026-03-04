@@ -31,6 +31,8 @@ import '../../widgets/LocationSelectionSheet.dart';
 import '../../widgets/SimilarProductCard.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
+import 'HoliHomeScreen.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -38,12 +40,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class SelectedLocation {
-  final String name;
-  final String latlng;
-
-  SelectedLocation({required this.name, required this.latlng});
-}
+// class SelectedLocation {
+//   final String name;
+//   final String latlng;
+//
+//   SelectedLocation({required this.name, required this.latlng});
+// }
 
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
