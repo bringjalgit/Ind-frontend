@@ -4,8 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:classifieds/Components/CustomAppButton.dart';
 import 'package:classifieds/Components/CustomSnackBar.dart';
+// Onboarding Option A (2026-04-15): GoogleAuthCubit is NO LONGER used on
+// this screen. The Google button is a LOCAL pre-filler — it calls the
+// GoogleSignIn SDK directly, populates the form fields, and stashes the
+// idToken + photoUrl to forward through the existing RegisterCubit call.
+// No backend /app/google-auth endpoint is hit. The cubit files under
+// data/cubit/GoogleAuth/ are left in place as dead code for easy revert.
 import 'package:classifieds/data/cubit/Register/register_cubit.dart';
 import 'package:classifieds/data/cubit/Register/register_states.dart';
 import 'package:classifieds/services/AuthService.dart';
@@ -40,6 +47,96 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   bool _showStateError = false;
   int? selectedStateId;
   bool _submitting = false;
+  bool _googleLoading = false;
+
+  // Stashed from the local Google SDK call when the user taps "Continue
+  // with Google". Forwarded to the backend on _submit() so the register
+  // endpoint can verify the idToken server-side and atomically set
+  // email_verified + googleId + authProvider + profilePicture. See the
+  // doc comment on handler/onboarding/user.js →
+  // updateUserDetailsByUserInRegister for the full flow.
+  String? _googleIdToken;
+  String? _googlePictureUrl;
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    // Explicit 'profile' scope ensures Google's ID token payload carries
+    // `name` and `picture` claims. Without it, the default `['email']`
+    // scope sometimes returns an ID token with only `sub` + `email` +
+    // `email_verified`, which drops the name + photoUrl — exactly the
+    // regression we chased earlier in this session.
+    scopes: const ['email', 'profile'],
+    serverClientId: '11012475744-m162f66s0f949gujiq2l596p4gv3v4bj.apps.googleusercontent.com',
+  );
+
+  /// Onboarding Option A — LOCAL pre-filler only. No backend call.
+  ///
+  /// Flow:
+  ///   1. Open the Google account picker via GoogleSignIn SDK.
+  ///   2. If user cancels, restore loading state and exit silently.
+  ///   3. On success, read displayName/email/photoUrl/idToken from the
+  ///      GoogleSignInAccount.
+  ///   4. Write displayName + email into the form's text controllers so
+  ///      the user sees the pre-filled fields.
+  ///   5. Stash idToken + photoUrl in widget state so _submit() can
+  ///      forward them to POST /app/register-user-details.
+  ///   6. Show a snackbar reminding the user to pick a state and submit.
+  ///
+  /// Deliberately does NOT:
+  ///   - Call /app/google-auth (commented out in serverless.onboarding.yml)
+  ///   - Touch GoogleAuthCubit (left as dead code for easy revert)
+  ///   - Fetch the FCM token (not needed on this code path — the mobile
+  ///     OTP flow already delivered it when the user signed in upstream)
+  ///   - Call AuthService.saveTokens (the user's auth session was
+  ///     established by the mobile OTP that led them here; we only need
+  ///     to update the profilePicture cache after a successful submit)
+  Future<void> _signInWithGoogle() async {
+    setState(() => _googleLoading = true);
+    try {
+      await _googleSignIn.signOut(); // ensure fresh sign-in picker
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        setState(() => _googleLoading = false);
+        return; // user cancelled
+      }
+      final auth = await account.authentication;
+      final idToken = auth.idToken;
+      if (idToken == null) {
+        // ID token is essential for the email_verified boost on the
+        // backend. Without it we can still pre-fill the form but the
+        // user's email won't be marked verified — they'd need to verify
+        // via the Profile → Verify Email flow later. Rather than
+        // silently degrade, surface the failure so the user knows to
+        // retry.
+        setState(() => _googleLoading = false);
+        if (mounted) {
+          CustomSnackBar1.show(
+            context,
+            "Google sign-in failed. Try again.",
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      // Pre-fill form fields. displayName may be null for some Google
+      // accounts (though uncommon with `profile` scope); photoUrl is
+      // also nullable.
+      _nameCtrl.text = account.displayName ?? '';
+      _emailCtrl.text = account.email;
+      setState(() {
+        _googleIdToken = idToken;
+        _googlePictureUrl = account.photoUrl;
+        _googleLoading = false;
+      });
+      CustomSnackBar1.show(
+        context,
+        "Google details filled in. Pick your state and tap Submit.",
+      );
+    } catch (e) {
+      setState(() => _googleLoading = false);
+      if (mounted) CustomSnackBar1.show(context, "Google sign-in error: $e");
+    }
+  }
 
   @override
   void dispose() {
@@ -71,6 +168,13 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
       "name": _nameCtrl.text.trim(),
       "email": _emailCtrl.text.trim(),
       "state_id": selectedStateId,
+      // Google pre-filler fields — only forwarded when the user actually
+      // tapped "Continue with Google" earlier on this screen. The backend
+      // verifies the idToken server-side and, on success, atomically
+      // sets email_verified + googleId + authProvider + profilePicture
+      // in the same write that persists name/email/state_id.
+      if (_googleIdToken != null) "idToken": _googleIdToken,
+      if (_googlePictureUrl != null) "profilePicture": _googlePictureUrl,
     };
 
     context.read<RegisterCubit>().register(data);
@@ -118,6 +222,12 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
     final idleBorder = _outline(isDark ? Colors.white24 : Colors.black12);
     final focusedBorder = _outline(accent);
 
+    // Onboarding Option A (2026-04-15): BlocListener<GoogleAuthCubit>
+    // removed — the Google button on this screen is now a LOCAL pre-
+    // filler that never hits /app/google-auth. The register submit
+    // handles Google-linking via the RegisterCubit listener below
+    // (it calls AuthService.setProfilePicture on RegisterLoaded so the
+    // dashboard has the avatar cached immediately).
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: bgColor,
@@ -352,8 +462,21 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
                                 const SizedBox(height: 32),
 
                                 BlocConsumer<RegisterCubit, RegisterStates>(
-                                  listener: (context, state) {
+                                  listener: (context, state) async {
                                     if (state is RegisterLoaded) {
+                                      // If the user completed registration
+                                      // after tapping "Continue with Google",
+                                      // persist the stashed Google picture
+                                      // URL to the cached auth data so the
+                                      // Dashboard's first render has the
+                                      // right avatar — no need to wait for a
+                                      // getMyProfileDetails round-trip.
+                                      // Silently no-ops when _googlePictureUrl
+                                      // is null (manual registration path).
+                                      await AuthService.setProfilePicture(
+                                        _googlePictureUrl,
+                                      );
+                                      if (!context.mounted) return;
                                       if (widget.from == "ad") {
                                         context.pop();
                                       } else {
@@ -366,8 +489,8 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
                                         state.error,
                                       );
                                     }
-                                    if (state is RegisterLoading ||
-                                        state is RegisterLoaded) {
+                                    if (state is RegisterLoaded ||
+                                        state is RegisterFailure) {
                                       setState(() => _submitting = false);
                                     }
                                   },
@@ -382,6 +505,64 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
                                       onPlusTap: isLoading ? null : _submit,
                                     );
                                   },
+                                ),
+
+                                const SizedBox(height: 20),
+
+                                // OR divider
+                                Row(
+                                  children: [
+                                    Expanded(child: Divider(color: Colors.white38, thickness: 1)),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        "OR",
+                                        style: AppTextStyles.bodyMedium(Colors.white70),
+                                      ),
+                                    ),
+                                    Expanded(child: Divider(color: Colors.white38, thickness: 1)),
+                                  ],
+                                ),
+
+                                const SizedBox(height: 16),
+
+                                // Continue with Google button
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: _googleLoading ? null : _signInWithGoogle,
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      side: BorderSide(color: Colors.white24),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: _googleLoading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black54),
+                                          )
+                                        : Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Image.asset(
+                                                'assets/images/google_logo.png',
+                                                height: 22,
+                                                width: 22,
+                                                errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Text(
+                                                "Continue with Google",
+                                                style: AppTextStyles.bodyMedium(Colors.black87)
+                                                    .copyWith(fontWeight: FontWeight.w600),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
                                 ),
                               ],
                             ),

@@ -6,7 +6,7 @@ class AddToWishlistCubit extends Cubit<AddToWishlistStates> {
   WishlistRepository wishlistRepository;
   AddToWishlistCubit(this.wishlistRepository) : super(AddToWishlistInitially());
 
-  Future<void> addToWishlist(int product_id) async {
+  Future<void> addToWishlist(String product_id) async {
     emit(AddToWishlistLoading());
     try {
       final response = await wishlistRepository.addToWishlist(product_id);

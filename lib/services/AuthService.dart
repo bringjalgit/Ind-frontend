@@ -23,6 +23,10 @@ class AuthService {
   static const String _cityId = "cityId";
   static const String _city = "city";
   static const String _isSubscribed = "isSubscribed";
+  // User-uploaded S3 URL (set via EditProfile). Display priority #1.
+  static const String _image = "user_image";
+  // Google-sourced reference picture (set during google sign-in). Fallback.
+  static const String _profilePicture = "profile_picture";
 
   static final SecureStorageService _secure = SecureStorageService.instance;
 
@@ -38,9 +42,23 @@ class AuthService {
   static Future<String?> getCity() => _secure.getString(_city);
   static Future<String?> getStateId() => _secure.getString(_stateId);
   static Future<String?> getCityId() => _secure.getString(_cityId);
+  static Future<String?> getImage() => _secure.getString(_image);
+  static Future<String?> getProfilePicture() =>
+      _secure.getString(_profilePicture);
   static Future<String?> getAccessToken() => _secure.getString(_accessTokenKey);
   static Future<String?> getRefreshToken() =>
       _secure.getString(_refreshTokenKey);
+
+  /// Unified avatar URL for the current logged-in user, matching the
+  /// display priority enforced by [ProfileModel.Data.displayImage]:
+  /// user-uploaded S3 URL first, Google reference picture as fallback.
+  static Future<String?> getDisplayImage() async {
+    final img = await getImage();
+    if (img != null && img.trim().isNotEmpty) return img;
+    final pic = await getProfilePicture();
+    if (pic != null && pic.trim().isNotEmpty) return pic;
+    return null;
+  }
 
   /// ------------------------
   /// STATUS GETTERS
@@ -89,6 +107,17 @@ class AuthService {
   static Future<void> setFreePlanStatus(String status) =>
       _secure.setString(_freePlanStatus, status);
 
+  /// Single-field writer for the Google-sourced profile picture. Called
+  /// by RegisterUserDetailsScreen right after the Register endpoint
+  /// succeeds with a Google pre-fill, so the cached auth data has the
+  /// avatar URL for the Dashboard's first render — no need to wait for
+  /// a getMyProfileDetails round-trip. Silently no-ops when [url] is
+  /// null so callers can pass the nullable state variable directly.
+  static Future<void> setProfilePicture(String? url) async {
+    if (url == null || url.isEmpty) return;
+    await _secure.setString(_profilePicture, url);
+  }
+
   static Future<void> setUserStatus(String status) =>
       _secure.setString(_isNewUser, status);
 
@@ -117,20 +146,26 @@ class AuthService {
     String userName,
     String email,
     String mobile,
-    int id,
+    String id,
     String? refreshToken,
     int expiryTimestamp,
     bool isNewUser,
     String? state,
     String? city,
     int? stateId,
-    int? cityId,
-  ) async {
+    int? cityId, [
+    // Optional avatar fields — added when restoring Google onboarding.
+    // Kept as trailing positional optionals so every existing call site
+    // (mobile OTP, email OTP, register, etc.) keeps working unchanged.
+    // Only the Google sign-in path needs to pass them.
+    String? image,
+    String? profilePicture,
+  ]) async {
     await _secure.setString(_accessTokenKey, accessToken);
     await _secure.setString(_userName, userName);
     await _secure.setString(_email, email);
     await _secure.setString(_mobile, mobile);
-    await _secure.setString(_id, id.toString());
+    await _secure.setString(_id, id);
     await _secure.setString(_refreshTokenKey, refreshToken ?? "");
     await _secure.setString(_tokenExpiryKey, expiryTimestamp.toString());
     await _secure.setString(_isNewUser, isNewUser.toString());
@@ -139,6 +174,15 @@ class AuthService {
     if (city != null) await _secure.setString(_city, city);
     if (stateId != null) await _secure.setString(_stateId, stateId.toString());
     if (cityId != null) await _secure.setString(_cityId, cityId.toString());
+
+    // Persist image/profilePicture unconditionally when the caller passes
+    // them. Empty strings are stored as-is so getImage() returns "" and
+    // the display-fallback logic in getDisplayImage() picks up the
+    // profilePicture cleanly.
+    if (image != null) await _secure.setString(_image, image);
+    if (profilePicture != null) {
+      await _secure.setString(_profilePicture, profilePicture);
+    }
 
     debugPrint("✅ Tokens saved successfully");
   }

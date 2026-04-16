@@ -171,7 +171,7 @@ class AdCardDynamic extends StatelessWidget {
                         label: 'Edit',
                         onTap: () {
                           context.push(
-                            '/${ad.category?.path ?? ""}?catId=${ad.categoryId}&CatName=${ad.category?.name}&subCatId=${ad.subCategoryId}&SubCatName=${ad.subCategory?.name ?? ""}&editId=${ad.id}',
+                            '/${ad.category?.path ?? ""}?catId=${ad.categoryId ?? ""}&CatName=${Uri.encodeComponent(ad.category?.name ?? "")}&subCatId=${ad.subCategoryId ?? ""}&SubCatName=${Uri.encodeComponent(ad.subCategory?.name ?? "")}&editId=${ad.id ?? ""}',
                           );
                         },
                       ),
@@ -272,7 +272,7 @@ class AdCardDynamic extends StatelessWidget {
                                                               MarkAsListingCubit
                                                             >()
                                                             .markAsDelete(
-                                                              ad.id ?? 0,
+                                                              ad.id ?? '',
                                                             );
                                                       },
                                                       text: 'Delete',
@@ -374,7 +374,7 @@ class AdCardDynamic extends StatelessWidget {
                                                             MarkAsListingCubit
                                                           >()
                                                           .markAsSold(
-                                                            ad.id ?? 0,
+                                                            ad.id ?? '',
                                                           );
                                                     },
                                                     text: 'Mark Sold',

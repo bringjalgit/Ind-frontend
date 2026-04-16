@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:classifieds/Components/debugPrint.dart';
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -43,6 +44,13 @@ class ChatScreen extends StatefulWidget {
   final String receiverId;
   final String listingId;
   final String listingTitle;
+  // Optional pre-populated name/image from the chat list card. Used to
+  // initialize the AppBar ValueNotifiers so the header shows the correct
+  // user identity IMMEDIATELY on screen open, even before the messages
+  // fetch resolves (and even if it fails). If null/empty, falls back to
+  // the listing title as a neutral placeholder — never "IND User".
+  final String? initialReceiverName;
+  final String? initialReceiverImage;
 
   const ChatScreen({
     super.key,
@@ -50,6 +58,8 @@ class ChatScreen extends StatefulWidget {
     required this.receiverId,
     required this.listingId,
     required this.listingTitle,
+    this.initialReceiverName,
+    this.initialReceiverImage,
   });
 
   @override
@@ -80,10 +90,12 @@ class _ChatScreenState extends State<ChatScreen> {
   List<_ListItem> _lastItems = const [];
 
   final ValueNotifier<String?> mobileNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String?> receiverName = ValueNotifier<String?>(
-    "IND User",
-  );
-  final ValueNotifier<String?> receiverImage = ValueNotifier<String?>(null);
+  // Initialized in initState from widget.initialReceiverName/Image so the
+  // AppBar shows the correct name immediately on first frame (before the
+  // messages fetch resolves). No more "IND User" placeholder that lingers
+  // forever when a network blip makes fetchMessages emit Failure.
+  late final ValueNotifier<String?> receiverName;
+  late final ValueNotifier<String?> receiverImage;
 
   // "show while scrolling" state
   Timer? _scrollIdleTimer;
@@ -101,6 +113,19 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize the receiver name / image from the params the caller
+    // passed in. The chat list card already has this info, so we use it
+    // here as the "source of truth" until the messages fetch resolves.
+    // Fall back to the listing title as a neutral placeholder if the
+    // caller didn't pass a name — never "IND User".
+    final initialName =
+        (widget.initialReceiverName != null && widget.initialReceiverName!.trim().isNotEmpty)
+            ? widget.initialReceiverName!.trim()
+            : (widget.listingTitle.isNotEmpty ? widget.listingTitle : "");
+    receiverName = ValueNotifier<String?>(initialName);
+    receiverImage = ValueNotifier<String?>(widget.initialReceiverImage);
+
     // 🔥 Notify cubit that chat opened
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
@@ -412,7 +437,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     case _MenuAction.report:
                       openReportSheetForChat(
                         context,
-                        userId: int.parse(widget.receiverId),
+                        userId: widget.receiverId,
                       );
                       break;
                     case _MenuAction.safetyTips:
@@ -502,18 +527,97 @@ class _ChatScreenState extends State<ChatScreen> {
                             setState(() {
                               _isLoadingMore = false;
                             });
+                            // Scroll to latest message after initial load
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              _scrollToBottom();
+                            });
                           } else if (state is ChatMessagesLoadingMore) {
                             _hasMoreMessages = state.hasNextPage;
                           } else if (state is ChatMessagesFailure) {
                             setState(() {
                               _isLoadingMore = false;
                             });
+                            // Surface the failure as a snackbar so the user
+                            // knows something went wrong instead of staring
+                            // at a silent frozen screen. The inline error
+                            // branch in the BlocBuilder below gives them a
+                            // Retry button as well.
+                            if (mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    state.error.isNotEmpty
+                                        ? 'Couldn\'t load messages: ${state.error}'
+                                        : 'Couldn\'t load messages. Please retry.',
+                                  ),
+                                  backgroundColor: Colors.red.shade700,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
                           }
                         },
                       ),
                     ],
                     child: BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
                       builder: (context, historyState) {
+                        // Show shimmer skeleton while loading (initial + loading states)
+                        if (historyState is ChatMessagesLoading || historyState is ChatMessagesInitial) {
+                          return _buildChatShimmer(context);
+                        }
+
+                        // Failure branch — render a proper inline error with
+                        // a Retry button. Without this, a network blip leaves
+                        // the screen frozen with no feedback (the original
+                        // "IND User" stuck-header bug).
+                        if (historyState is ChatMessagesFailure) {
+                          final textColor = ThemeHelper.textColor(context);
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.cloud_off_outlined,
+                                    size: 56,
+                                    color: textColor.withOpacity(0.5),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "Couldn't load messages",
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.titleMedium(textColor),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    historyState.error.isNotEmpty
+                                        ? historyState.error
+                                        : 'Check your connection and try again.',
+                                    textAlign: TextAlign.center,
+                                    style: AppTextStyles.bodySmall(
+                                      textColor.withOpacity(0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      context
+                                          .read<ChatMessagesCubit>()
+                                          .fetchMessages(
+                                            widget.receiverId,
+                                            widget.listingId,
+                                          );
+                                    },
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Retry'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
                         final history = <Messages>[];
 
                         if (historyState is ChatMessagesLoaded) {
@@ -524,12 +628,21 @@ class _ChatScreenState extends State<ChatScreen> {
                           mobileNotifier.value =
                               historyState.chatMessages.data?.friend?.mobile ??
                               "";
-                          receiverName.value =
-                              historyState.chatMessages.data?.friend?.name ??
-                              "";
-                          receiverImage.value =
-                              historyState.chatMessages.data?.friend?.image ??
-                              "";
+                          // Only overwrite the receiver name if the server
+                          // actually returned one. If the backend response
+                          // is missing the friend field (edge case for
+                          // orphaned chats), the URL-supplied initial name
+                          // stays intact instead of being clobbered to "".
+                          final serverName =
+                              historyState.chatMessages.data?.friend?.name;
+                          if (serverName != null && serverName.trim().isNotEmpty) {
+                            receiverName.value = serverName;
+                          }
+                          final serverImage =
+                              historyState.chatMessages.data?.friend?.image;
+                          if (serverImage != null && serverImage.isNotEmpty) {
+                            receiverImage.value = serverImage;
+                          }
                         } else if (historyState is ChatMessagesLoadingMore) {
                           history.addAll(
                             historyState.chatMessages.data?.messages ??
@@ -690,7 +803,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void openReportSheetForChat(BuildContext context, {required int userId}) {
+  void openReportSheetForChat(BuildContext context, {required dynamic userId}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -743,6 +856,63 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Build flat list with headers that appear ABOVE their day (works with reverse:true)
+  Widget _buildChatShimmer(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+    final highlightColor = isDark ? Colors.grey[700]! : Colors.grey[100]!;
+
+    return Shimmer.fromColors(
+      baseColor: baseColor,
+      highlightColor: highlightColor,
+      child: ListView.builder(
+        reverse: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: 8,
+        itemBuilder: (context, index) {
+          final isMe = index % 3 != 0; // alternate sender/receiver
+          return Align(
+            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.65,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 10,
+                    width: isMe ? 120 : 180,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  if (!isMe) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 10,
+                      width: 140,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   List<_ListItem> _buildItems(List<Messages> allDesc) {
     // allDesc is NEWEST → OLDEST
     final items = <_ListItem>[];

@@ -26,13 +26,13 @@ class MarkAsListingModel {
 }
 
 class Data {
-  int? id;
+  String? id;
   bool? sold;
 
   Data({this.id, this.sold});
 
   Data.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     sold = json['sold'];
   }
 

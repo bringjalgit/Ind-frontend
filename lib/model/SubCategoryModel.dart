@@ -36,7 +36,7 @@ class SubCategoryModel {
 }
 
 class SubCategories {
-  int? subCategoryId;
+  String? subCategoryId;
   String? name;
   String? path;
   String? image;
@@ -53,7 +53,7 @@ class SubCategories {
   });
 
   SubCategories.fromJson(Map<String, dynamic> json) {
-    subCategoryId = json['sub_category_id'];
+    subCategoryId = (json['sub_category_id'] ?? json['_id'])?.toString();
     name = json['name'];
     image = json['image'];
     path = json['path'];

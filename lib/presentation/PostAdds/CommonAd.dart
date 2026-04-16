@@ -75,8 +75,8 @@ class _CommonAdState extends State<CommonAd> {
   List<String> selectedConditions = [];
   List<File> _images = [];
   final int _maxImages = 6;
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   bool isLoading = true;
   bool _isSubmitting = false; // covers pre-submit work
   List<ImageData> _imageDataList = [];
@@ -112,17 +112,23 @@ class _CommonAdState extends State<CommonAd> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -454,11 +460,12 @@ class _CommonAdState extends State<CommonAd> {
                             }
                           },
                         ),
-                        if (widget.editId == null ||
-                            widget.editId
-                                .replaceAll('"', '')
-                                .trim()
-                                .isEmpty) ...[
+                        if ((widget.editId == null ||
+                                widget.editId
+                                    .replaceAll('"', '')
+                                    .trim()
+                                    .isEmpty) &&
+                            !isEligibleForFree) ...[
                           CommonTextField1(
                             lable: 'Plan',
                             isRead: true,
@@ -538,8 +545,15 @@ class _CommonAdState extends State<CommonAd> {
                                     context.push('/register?from=ad');
                                   }
                                 : () async {
-                                    if (_formKey.currentState?.validate() ??
-                                        false) {
+                                    if (!(_formKey.currentState?.validate() ??
+                                        false)) {
+                                      CustomSnackBar1.show(
+                                        context,
+                                        "Please fill all required fields highlighted in red",
+                                      );
+                                      return;
+                                    }
+                                    {
                                       bool isValid = true;
 
                                       final editIdClean = widget.editId.replaceAll('"', '').trim();
@@ -603,12 +617,12 @@ class _CommonAdState extends State<CommonAd> {
                                         setState(() => _showPriceError = false);
                                       }
 
-                                      if (widget.editId == null ||
-                                          widget.editId
+                                      if ((widget.editId == null ||
+                                              widget.editId
                                                   .replaceAll('"', '')
                                                   .trim()
-                                                  .isEmpty &&
-                                              !isEligibleForFree) {
+                                                  .isEmpty) &&
+                                          !isEligibleForFree) {
                                         if (planId == null ||
                                             packageId == null) {
                                           setState(
@@ -636,17 +650,19 @@ class _CommonAdState extends State<CommonAd> {
                                             "location": locationController.text,
                                             "location_key": latlng,
                                             "mobile_number": phoneController.text,
-                                            if (widget.editId == null ||
-                                                widget.editId
-                                                    .replaceAll('"', '')
-                                                    .trim()
-                                                    .isEmpty)
+                                            if ((widget.editId == null ||
+                                                    widget.editId
+                                                        .replaceAll('"', '')
+                                                        .trim()
+                                                        .isEmpty) &&
+                                                planId != null)
                                               "plan_id": planId,
-                                            if (widget.editId == null ||
-                                                widget.editId
-                                                    .replaceAll('"', '')
-                                                    .trim()
-                                                    .isEmpty)
+                                            if ((widget.editId == null ||
+                                                    widget.editId
+                                                        .replaceAll('"', '')
+                                                        .trim()
+                                                        .isEmpty) &&
+                                                packageId != null)
                                               "package_id": packageId,
                                             "price": priceController.text,
                                             "full_name": nameController.text,
@@ -659,9 +675,7 @@ class _CommonAdState extends State<CommonAd> {
                                           };
 
                                           if (_images.isNotEmpty) {
-                                            data["images"] = _images
-                                                .map((file) => file.path)
-                                                .toList();
+                                            data["images"] = _images;
                                           }
                                           if (widget.editId
                                               .replaceAll('"', '')

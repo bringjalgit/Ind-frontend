@@ -117,7 +117,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     }
   }
 
-  void updateWishlistStatus(int productId, bool isLiked) {
+  void updateWishlistStatus(String productId, bool isLiked) {
     final updatedProducts = productsModel.products?.map((p) {
       if (p.id == productId) {
         return p.copyWith(isFavorited: isLiked);

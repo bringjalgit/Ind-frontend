@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,14 +33,14 @@ class SecureStorageService {
     String currentVersion;
     String versionKey;
 
-    if (Platform.isAndroid) {
+    if (!kIsWeb && Platform.isAndroid) {
       currentVersion = androidVersion;
       versionKey = 'app_version_android';
-    } else if (Platform.isIOS) {
+    } else if (!kIsWeb && Platform.isIOS) {
       currentVersion = iosVersion;
       versionKey = 'app_version_ios';
     } else {
-      // For web/other platforms (optional fallback)
+      // For web/other platforms
       currentVersion = "1.0.0";
       versionKey = 'app_version_other';
     }

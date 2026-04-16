@@ -8,8 +8,12 @@ import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 
 class RecoverAccountScreen extends StatefulWidget {
-  final String user_id;
-  const RecoverAccountScreen({super.key, required this.user_id});
+  // P0-profile-1: carries the signed recovery token minted by the
+  // preceding OTP-verify (or google-auth) call. If this is empty, the
+  // screen was reached via a deep link or stale navigation and the
+  // user must re-login to get a fresh token.
+  final String recoveryToken;
+  const RecoverAccountScreen({super.key, required this.recoveryToken});
 
   @override
   State<RecoverAccountScreen> createState() => _RecoverAccountScreenState();
@@ -17,12 +21,14 @@ class RecoverAccountScreen extends StatefulWidget {
 
 class _RecoverAccountScreenState extends State<RecoverAccountScreen> {
   void _onRecoverPressed(BuildContext context) {
-    if (widget.user_id.isNotEmpty) {
-      context.read<RecoverAccountCubit>().recoverAccount(widget.user_id);
+    if (widget.recoveryToken.isNotEmpty) {
+      context.read<RecoverAccountCubit>().recoverAccount(widget.recoveryToken);
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please enter your ID")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Recovery session expired — please log in again"),
+        ),
+      );
     }
   }
 

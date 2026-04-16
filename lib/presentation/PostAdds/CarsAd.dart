@@ -81,8 +81,8 @@ class _CarsAdState extends State<CarsAd> {
   String? fuelType;
   String? ownershipType;
   String? transmission;
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   bool _showFuelTypeError = false;
   bool _showOwnershipTypeError = false;
   bool _showTransmissionError = false;
@@ -136,17 +136,23 @@ class _CarsAdState extends State<CarsAd> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -758,7 +764,6 @@ class _CarsAdState extends State<CarsAd> {
 
                                           final Map<String, dynamic> data = {
                                             "title": titleController.text,
-                                            "brand": brandController.text,
                                             "description":
                                                 descriptionController.text,
                                             "sub_category_id": widget.subCatId,
@@ -769,19 +774,20 @@ class _CarsAdState extends State<CarsAd> {
                                             "price": priceController.text,
                                             "full_name": nameController.text,
                                             "state_id": selectedStateId,
-                                            // "city_id": selectedCityId,
                                             "location_key": latlng,
-                                            "year_of_manufacturing":
-                                                yearOfManufacturingController
-                                                    .text,
-                                            "kms_run": kmsController.text,
-                                            "ownership": ownershipType,
-                                            "fuel_type": fuelType,
-                                            "transmission": transmission,
                                             "current_address":
                                                 locResult.locationName,
                                             "current_address_key":
                                                 locResult.latlng,
+                                            "attributes": {
+                                              "brand": brandController.text,
+                                              "year_of_manufacturing":
+                                                  yearOfManufacturingController.text,
+                                              "kms_run": kmsController.text,
+                                              "ownership": ownershipType,
+                                              "fuel_type": fuelType,
+                                              "transmission": transmission,
+                                            },
                                           };
 
                                           final editId = widget.editId
@@ -793,9 +799,7 @@ class _CarsAdState extends State<CarsAd> {
                                           }
 
                                           if (_images.isNotEmpty) {
-                                            data["images"] = _images
-                                                .map((file) => file.path)
-                                                .toList();
+                                            data["images"] = _images;
                                           }
 
                                           if (editId.isNotEmpty) {

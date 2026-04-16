@@ -84,8 +84,8 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
   final cityController = TextEditingController();
   final nameController = TextEditingController();
   final planController = TextEditingController();
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   String? facingDirection;
   String? propertyType;
   String? furnishingStatus;
@@ -152,17 +152,23 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -918,7 +924,6 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
 
                                       final Map<String, dynamic> data = {
                                         "title": titleController.text,
-                                        "brand": brandController.text,
                                         "description":
                                             descriptionController.text,
                                         "sub_category_id": widget.subCatId,
@@ -926,28 +931,28 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                                         "location": locationController.text,
                                         "mobile_number": phoneController.text,
                                         "price": totelPriceController.text,
-                                        if (widget.SubCatName == "For Sale")
-                                          "squre_pt":
-                                              priceSquareFeetController.text,
                                         "full_name": nameController.text,
                                         "state_id": selectedStateId,
-                                        // "city_id": selectedCityId,
-                                        "bhk_type": "${bhkController.text} BHK",
-                                        "no_of_bathrooms":
-                                            noOfBathroomsController.text,
-                                        "no_of_carparking_spaces":
-                                            parkingController.text,
-                                        "facing_direction": facingDirection,
-                                        "furnishing_status": furnishingStatus,
-                                        "project_status": projectStatus,
-                                        "listed_by": listedBy,
-                                        "floor_number": floorNoController.text,
-                                        // "room_no": roomNoController.text,
                                         "location_key": latlng,
-                                        "property_type": propertyType,
                                         "current_address":
                                             locResult.locationName,
                                         "current_address_key": locResult.latlng,
+                                        "attributes": {
+                                          "bhk_type": "${bhkController.text} BHK",
+                                          "no_of_bathrooms":
+                                              noOfBathroomsController.text,
+                                          "no_of_carparking_spaces":
+                                              parkingController.text,
+                                          "facing_direction": facingDirection,
+                                          "furnishing_status": furnishingStatus,
+                                          "project_status": projectStatus,
+                                          "listed_by": listedBy,
+                                          "floor_number": floorNoController.text,
+                                          "property_type": propertyType,
+                                          if (widget.SubCatName == "For Sale")
+                                            "square_pt":
+                                                priceSquareFeetController.text,
+                                        },
                                       };
 
                                       if (widget.editId == null ||
@@ -960,9 +965,7 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                                       }
 
                                       if (_images.isNotEmpty) {
-                                        data["images"] = _images
-                                            .map((file) => file.path)
-                                            .toList();
+                                        data["images"] = _images;
                                       }
 
                                       if (widget.editId != null &&

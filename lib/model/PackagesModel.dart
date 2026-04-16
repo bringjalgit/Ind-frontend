@@ -52,8 +52,8 @@ class Plan {
 }
 
 class Data {
-  int? id;
-  int? planId;
+  String? id;
+  String? planId;
   String? name;
   int? listingsCount;
   int? adsCount;
@@ -81,20 +81,27 @@ class Data {
         this.updatedAt,
         this.durationDays});
 
+  static int? _parseInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
   Data.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    planId = json['plan_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    planId = json['plan_id']?.toString();
     name = json['name'];
-    listingsCount = json['listings_count'];
-    adsCount = json['ads_count'];
-    pinnedCount = json['pinned_count'];
-    spotlightCount = json['spotlight_count'];
-    price = json['price'];
-    normalPrice = json['normal_price'];
+    listingsCount = _parseInt(json['listings_count']);
+    adsCount = _parseInt(json['ads_count']);
+    pinnedCount = _parseInt(json['pinned_count']);
+    spotlightCount = _parseInt(json['spotlight_count']);
+    price = json['price']?.toString();
+    normalPrice = json['normal_price']?.toString();
     status = json['status'];
-    createdAt = json['created_at'];
-    updatedAt = json['updated_at'];
-    durationDays = json['duration_days'];
+    createdAt = json['created_at']?.toString();
+    updatedAt = json['updated_at']?.toString();
+    durationDays = _parseInt(json['duration_days']);
   }
 
   Map<String, dynamic> toJson() {

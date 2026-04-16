@@ -365,14 +365,25 @@ class _OtpscreenState extends State<Otpscreen> {
                                                     onPressed: isLoading
                                                         ? null
                                                         : () {
-                                                            context
-                                                                .read<
-                                                                  LogInwithMobileCubit
-                                                                >()
-                                                                .postLogInWithMobile({
-                                                                  "mobile": widget
-                                                                      .mobile,
-                                                                });
+                                                            if (widget.mobile.isNotEmpty) {
+                                                              context
+                                                                  .read<
+                                                                    LogInwithMobileCubit
+                                                                  >()
+                                                                  .postLogInWithMobile({
+                                                                    "mobile": widget
+                                                                        .mobile,
+                                                                  });
+                                                            } else if (widget.email.isNotEmpty) {
+                                                              context
+                                                                  .read<
+                                                                    LogInwithMobileCubit
+                                                                  >()
+                                                                  .postLogInWithEmail({
+                                                                    "email": widget
+                                                                        .email,
+                                                                  });
+                                                            }
                                                             _startTimer();
                                                           },
                                                     icon: isLoading
@@ -431,7 +442,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                                 data.user?.name ?? "",
                                                 data.user?.email ?? "",
                                                 data.user?.mobile ?? "",
-                                                data.user?.id ?? 0,
+                                                data.user?.id ?? "",
                                                 data.refreshToken ?? "",
                                                 data.accessTokenExpiry ?? 0,
                                                 data.newUser ?? false,
@@ -439,6 +450,8 @@ class _OtpscreenState extends State<Otpscreen> {
                                                 data.user?.city,
                                                 data.user?.stateId,
                                                 data.user?.cityId,
+                                                data.user?.image,
+                                                data.user?.profilePicture,
                                               );
                                               if (data.newUser == true) {
                                                 context.pushReplacement(
@@ -456,7 +469,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                               if (data.code ==
                                                   "ACCOUNT_DELETED") {
                                                 context.push(
-                                                  "/recover_account?user_id=${data.id.toString()}",
+                                                  "/recover_account?recovery_token=${Uri.encodeComponent(data.recoveryToken ?? '')}",
                                                 );
                                               } else if (data.code ==
                                                   "ACCOUNT_BLOCKED") {
@@ -478,7 +491,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                                 data.user?.name ?? "",
                                                 data.user?.email ?? "",
                                                 data.user?.mobile ?? "",
-                                                data.user?.id ?? 0,
+                                                data.user?.id ?? "",
                                                 data.refreshToken ?? "",
                                                 data.accessTokenExpiry ?? 0,
                                                 data.newUser ?? false,
@@ -486,6 +499,8 @@ class _OtpscreenState extends State<Otpscreen> {
                                                 data.user?.city,
                                                 data.user?.stateId,
                                                 data.user?.cityId,
+                                                data.user?.image,
+                                                data.user?.profilePicture,
                                               );
                                               if (data.newUser == true) {
                                                 context.pushReplacement(
@@ -503,7 +518,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                               if (data.code ==
                                                   "ACCOUNT_DELETED") {
                                                 context.push(
-                                                  "/recover_account?user_id=${data.id.toString()}",
+                                                  "/recover_account?recovery_token=${Uri.encodeComponent(data.recoveryToken ?? '')}",
                                                 );
                                               } else if (data.code ==
                                                   "ACCOUNT_BLOCKED") {
@@ -618,10 +633,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                                                   .verifyEmailLoginOtp({
                                                                     "email": widget
                                                                         .email,
-                                                                    "otp":
-                                                                        int.parse(
-                                                                          otp,
-                                                                        ),
+                                                                    "otp": otp,
                                                                     "fcm_token":
                                                                         fcmToken ??
                                                                         "",

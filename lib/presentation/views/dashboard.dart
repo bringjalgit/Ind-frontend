@@ -17,7 +17,11 @@ import 'package:classifieds/utils/AppLogger.dart';
 import 'package:classifieds/utils/color_constants.dart';
 import 'package:classifieds/utils/constants.dart';
 import 'package:permission_handler/permission_handler.dart' as OpenAppSettings;
-import 'package:upgrader/upgrader.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../data/cubit/ChatUsers/ChatUsersCubit.dart';
+import '../../data/cubit/ChatUsers/ChatUsersStates.dart';
+import 'package:classifieds/services/AppConfigService.dart';
+import 'package:classifieds/widgets/AnnouncementDialog.dart';
 
 import '../../data/bloc/internet_status/internet_status_bloc.dart';
 import '../../data/cubit/Location/location_cubit.dart';
@@ -49,16 +53,13 @@ class _DashboardState extends State<Dashboard> {
 
   StreamSubscription<Uri>? _linkSubscription;
 
-  late final Upgrader _upgrader;
-
   @override
   void initState() {
     super.initState();
 
-    _upgrader = Upgrader();
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _checkForUpgrade();
+      await _checkForOptionalUpdate();
+      await _showAnnouncementIfNeeded();
     });
 
     _selectedIndex = widget.initialTab;
@@ -77,43 +78,36 @@ class _DashboardState extends State<Dashboard> {
     });
   }
 
-  Future<void> _checkForUpgrade() async {
-    await _upgrader.initialize();
+  Future<void> _checkForOptionalUpdate() async {
+    if (!mounted) return;
+    if (AppConfigService.hasOptionalUpdate) {
+      final storeUrl = AppConfigService.storeUrl;
+      final message = AppConfigService.updateMessage;
 
-    if (_upgrader.shouldDisplayUpgrade() && mounted) {
-      _showCustomUpgradeDialog();
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black.withOpacity(0.6),
+        builder: (ctx) => PremiumUpgradeDialog(
+          isForceUpdate: false,
+          releaseNotes: message.isNotEmpty ? message : null,
+          onUpdatePressed: () {
+            if (storeUrl.isNotEmpty) {
+              launchUrl(Uri.parse(storeUrl), mode: LaunchMode.externalApplication);
+            }
+          },
+        ),
+      );
     }
   }
 
-  void _showCustomUpgradeDialog() {
-    final isForceUpdate = _upgrader.blocked(); // true if below min version
-
-    showCustomUpgradeDialog(
-      context,
-      isForceUpdate: isForceUpdate,
-      releaseNotes: _upgrader.releaseNotes,
-      onUpdatePressed: () {
-        _upgrader.sendUserToAppStore();
-      },
-    );
-  }
-
-  void showCustomUpgradeDialog(
-    BuildContext context, {
-    required bool isForceUpdate,
-    required String? releaseNotes,
-    required Function() onUpdatePressed,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: !isForceUpdate,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (dialogContext) => PremiumUpgradeDialog(
-        isForceUpdate: isForceUpdate,
-        releaseNotes: releaseNotes,
-        onUpdatePressed: onUpdatePressed,
-      ),
-    );
+  Future<void> _showAnnouncementIfNeeded() async {
+    if (!mounted) return;
+    // Small delay so optional update dialog shows first
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      AnnouncementDialog.showIfNeeded(context);
+    }
   }
 
   Future<void> initDeepLinks() async {
@@ -170,6 +164,13 @@ class _DashboardState extends State<Dashboard> {
       }
       final userId = await AuthService.getId();
       SocketService.connect(userId ?? "");
+
+      // Initialize ChatUsersCubit so the chat-tab badge updates in real time
+      // from any screen (home, my ads, profile) — not only after the user
+      // visits the chat tab. Idempotent: safe to call again from UserListScreen.
+      if (mounted && (userId ?? "").isNotEmpty) {
+        context.read<ChatUsersCubit>().initSocket(userId!);
+      }
     }
   }
 
@@ -282,7 +283,15 @@ class _DashboardState extends State<Dashboard> {
                   _buildNavItem(Icons.home, "Home", 0),
                   _buildNavItem(Icons.archive, "My Ads", 1),
                   const SizedBox(width: 40), // space for FAB
-                  _buildNavItem(Icons.chat, "Chat", 2),
+                  BlocBuilder<ChatUsersCubit, ChatUsersStates>(
+                    builder: (context, chatState) {
+                      int totalUnread = 0;
+                      if (chatState is ChatUsersLoaded && chatState.chatUsersModel.data != null) {
+                        totalUnread = chatState.chatUsersModel.data!.fold(0, (sum, u) => sum + (u.unreadCount ?? 0));
+                      }
+                      return _buildNavItem(Icons.chat, "Chat", 2, badge: totalUnread);
+                    },
+                  ),
                   _buildNavItem(Icons.person, "Profile", 3),
                 ],
               ),
@@ -293,7 +302,7 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
+  Widget _buildNavItem(IconData icon, String label, int index, {int badge = 0}) {
     final isSelected = _selectedIndex == index;
     return InkWell(
       onTap: () => onItemTapped(index),
@@ -301,10 +310,33 @@ class _DashboardState extends State<Dashboard> {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 26,
-            color: isSelected ? AppColors.primary : AppColors.unselect,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                icon,
+                size: 26,
+                color: isSelected ? AppColors.primary : AppColors.unselect,
+              ),
+              if (badge > 0)
+                Positioned(
+                  right: -8,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      badge > 99 ? '99+' : '$badge',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           SizedBox(height: 4),
           Text(

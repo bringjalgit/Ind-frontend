@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:classifieds/theme/app_colors.dart';
 
@@ -64,7 +65,23 @@ class SimilarProductCard extends StatelessWidget {
                           borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(8),
                           ),
-                          child: Image.network(imageUrl!, fit: BoxFit.cover),
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            placeholder: (_, __) => Container(
+                              color: borderColor.withOpacity(.2),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              color: borderColor.withOpacity(.2),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.image,
+                                size: 40,
+                                color: Colors.grey.withOpacity(.6),
+                              ),
+                            ),
+                          ),
                         ),
                 ),
                 // Tagline for featured product

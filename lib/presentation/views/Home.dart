@@ -47,7 +47,9 @@ class HomeScreen extends StatefulWidget {
 //   SelectedLocation({required this.name, required this.latlng});
 // }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   final ScrollController _scrollController = ScrollController();
   int currentIndex = 0;
 
@@ -57,10 +59,14 @@ class _HomeScreenState extends State<HomeScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _showBottomSheet = false;
   StateSetter? _bottomSheetSetState;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
+    AuthService.isGuest.then((v) {
+      if (mounted) setState(() => _isGuest = v);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<DashboardCubit>().fetchDashboard();
@@ -196,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final textColor = ThemeHelper.textColor(context);
     final isDarkMode = ThemeHelper.isDarkMode(context);
     final cardColor = ThemeHelper.cardColor(context);
@@ -763,49 +770,39 @@ class _HomeScreenState extends State<HomeScreen> {
                                               );
                                             }
                                           },
-                                          child: FutureBuilder(
-                                            future: AuthService.isGuest,
-                                            builder: (context, asyncSnapshot) {
-                                              final isGuest =
-                                                  asyncSnapshot.data ?? false;
-                                              return SimilarProductCard(
-                                                title: p.title ?? "—",
-                                                isFeatured:
-                                                    p.featured_status ?? false,
-                                                price:
-                                                    "₹${_formatINR(p.price)}",
-                                                location: p.location ?? "",
-                                                imageUrl: p.image,
-                                                isLiked: p.isFavorited ?? false,
-                                                onLikeToggle: isGuest
-                                                    ? () {
-                                                        context.push("/login");
-                                                      }
-                                                    : () {
-                                                        if (p.id != null) {
-                                                          context
-                                                              .read<
-                                                                AddToWishlistCubit
-                                                              >()
-                                                              .addToWishlist(
-                                                                p.id!,
-                                                              );
-                                                        }
-                                                      },
-                                                onTap: () async {
-                                                  final shouldRefresh =
-                                                      await context.push<bool>(
-                                                        "/products_details?listingId=${p.id}&subcategory_id=${p.subCategory?.id}",
-                                                      );
-                                                  if (shouldRefresh == true) {
-                                                    context
-                                                        .read<DashboardCubit>()
-                                                        .fetchDashboard();
+                                          child: SimilarProductCard(
+                                            title: p.title ?? "—",
+                                            isFeatured:
+                                                p.featured_status ?? false,
+                                            price: "₹${_formatINR(p.price)}",
+                                            location: p.location ?? "",
+                                            imageUrl: p.image,
+                                            isLiked: p.isFavorited ?? false,
+                                            onLikeToggle: _isGuest
+                                                ? () {
+                                                    context.push("/login");
                                                   }
-                                                },
-                                                borderColor: borderColor,
-                                              );
+                                                : () {
+                                                    if (p.id != null) {
+                                                      context
+                                                          .read<
+                                                            AddToWishlistCubit
+                                                          >()
+                                                          .addToWishlist(p.id!);
+                                                    }
+                                                  },
+                                            onTap: () async {
+                                              final shouldRefresh =
+                                                  await context.push<bool>(
+                                                    "/products_details?listingId=${p.id}&subcategory_id=${p.subCategory?.id}",
+                                                  );
+                                              if (shouldRefresh == true) {
+                                                context
+                                                    .read<DashboardCubit>()
+                                                    .fetchDashboard();
+                                              }
                                             },
+                                            borderColor: borderColor,
                                           ),
                                         );
                                       },

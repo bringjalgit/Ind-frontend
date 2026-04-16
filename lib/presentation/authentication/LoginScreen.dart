@@ -6,8 +6,6 @@ import 'package:classifieds/Components/CustomSnackBar.dart';
 import 'package:classifieds/data/cubit/LogInWithMobile/login_with_mobile.dart';
 import 'package:classifieds/data/cubit/LogInWithMobile/login_with_mobile_state.dart';
 import 'package:classifieds/widgets/CommonTextField.dart';
-import '../../Components/CustomAppButton.dart';
-import '../../services/AuthService.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 
@@ -221,39 +219,6 @@ class _LoginscreenState extends State<Loginscreen> {
                                       context.pushReplacement(
                                         '/otp?mobile=${_phoneController.text}',
                                       );
-                                    } else if (state is TestLoginSuccessState) {
-                                      final data = state.verifyOtpModel;
-                                      if (data.success == true) {
-                                        await AuthService.saveTokens(
-                                          data.accessToken ?? "",
-                                          data.user?.name ?? "",
-                                          data.user?.email ?? "",
-                                          data.user?.mobile ?? "",
-                                          data.user?.id ?? 0,
-                                          data.refreshToken ?? "",
-                                          data.accessTokenExpiry ?? 0,
-                                          data.newUser ?? false,
-                                          data.user?.state,
-                                          data.user?.city,
-                                          data.user?.stateId,
-                                          data.user?.cityId,
-                                        );
-                                        if (data.newUser == true) {
-                                          context.pushReplacement(
-                                            '/register?from=otp',
-                                          );
-                                        } else {
-                                          context.pushReplacement('/dashboard');
-                                        }
-                                      } else {
-                                        if (data.code == "ACCOUNT_DELETED") {
-                                          context.push(
-                                            "/recover_account?user_id=${data.id.toString()}",
-                                          );
-                                        } else {
-                                          context.push("/blocked_account");
-                                        }
-                                      }
                                     } else if (state
                                         is LogInwithMobileFailure) {
                                       // Prefer showing backend message if available
@@ -284,7 +249,7 @@ class _LoginscreenState extends State<Loginscreen> {
                                         child: ElevatedButton.icon(
                                           onPressed: loading
                                               ? null
-                                              : () {
+                                              : () async {
                                                   final phone = _phoneController
                                                       .text
                                                       .trim();
@@ -301,23 +266,13 @@ class _LoginscreenState extends State<Loginscreen> {
                                                       "Enter a valid 10-digit phone number",
                                                     );
                                                   } else {
-                                                    if (phone == "9999999999") {
-                                                      context
-                                                          .read<
-                                                            LogInwithMobileCubit
-                                                          >()
-                                                          .postTestLogin({
-                                                            "mobile": phone,
-                                                          });
-                                                    } else {
-                                                      context
-                                                          .read<
-                                                            LogInwithMobileCubit
-                                                          >()
-                                                          .postLogInWithMobile({
-                                                            "mobile": phone,
-                                                          });
-                                                    }
+                                                    context
+                                                        .read<
+                                                          LogInwithMobileCubit
+                                                        >()
+                                                        .postLogInWithMobile({
+                                                          "mobile": phone,
+                                                        });
                                                   }
                                                 },
                                           icon: loading

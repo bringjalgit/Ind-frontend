@@ -6,7 +6,7 @@ class MarkAsListingCubit extends Cubit<MarkAsListingState> {
   MyAdsRepo myAdsRepo;
   MarkAsListingCubit(this.myAdsRepo) : super(MarkAsListingInitially());
 
-  Future<void> markAsSold(int id) async {
+  Future<void> markAsSold(String id) async {
     emit(MarkAsListingLoading());
     try {
       final response = await myAdsRepo.markAsSold(id);
@@ -20,7 +20,7 @@ class MarkAsListingCubit extends Cubit<MarkAsListingState> {
     }
   }
 
-  Future<void> markAsDelete(int id) async {
+  Future<void> markAsDelete(String id) async {
     emit(MarkAsListingLoading());
     try {
       final response = await myAdsRepo.markAsDelete(id);
@@ -48,10 +48,10 @@ class MarkAsListingCubit extends Cubit<MarkAsListingState> {
     }
   }
 
-  Future<void> removeImageOnListingAd(int id) async {
+  Future<void> removeImageOnListingAd(String imageUrl, String listingId) async {
     emit(MarkAsListingLoading());
     try {
-      final response = await myAdsRepo.removeImageOnListingAD(id);
+      final response = await myAdsRepo.removeImageOnListingAD(imageUrl, listingId);
       if (response != null && response.success == true) {
         emit(MarkAsListingImageDelete(response));
       } else {

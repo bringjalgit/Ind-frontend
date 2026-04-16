@@ -73,8 +73,8 @@ class _EducationalAdState extends State<EducationalAd> {
   final nameController = TextEditingController();
   final instituteNameController = TextEditingController();
   final planController = TextEditingController();
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   bool _showDescriptionError = false;
   List<ImageData> _imageDataList = [];
   bool _isSubmitting = false; // covers pre-submit work
@@ -113,17 +113,23 @@ class _EducationalAdState extends State<EducationalAd> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -655,7 +661,6 @@ class _EducationalAdState extends State<EducationalAd> {
 
                                     final Map<String, dynamic> data = {
                                       "title": titleController.text,
-                                      "brand": brandController.text,
                                       "description": descriptionController.text,
                                       "sub_category_id": widget.subCatId,
                                       "category_id": widget.catId,
@@ -665,12 +670,12 @@ class _EducationalAdState extends State<EducationalAd> {
                                       "price": priceController.text,
                                       "full_name": nameController.text,
                                       "state_id": selectedStateId,
-                                      // "city_id": selectedCityId,
-                                      "institute_name": instituteNameController.text,
-                                      "current_address":
-                                      locResult.locationName,
-                                      "current_address_key":
-                                      locResult.latlng,
+                                      "current_address": locResult.locationName,
+                                      "current_address_key": locResult.latlng,
+                                      "attributes": {
+                                        "institute_name":
+                                            instituteNameController.text,
+                                      },
                                     };
 
                                     if (editId.isEmpty) {
@@ -679,7 +684,7 @@ class _EducationalAdState extends State<EducationalAd> {
                                     }
 
                                     if (_images.isNotEmpty) {
-                                      data["images"] = _images.map((file) => file.path).toList();
+                                      data["images"] = _images;
                                     }
 
                                     if (editId.isNotEmpty) {

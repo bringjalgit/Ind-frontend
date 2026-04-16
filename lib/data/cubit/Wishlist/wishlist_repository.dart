@@ -6,7 +6,7 @@ import '../../../model/WishlistModel.dart';
 
 abstract class WishlistRepository {
   Future<WishlistModel?> getWishlist(int page);
-  Future<AddToWishlistModel?> addToWishlist(int product_id);
+  Future<AddToWishlistModel?> addToWishlist(String product_id);
 }
 
 class WishlistRepositoryImpl implements WishlistRepository {
@@ -19,7 +19,7 @@ class WishlistRepositoryImpl implements WishlistRepository {
   }
 
   @override
-  Future<AddToWishlistModel?> addToWishlist(int product_id) async {
+  Future<AddToWishlistModel?> addToWishlist(String product_id) async {
     return await remoteDataSource.addToWishlist(product_id);
   }
 }

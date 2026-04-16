@@ -90,7 +90,7 @@ class ProductsCubit1 extends Cubit<ProductsStates1> {
     }
   }
 
-  void updateWishlistStatus(int productId, bool isLiked) {
+  void updateWishlistStatus(String productId, bool isLiked) {
 
     final updatedProducts = productsModel.products?.map((p) {
       if (p.id == productId) {

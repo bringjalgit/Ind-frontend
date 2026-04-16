@@ -73,6 +73,9 @@ dependencies:
   shared_preferences: ^2.5.4
   upgrader: ^12.5.0
   video_player: ^2.11.0
+  google_sign_in: ^6.2.2
+  web_socket_channel: ^3.0.3
+  package_info_plus: ^9.0.1
 
 
 

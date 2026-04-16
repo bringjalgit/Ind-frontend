@@ -54,8 +54,8 @@ class SubcategoryProductsModel {
 }
 
 class Products {
-  int? id;
-  int? userId;
+  String? id;
+  String? userId;
   String? title;
   String? description;
   String? price;
@@ -103,8 +103,8 @@ class Products {
   });
 
   Products copyWith({
-    int? id,
-    int? userId,
+    String? id,
+    String? userId,
     String? title,
     String? description,
     String? price,
@@ -153,11 +153,11 @@ class Products {
   }
 
   Products.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    userId = json['user_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    userId = json['user_id']?.toString();
     title = json['title'];
     description = json['description'];
-    price = json['price'];
+    price = json['price']?.toString();
     location = json['location'];
     fullName = json['full_name'];
     image = json['image'];
@@ -167,16 +167,19 @@ class Products {
     featured_status = json['featured_status'];
     stateId = json['state_id'];
     cityId = json['city_id'];
-    createdAt = json['created_at'];
-    category = json['Category'] != null
-        ? Category.fromJson(json['Category'])
-        : null;
-    subCategory = json['SubCategory'] != null
-        ? SubCategory.fromJson(json['SubCategory'])
-        : null;
-    user = json['User'] != null ? SubCategory.fromJson(json['User']) : null;
-    state = json['state'] != null ? SubCategory.fromJson(json['state']) : null;
-    city = json['city'] != null ? SubCategory.fromJson(json['city']) : null;
+    createdAt = json['created_at']?.toString();
+    // Lambda returns lowercase keys: 'category', 'sub_category', 'user'
+    final catJson = json['category'] ?? json['Category'];
+    category = catJson != null ? Category.fromJson(catJson) : null;
+    final subCatJson = json['sub_category'] ?? json['SubCategory'];
+    subCategory = subCatJson != null ? SubCategory.fromJson(subCatJson) : null;
+    final userJson = json['user'] ?? json['User'];
+    user = userJson != null ? SubCategory.fromJson(userJson) : null;
+    // Lambda returns flat state_name / city_name strings (not nested objects)
+    final stateName = json['state_name'];
+    state = stateName != null ? SubCategory(name: stateName.toString()) : null;
+    final cityName = json['city_name'];
+    city = cityName != null ? SubCategory(name: cityName.toString()) : null;
     postedAt = json['posted_at'];
     isFavorited = json['is_favorited'];
   }
@@ -210,14 +213,14 @@ class Products {
 }
 
 class Category {
-  int? id;
+  String? id;
   String? name;
   String? path;
 
   Category({this.id, this.name, this.path});
 
   Category.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['_id'] ?? json['id'])?.toString();
     name = json['name'];
     path = json['path'];
   }
@@ -232,13 +235,13 @@ class Category {
 }
 
 class SubCategory {
-  int? id;
+  String? id;
   String? name;
 
   SubCategory({this.id, this.name});
 
   SubCategory.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['_id'] ?? json['id'])?.toString();
     name = json['name'];
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../utils/constants.dart';
 import 'AuthService.dart';
+import 'BackendResolver.dart';
 import 'api_endpoint_urls.dart';
 
 class ApiClient {
@@ -71,19 +72,37 @@ class ApiClient {
         onResponse: (response, handler) async {
           final status = response.statusCode ?? 0;
 
-          if (status >= 200 && status <= 400) {
-            // success
+          if (status >= 200 && status < 300) {
+            // true success
             return handler.next(response);
           }
-          // 4xx arrive here because validateStatus(<500) returns true
-          if (status == 401) {
-            debugPrint('❌ 401 Unauthorized, logging out...');
+
+          // 3xx — let it pass through (Dio handles redirects internally
+          // but if any 3xx lands here, treat it as non-error).
+          if (status >= 300 && status < 400) {
+            return handler.next(response);
+          }
+
+          // 4xx arrive here because validateStatus(<500) returns true.
+          // CRITICAL DISTINCTION: a 401 means "session expired" ONLY when
+          // the request carried an Authorization header. A 401 on an
+          // unauthenticated request (login OTP verify, recovery token,
+          // google auth) is a business-logic error — the user was never
+          // logged in, so logging them out is wrong and blows away the
+          // real error message from the backend body.
+          final hadAuthHeader =
+              response.requestOptions.headers.containsKey('Authorization');
+
+          if (status == 401 && hadAuthHeader) {
+            debugPrint(
+              '❌ 401 on authed request → session expired, logging out',
+            );
             await AuthService.logout();
             return handler.reject(
               DioException(
                 requestOptions: response.requestOptions,
                 response: response,
-                error: 'Unauthorized, please log in again',
+                error: 'Session expired, please log in again',
                 type: DioExceptionType.badResponse,
               ),
             );
@@ -103,29 +122,66 @@ class ApiClient {
             );
           }
 
-          // Any other 4xx -> normalize as DioException so repos/cubits can handle uniformly
+          // All other 4xx (401 on unauthed login, 400 MISSING_FIELDS,
+          // 401 INVALID_OTP / INVALID_RECOVERY_TOKEN, 404 USER_NOT_FOUND,
+          // 429 RATE_LIMITED, etc.): reject with the full response
+          // preserved so caller's catch can read e.response?.data and
+          // parse the backend's error shape.
           return handler.reject(
             DioException(
               requestOptions: response.requestOptions,
               response: response,
-              error: 'Request failed (${response.statusCode})',
+              error: response.data ?? 'Request failed (${response.statusCode})',
               type: DioExceptionType.badResponse,
             ),
           );
         },
 
-        onError: (DioException e, handler) {
+        onError: (DioException e, handler) async {
           // Only 5xx (and network/timeout/cancel) reach here due to validateStatus(<500)
           final code = e.response?.statusCode;
 
+          // 503 BACKEND_DORMANT → admin flipped active_backend mid-session, or
+          // we hit the wrong backend on the very first request after launch.
+          // Re-probe /health and retry the request once with the new base URL.
+          // Marked with `extra['__rebound']=true` so a second 503 doesn't loop.
+          if (code == 503) {
+            final body = e.response?.data;
+            final isDormant = body is Map && body['code'] == 'BACKEND_DORMANT';
+            final alreadyRetried = e.requestOptions.extra['__rebound'] == true;
+            if (isDormant && !alreadyRetried) {
+              try {
+                await BackendResolver.reresolve();
+                final newPath = _swapBaseToResolvedBackend(e.requestOptions.path);
+                if (newPath != null && newPath != e.requestOptions.path) {
+                  final retryOptions = e.requestOptions.copyWith(path: newPath);
+                  retryOptions.extra['__rebound'] = true;
+                  debugPrint('[ApiClient] 503 BACKEND_DORMANT → reresolved, retrying $newPath');
+                  final retryResponse = await _dio.fetch(retryOptions);
+                  return handler.resolve(retryResponse);
+                }
+              } catch (retryErr) {
+                debugPrint('[ApiClient] 503 retry failed: $retryErr');
+                // Fall through to the default error path below
+              }
+            }
+          }
+
           if (code == 401) {
-            // defensive: if a 401 still ends up here
-            AuthService.logout();
+            // Defensive: if a 401 somehow reaches the error interceptor
+            // (shouldn't, since validateStatus(<500) routes 4xx to
+            // onResponse), only logout when the request had an auth
+            // header. Same reasoning as the onResponse branch.
+            final hadAuthHeader =
+                e.requestOptions.headers.containsKey('Authorization');
+            if (hadAuthHeader) {
+              AuthService.logout();
+            }
             return handler.next(
               DioException(
                 requestOptions: e.requestOptions,
                 response: e.response,
-                error: 'Unauthorized, please log in again',
+                error: e.response?.data ?? 'Request failed (401)',
                 type: DioExceptionType.badResponse,
               ),
             );
@@ -238,4 +294,19 @@ class ApiClient {
     int? statusCode,
     GlobalKey<NavigatorState> navigatorKey,
   ) {}
+
+  /// Returns the same URL with its main-stack base URL replaced by whatever
+  /// BackendResolver currently resolves to. Returns null if the URL doesn't
+  /// belong to either main-stack base (e.g. chat-stack URLs, S3 uploads) —
+  /// the caller should fall through to normal error handling in that case.
+  static String? _swapBaseToResolvedBackend(String url) {
+    final newBase = BackendResolver.currentBaseUrl;
+    if (url.startsWith(BackendResolver.lambdaBaseUrl)) {
+      return url.replaceFirst(BackendResolver.lambdaBaseUrl, newBase);
+    }
+    if (url.startsWith(BackendResolver.ec2BaseUrl)) {
+      return url.replaceFirst(BackendResolver.ec2BaseUrl, newBase);
+    }
+    return null;
+  }
 }

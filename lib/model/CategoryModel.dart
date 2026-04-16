@@ -28,7 +28,7 @@ class CategoryModel {
 }
 
 class CategoriesList {
-  int? categoryId;
+  String? categoryId;
   String? name;
   String? image;
   int? noOfCounts;
@@ -36,7 +36,7 @@ class CategoriesList {
   CategoriesList({this.categoryId, this.name, this.image, this.noOfCounts});
 
   CategoriesList.fromJson(Map<String, dynamic> json) {
-    categoryId = json['category_id'];
+    categoryId = json['category_id']?.toString();
     name = json['name'];
     image = json['image'];
     noOfCounts = json['no_of_counts'];

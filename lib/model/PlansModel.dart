@@ -28,7 +28,7 @@ class PlansModel {
 }
 
 class Plans {
-  int? id;
+  String? id;
   String? name;
   int? durationDays;
   String? image;
@@ -51,19 +51,30 @@ class Plans {
         this.features,
         this.startingPriceFrom});
 
+  static int? _parseInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
   Plans.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
-    durationDays = json['duration_days'];
+    durationDays = _parseInt(json['duration_days']);
     image = json['image'];
     description = json['description'];
-    createdAt = json['created_at'];
-    updatedAt = json['updated_at'];
+    createdAt = json['created_at']?.toString();
+    updatedAt = json['updated_at']?.toString();
     status = json['status'];
-    features = json['features'] != null
-        ? new Features.fromJson(json['features'])
-        : null;
-    startingPriceFrom = json['starting_price_from'];
+    if (json['features'] != null) {
+      if (json['features'] is Map) {
+        features = Features.fromJson(json['features']);
+      } else if (json['features'] is String) {
+        features = Features(type: json['features'] == 'popular' ? 'popular' : json['features']);
+      }
+    }
+    startingPriceFrom = _parseInt(json['starting_price_from']);
   }
 
   Map<String, dynamic> toJson() {

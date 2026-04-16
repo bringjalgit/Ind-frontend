@@ -172,8 +172,8 @@ class _CommonImagePickerState extends State<CommonImagePicker> {
     widget.onImagesChanged(updated);
   }
 
-  void _removeExistingImage(int index, int id) {
-    context.read<MarkAsListingCubit>().removeImageOnListingAd(id);
+  void _removeExistingImage(int index, String imageUrl) {
+    context.read<MarkAsListingCubit>().removeImageOnListingAd(imageUrl, widget.editId ?? '');
 
     final updated = [...widget.existingImages]..removeAt(index);
     widget.onExistingImagesChanged?.call(updated);
@@ -263,7 +263,7 @@ class _CommonImagePickerState extends State<CommonImagePicker> {
                             right: 4,
                             child: GestureDetector(
                               onTap: () =>
-                                  _removeExistingImage(index, image.id),
+                                  _removeExistingImage(index, image.url ?? ''),
                               child: Container(
                                 padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
@@ -366,7 +366,7 @@ class _CommonImagePickerState extends State<CommonImagePicker> {
 }
 
 class ImageData {
-  final int id;
+  final String id;
   final String url;
 
   ImageData({required this.id, required this.url});

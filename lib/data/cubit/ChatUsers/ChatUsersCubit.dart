@@ -1,38 +1,96 @@
+import 'dart:async';
 import 'package:bloc/bloc.dart';
 import '../../../model/ChatUsersModel.dart';
 import '../../../services/SocketService.dart';
+import '../../remote_data_source.dart';
 import 'ChatUsersStates.dart';
 
 class ChatUsersCubit extends Cubit<ChatUsersStates> {
-  ChatUsersCubit() : super(ChatUsersInitially());
+  final RemoteDataSource remoteDataSource;
+  ChatUsersCubit({required this.remoteDataSource}) : super(ChatUsersInitially());
 
   List<Data> _chatUsers = [];
+  int _currentPage = 1;
+  bool _hasNextPage = false;
+  bool _isLoadingMore = false;
+  bool _initialized = false;
+  Timer? _debounceTimer;
 
-  void initSocket(String userId) {
+  bool get hasNextPage => _hasNextPage;
+
+  // Debounced reload to avoid flooding REST API on rapid WebSocket events
+  void _debouncedReload() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(seconds: 2), () => loadChatUsers());
+  }
+
+  // Store listener references so we can remove only our own callbacks
+  late final Function(dynamic) _onUnreadCount = (_) => _debouncedReload();
+  late final Function(dynamic) _onNewMessage = (_) => _debouncedReload();
+
+  /// Initialize: connect WebSocket + load chat list via REST.
+  /// Idempotent — safe to call from both Dashboard.getData() (so the chat-tab
+  /// badge updates from any screen) and UserListScreen.initState() (legacy
+  /// entry point). Subsequent calls only refresh the chat list.
+  Future<void> initSocket(String userId) async {
+    if (_initialized) {
+      // Already wired up — just refresh the list (e.g. user re-entered chat tab)
+      await loadChatUsers();
+      return;
+    }
+    _initialized = true;
     emit(ChatUsersLoading());
 
-    // 1️⃣ Connect socket
-    SocketService.connect(userId);
+    // Connect WebSocket for real-time updates
+    await SocketService.connect(userId);
 
-    // 2️⃣ Listen for chat list update
-    SocketService.on("chat_list_update", (payload) {
-      try {
-        if (payload == null) return;
+    // Listen for unread count updates from WebSocket
+    SocketService.on('unreadCount', _onUnreadCount);
 
-        if (payload is List) {
-          _chatUsers = payload.map((e) => Data.fromJson(e)).toList();
-        } else if (payload is Map<String, dynamic>) {
-          _chatUsers = [Data.fromJson(payload)];
-        }
+    // Listen for new messages to refresh chat list
+    SocketService.on('newMessage', _onNewMessage);
 
+    // Load chat list via REST API
+    await loadChatUsers();
+  }
+
+  /// Load chat users list from REST API (page 1 resets)
+  Future<void> loadChatUsers({String query = ''}) async {
+    try {
+      _currentPage = 1;
+      final response = await remoteDataSource.getChatUsers(query, page: 1);
+      if (response != null && response.success == true && response.data != null) {
+        _chatUsers = response.data!;
+        _hasNextPage = response.nextPage == true;
         emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
-      } catch (e) {
-        emit(ChatUsersFailure(e.toString()));
+      } else {
+        _chatUsers = [];
+        _hasNextPage = false;
+        emit(ChatUsersLoaded(ChatUsersModel(success: true, data: [])));
       }
-    });
+    } catch (e) {
+      emit(ChatUsersFailure(e.toString()));
+    }
+  }
 
-    // 3️⃣ Emit request to get chat list
-    SocketService.emit("get_chat_list", {"userId": userId});
+  /// Load next page of chat users (append to existing list)
+  Future<void> loadMoreChatUsers({String query = ''}) async {
+    if (_isLoadingMore || !_hasNextPage) return;
+    _isLoadingMore = true;
+    try {
+      final nextPage = _currentPage + 1;
+      final response = await remoteDataSource.getChatUsers(query, page: nextPage);
+      if (response != null && response.success == true && response.data != null) {
+        _currentPage = nextPage;
+        _chatUsers.addAll(response.data!);
+        _hasNextPage = response.nextPage == true;
+        emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
+      }
+    } catch (e) {
+      // silently fail — existing data still valid
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 
   /// If single chat updates (like new message)
@@ -54,7 +112,9 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
 
   @override
   Future<void> close() {
-    SocketService.off("chat_list_update");
+    _debounceTimer?.cancel();
+    SocketService.off('unreadCount', _onUnreadCount);
+    SocketService.off('newMessage', _onNewMessage);
     return super.close();
   }
 }

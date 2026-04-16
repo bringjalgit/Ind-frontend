@@ -1,21 +1,23 @@
+/// Response shape for POST /app/send-otp and POST /app/send-otp-email.
+/// The backend returns only `success` and `message` — the UI uses both
+/// (success branches navigation, message displays on failure). Older
+/// versions of this model had `otp` and `newUser` fields that the
+/// backend never sends and the UI never reads — removed during cleanup.
 class SendOtpModel {
   bool? success;
   String? message;
-  int? otp;
 
-  SendOtpModel({this.success, this.message, this.otp});
+  SendOtpModel({this.success, this.message});
 
   SendOtpModel.fromJson(Map<String, dynamic> json) {
     success = json['success'];
     message = json['message'];
-    otp = json['otp'];
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['success'] = this.success;
-    data['message'] = this.message;
-    data['otp'] = this.otp;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['success'] = success;
+    data['message'] = message;
     return data;
   }
 }

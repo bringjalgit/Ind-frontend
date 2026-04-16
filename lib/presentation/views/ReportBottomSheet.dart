@@ -69,8 +69,8 @@ class ReportBottomSheet extends StatefulWidget {
       listingId = null;
 
   final ReportContextType contextType;
-  final int? listingId;
-  final int? userId;
+  final String? listingId;
+  final String? userId;
 
   @override
   State<ReportBottomSheet> createState() => _ReportBottomSheetState();

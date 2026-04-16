@@ -75,7 +75,7 @@ class WishlistCubit extends Cubit<WishlistStates> {
     }
   }
 
-  void updateWishlistStatus(int productId, bool isLiked) {
+  void updateWishlistStatus(String productId, bool isLiked) {
     // 👉 unfavorited → remove it from the list
     final updatedProducts = wishlistModel.productslist
         ?.where((p) => p.id != productId)

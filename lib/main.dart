@@ -11,6 +11,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/services/ApiClient.dart';
+import 'package:classifieds/services/BackendResolver.dart';
 import 'package:classifieds/services/MetaEventTracker.dart';
 import 'package:classifieds/services/SecureStorageService.dart';
 import 'package:classifieds/state_injector.dart';
@@ -30,6 +31,14 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   ApiClient.setupInterceptors();
+
+  // Pick which backend (Lambda main stack vs EC2 mirror) to use for
+  // main-stack endpoints. Hydrates a cached choice instantly, then probes
+  // /health (3s timeout) to refresh. Chat-stack URLs (chat REST + WS +
+  // app-config + delete/recovery account) are unaffected — they always
+  // hit Lambda regardless of this resolver.
+  await BackendResolver.initialize();
+
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await SecureStorageService.instance.checkFirstLaunch();
   final storage = SecureStorageService.instance;
@@ -60,9 +69,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint("📥 🔔 Background message received");
   debugPrint(message.toMap().toString());
 
+  // Data-only payload (preferred)
+  final title = message.data['title']?.toString();
+  final body = message.data['body']?.toString();
+
+  if (title != null && title.isNotEmpty) {
+    await NotificationService.instance.showDataNotification(
+      title,
+      body ?? '',
+      message.data,
+    );
+    return;
+  }
+
+  // Fallback: legacy notification payload
   final notification = message.notification;
   final android = notification?.android;
-
   if (notification != null && android != null) {
     await NotificationService.instance.showNotification(
       notification,

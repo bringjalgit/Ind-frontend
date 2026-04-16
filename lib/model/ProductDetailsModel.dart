@@ -64,20 +64,21 @@ class Data {
 }
 
 class Listing {
-  int? id;
-  int? userId;
-  int? planId;
-  int? packageId;
+  String? id;
+  String? userId;
+  String? planId;
+  String? packageId;
   String? title;
   String? description;
-  int? subCategoryId;
-  int? categoryId;
+  String? subCategoryId;
+  String? categoryId;
   String? price;
   String? location;
   String? location_key;
   String? fullName;
   String? mobileNumber;
   bool? featuredStatus;
+  bool? isFavorited;
   String? status;
   String? city_name;
   String? state_name;
@@ -103,6 +104,7 @@ class Listing {
     this.fullName,
     this.mobileNumber,
     this.featuredStatus,
+    this.isFavorited,
     this.status,
     this.sold,
     this.stateId,
@@ -115,20 +117,21 @@ class Listing {
   });
 
   Listing.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    userId = json['user_id'];
-    planId = json['plan_id'];
-    packageId = json['package_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    userId = json['user_id']?.toString();
+    planId = json['plan_id']?.toString();
+    packageId = json['package_id']?.toString();
     title = json['title'];
     description = json['description'];
-    subCategoryId = json['sub_category_id'];
-    categoryId = json['category_id'];
-    price = json['price'];
+    subCategoryId = json['sub_category_id']?.toString();
+    categoryId = json['category_id']?.toString();
+    price = json['price']?.toString();
     location = json['location'];
     location_key = json['location_key'];
     fullName = json['full_name'];
     mobileNumber = json['mobile_number'];
     featuredStatus = json['featured_status'];
+    isFavorited = json['is_favorited'];
     status = json['status'];
     sold = json['sold'];
     stateId = json['state_id'];
@@ -137,8 +140,8 @@ class Listing {
     updatedAt = json['updated_at'];
     city_name = json['city_name'];
     state_name = json['state_name'];
-    category = json['Category'] != null
-        ? new Category.fromJson(json['Category'])
+    category = (json['category'] ?? json['Category']) != null
+        ? new Category.fromJson(json['category'] ?? json['Category'])
         : null;
   }
 
@@ -158,6 +161,7 @@ class Listing {
     data['full_name'] = this.fullName;
     data['mobile_number'] = this.mobileNumber;
     data['featured_status'] = this.featuredStatus;
+    data['is_favorited'] = this.isFavorited;
     data['status'] = this.status;
     data['sold'] = this.sold;
     data['state_id'] = this.stateId;
@@ -190,13 +194,13 @@ class Category {
 }
 
 class Images {
-  int? id;
+  String? id;
   String? image;
 
   Images({this.id, this.image});
 
   Images.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     image = json['image'];
   }
 
@@ -209,8 +213,8 @@ class Images {
 }
 
 class Details {
-  int? id;
-  int? listingId;
+  String? id;
+  String? listingId;
 
   // Old fixed fields (keep for mobiles/back-compat)
   String? brand;
@@ -235,8 +239,8 @@ class Details {
   }) : extra = extra ?? {};
 
   Details.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    listingId = json['listing_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    listingId = json['listing_id']?.toString();
 
     // known (mobile) fields
     brand = json['brand'];
@@ -286,20 +290,26 @@ class Details {
 }
 
 class PostedBy {
-  int? id;
+  String? id;
   String? name;
   String? email;
   String? image;
   String? postedAt;
+  int? activeListings;
+  int? soldListings;
+  String? mobile;
 
-  PostedBy({this.id, this.name, this.email, this.image, this.postedAt});
+  PostedBy({this.id, this.name, this.email, this.image, this.postedAt, this.activeListings, this.soldListings, this.mobile});
 
   PostedBy.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
     email = json['email'];
     image = json['image'];
     postedAt = json['posted_at'];
+    activeListings = json['active_listings'];
+    soldListings = json['sold_listings'];
+    mobile = json['mobile'];
   }
 
   Map<String, dynamic> toJson() {
@@ -309,6 +319,9 @@ class PostedBy {
     data['email'] = this.email;
     data['image'] = this.image;
     data['posted_at'] = this.postedAt;
+    data['active_listings'] = this.activeListings;
+    data['sold_listings'] = this.soldListings;
+    data['mobile'] = this.mobile;
     return data;
   }
 }

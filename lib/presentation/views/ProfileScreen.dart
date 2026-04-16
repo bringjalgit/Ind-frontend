@@ -20,6 +20,7 @@ import '../../utils/color_constants.dart';
 import '../../utils/spinkittsLoader.dart';
 import '../../widgets/CommonLoader.dart';
 import '../../widgets/DeleteAccountConfirmation.dart';
+import '../../widgets/VerifiedBadge.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -121,7 +122,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                     child: ClipOval(
                                       child: CachedNetworkImage(
-                                        imageUrl: user_data?.image ?? "",
+                                        // Fallback chain: user-uploaded S3
+                                        // image first, then Google-sourced
+                                        // profilePicture, then empty string
+                                        // (CachedNetworkImage renders the
+                                        // errorWidget below in that case).
+                                        imageUrl: user_data?.displayImage ?? "",
                                         imageBuilder:
                                             (context, imageProvider) =>
                                                 Container(
@@ -211,9 +217,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          user_data?.name ?? "",
-                          style: AppTextStyles.headlineSmall(textColor),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                user_data?.name ?? "",
+                                style: AppTextStyles.headlineSmall(textColor),
+                              ),
+                            ),
+                            if (user_data?.is_verified == true) ...[
+                              const SizedBox(width: 6),
+                              const VerifiedBadge(size: 20),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -271,6 +289,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onTap: () => context.push("/active_plans"),
                           ),
                         ],
+                        _PulsingGlow(
+                          active: user_data?.is_verified != true,
+                          child: _settingsTile(
+                            Icons.verified_user_outlined,
+                            Colors.blue.shade100,
+                            'Verify Your Identity',
+                            isDark,
+                            textColor,
+                            trailing: Icons.arrow_forward_ios,
+                            trailingWidget: _StatusBadge(
+                              aadhaarStatus: user_data?.aadhaar_status,
+                              isVerified: user_data?.is_verified,
+                            ),
+                            onTap: () => context.push('/aadhaar_verification'),
+                          ),
+                        ),
                         _settingsTile(
                           Icons.favorite,
                           Colors.red.shade100,
@@ -658,6 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color textcolor, {
     IconData? trailing,
     String? trailingText,
+    Widget? trailingWidget,
     bool isSwitch = false,
     VoidCallback? onTap,
     // ✅ add these:
@@ -697,7 +732,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Expanded(
               child: Text(label, style: AppTextStyles.bodyMedium(textcolor)),
             ),
-            if (trailingText != null)
+            if (trailingWidget != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: trailingWidget,
+              )
+            else if (trailingText != null)
               Text(trailingText, style: AppTextStyles.bodySmall(textcolor)),
             if (trailing != null) Icon(trailing, size: 16, color: Colors.grey),
 
@@ -836,6 +876,175 @@ class ProfileShimmer extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Colored pill badge for Aadhaar verification status. Used as the trailing
+/// widget on the "Verify Your Identity" settings tile. Four states:
+///   - Verified  (green, check icon)     ← `is_verified == true` OR status=approved
+///   - Under Review (amber, hourglass)   ← status=pending
+///   - Action Needed (red, error icon)   ← status=rejected
+///   - Not Verified (amber, shield)      ← status=none (or unknown)
+class _StatusBadge extends StatelessWidget {
+  final String? aadhaarStatus;
+  final bool? isVerified;
+  const _StatusBadge({this.aadhaarStatus, this.isVerified});
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = _resolve();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: spec.bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: spec.bg.withOpacity(0.8), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(spec.icon, size: 12, color: spec.fg),
+          const SizedBox(width: 4),
+          Text(
+            spec.label,
+            style: TextStyle(
+              color: spec.fg,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  _BadgeSpec _resolve() {
+    // Once is_verified is true, always show Verified regardless of
+    // aadhaar_status (one-way approval: a later rejected submission
+    // doesn't take the badge away).
+    if (isVerified == true || aadhaarStatus == 'approved') {
+      return const _BadgeSpec(
+        label: 'Verified',
+        bg: Color(0xFF10B981), // emerald-500
+        fg: Colors.white,
+        icon: Icons.check_circle,
+      );
+    }
+    if (aadhaarStatus == 'pending') {
+      return const _BadgeSpec(
+        label: 'Under Review',
+        bg: Color(0xFFF59E0B), // amber-500
+        fg: Colors.white,
+        icon: Icons.hourglass_top,
+      );
+    }
+    if (aadhaarStatus == 'rejected') {
+      return const _BadgeSpec(
+        label: 'Action Needed',
+        bg: Color(0xFFEF4444), // red-500
+        fg: Colors.white,
+        icon: Icons.error_outline,
+      );
+    }
+    // none / null / unknown
+    return const _BadgeSpec(
+      label: 'Not Verified',
+      bg: Color(0xFFF59E0B), // amber-500
+      fg: Colors.white,
+      icon: Icons.shield_outlined,
+    );
+  }
+}
+
+class _BadgeSpec {
+  final String label;
+  final Color bg;
+  final Color fg;
+  final IconData icon;
+  const _BadgeSpec({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    required this.icon,
+  });
+}
+
+/// Pulsing glow wrapper — a slow breathing box-shadow that draws the user's
+/// eye to a call-to-action tile. Used on the "Verify Your Identity" tile
+/// while the user is NOT yet verified; once verified, [active] flips to
+/// false and the child renders without the animation (no shadow, no
+/// controller ticking in the background).
+class _PulsingGlow extends StatefulWidget {
+  final Widget child;
+  final bool active;
+  const _PulsingGlow({required this.child, this.active = true});
+
+  @override
+  State<_PulsingGlow> createState() => _PulsingGlowState();
+}
+
+class _PulsingGlowState extends State<_PulsingGlow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+    if (widget.active) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PulsingGlow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.active && _ctrl.isAnimating) {
+      _ctrl.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.active) return widget.child;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final t = _anim.value; // 0 → 1 → 0 over 3.2s
+        // Blend two accent hues so the glow cycles through blue → purple
+        final color = Color.lerp(
+          const Color(0xFF1DA1F2), // blue
+          const Color(0xFF8B5CF6), // purple
+          t,
+        )!;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.18 + 0.32 * t),
+                blurRadius: 10 + 16 * t,
+                spreadRadius: 1 + 2 * t,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
     );
   }
 }

@@ -7,11 +7,11 @@ import '../../../model/getListingAdModel.dart';
 
 abstract class MyAdsRepo {
   Future<MyAdsModel?> getMyAds(String type,int page);
-  Future<MarkAsListingModel?> markAsSold(int id);
-  Future<MarkAsListingModel?> markAsDelete(int id);
+  Future<MarkAsListingModel?> markAsSold(String id);
+  Future<MarkAsListingModel?> markAsDelete(String id);
   Future<AdSuccessModel?> markAsUpdate(String id,Map<String,dynamic> data);
   Future<getListingAdModel?> markAsgetListingAD(String id);
-  Future<AdSuccessModel?> removeImageOnListingAD(int id);
+  Future<AdSuccessModel?> removeImageOnListingAD(String imageUrl, String listingId);
 }
 
 class MyAdsRepoImpl implements MyAdsRepo {
@@ -24,12 +24,12 @@ class MyAdsRepoImpl implements MyAdsRepo {
   }
 
   @override
-  Future<MarkAsListingModel?> markAsSold(int id) async {
+  Future<MarkAsListingModel?> markAsSold(String id) async {
     return await remoteDataSource.markAsSold(id);
   }
 
   @override
-  Future<MarkAsListingModel?> markAsDelete(int id) async {
+  Future<MarkAsListingModel?> markAsDelete(String id) async {
     return await remoteDataSource.deleteListingAd(id);
   }
   @override
@@ -42,7 +42,7 @@ class MyAdsRepoImpl implements MyAdsRepo {
     return await remoteDataSource.getListingAd(id);
   }
   @override
-  Future<AdSuccessModel?> removeImageOnListingAD(int id) async {
-    return await remoteDataSource.removeImageOnListingAd(id);
+  Future<AdSuccessModel?> removeImageOnListingAD(String imageUrl, String listingId) async {
+    return await remoteDataSource.removeImageOnListingAd(imageUrl, listingId);
   }
 }

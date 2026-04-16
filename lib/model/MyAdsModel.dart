@@ -35,13 +35,13 @@ class MyAdsModel {
 }
 
 class Data {
-  int? id;
+  String? id;
   String? title;
   String? description;
   String? price;
   String? location;
-  int? categoryId;
-  int? subCategoryId;
+  String? categoryId;
+  String? subCategoryId;
   bool? featuredStatus;
   String? status;
   bool? sold;
@@ -53,7 +53,6 @@ class Data {
   String? postedAt;
   int? totalLikes;
   String? image;
-  String? path;
 
   Data(
       {this.id,
@@ -73,33 +72,34 @@ class Data {
         this.subCategory,
         this.postedAt,
         this.totalLikes,
-        this.path,
         this.image});
 
   Data.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     title = json['title'];
     description = json['description'];
-    price = json['price'];
+    price = json['price']?.toString();
     location = json['location'];
-    categoryId = json['category_id'];
-    subCategoryId = json['sub_category_id'];
+    // Lambda list returns nested objects, not top-level IDs — extract from them
+    categoryId = (json['category']?['_id'] ?? json['category_id'])?.toString();
+    subCategoryId = (json['sub_category']?['_id'] ?? json['sub_category_id'])?.toString();
     featuredStatus = json['featured_status'];
     status = json['status'];
     sold = json['sold'];
     createdAt = json['created_at'];
-    state = json['state'] != null ? new State.fromJson(json['state']) : null;
-    city = json['city'] != null ? new State.fromJson(json['city']) : null;
-    category = json['Category'] != null
-        ? new Category.fromJson(json['Category'])
+    // Lambda returns flat state_name/city_name strings
+    state = json['state_name'] != null ? State(name: json['state_name']) : null;
+    city = json['city_name'] != null ? State(name: json['city_name']) : null;
+    // Lambda returns lowercase 'category' and 'sub_category' keys
+    category = json['category'] != null
+        ? new Category.fromJson(json['category'])
         : null;
-    subCategory = json['SubCategory'] != null
-        ? new State.fromJson(json['SubCategory'])
+    subCategory = json['sub_category'] != null
+        ? new State.fromJson(json['sub_category'])
         : null;
     postedAt = json['posted_at'];
     totalLikes = json['total_likes'];
     image = json['image'];
-    path = json['path'];
   }
 
   Map<String, dynamic> toJson() {
@@ -130,19 +130,18 @@ class Data {
     data['posted_at'] = this.postedAt;
     data['total_likes'] = this.totalLikes;
     data['image'] = this.image;
-    data['path'] = this.path;
     return data;
   }
 }
 
 class State {
-  int? id;
+  String? id;
   String? name;
 
   State({this.id, this.name});
 
   State.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['_id'] ?? json['id'])?.toString();
     name = json['name'];
   }
 
@@ -155,14 +154,14 @@ class State {
 }
 
 class Category {
-  int? id;
+  String? id;
   String? name;
   String? path;
 
   Category({this.id, this.name, this.path});
 
   Category.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['_id'] ?? json['id'])?.toString();
     name = json['name'];
     path = json['path'];
   }

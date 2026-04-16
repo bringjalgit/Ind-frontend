@@ -41,6 +41,7 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    getUserDetails();
     context.read<BoostAdInfoCubit>().getBoostAdInfoDetails();
   }
 
@@ -57,11 +58,22 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
-    AppLogger.log("❌ Payment failed: ${response.message}");
+    AppLogger.log("Payment failed: ${response.message}");
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message ?? 'Payment failed'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
     AppLogger.log("💼 External wallet selected: ${response.walletName}");
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
   }
 
   void _openCheckout(String key, int amount, String order_id) {
@@ -87,16 +99,21 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: ThemeHelper.cardColor(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: BlocBuilder<BoostAdInfoCubit, BoostAdInfoStates>(
-          builder: (context, state) {
-            if (state is BoostAdInfoLoading) {
-              return Center(child: DottedProgressWithLogo());
-            } else if (state is BoostAdInfoLoaded) {
+    return BlocBuilder<BoostAdInfoCubit, BoostAdInfoStates>(
+      builder: (context, state) {
+        if (state is BoostAdInfoLoading) {
+          return Center(child: DottedProgressWithLogo(size: 60, logoSize: 45));
+        }
+        if (state is! BoostAdInfoLoaded) {
+          return const SizedBox.shrink();
+        }
+        return Dialog(
+          backgroundColor: ThemeHelper.cardColor(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Builder(
+              builder: (context) {
               final data = state.boostAdModel.data;
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -136,6 +153,10 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
                         context.read<MyAdsCubit>().getMyAds("approved");
                         context.pop();
                         context.push('/successfully1');
+                      } else if (state is BoostAdFailure) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(state.error), backgroundColor: Colors.red),
+                        );
                       }
                     },
                     builder: (context, state) {
@@ -154,12 +175,11 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
                   ),
                 ],
               );
-            } else {
-              return Center(child: Text("No Data"));
-            }
-          },
-        ),
-      ),
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 }

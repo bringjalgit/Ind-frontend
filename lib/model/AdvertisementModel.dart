@@ -39,14 +39,14 @@ class AdvertisementModel {
 }
 
 class Data {
-  int? id;
-  int? userId;
+  String? id;
+  String? userId;
   String? name;
   String? image;
   String? link;
   String? status;
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   String? createdAt;
   String? updatedAt;
   Plan? plan;
@@ -67,20 +67,24 @@ class Data {
         this.plansPackage});
 
   Data.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    userId = json['user_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    userId = json['user_id']?.toString();
     name = json['name'];
     image = json['image'];
     link = json['link'];
     status = json['status'];
-    planId = json['plan_id'];
-    packageId = json['package_id'];
+    planId = json['plan_id']?.toString();
+    packageId = json['package_id']?.toString();
     createdAt = json['created_at'];
     updatedAt = json['updated_at'];
-    plan = json['Plan'] != null ? new Plan.fromJson(json['Plan']) : null;
+    plan = json['Plan'] != null
+        ? new Plan.fromJson(json['Plan'])
+        : (json['plan_name'] != null ? Plan(name: json['plan_name']) : null);
     plansPackage = json['PlansPackage'] != null
         ? new PlansPackage.fromJson(json['PlansPackage'])
-        : null;
+        : (json['package_name'] != null
+            ? PlansPackage(name: json['package_name'], adsCount: json['ads_count'])
+            : null);
   }
 
   Map<String, dynamic> toJson() {
@@ -106,13 +110,13 @@ class Data {
 }
 
 class Plan {
-  int? id;
+  String? id;
   String? name;
 
   Plan({this.id, this.name});
 
   Plan.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
   }
 
@@ -125,14 +129,14 @@ class Plan {
 }
 
 class PlansPackage {
-  int? id;
+  String? id;
   String? name;
   int? adsCount;
 
   PlansPackage({this.id, this.name, this.adsCount});
 
   PlansPackage.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
     adsCount = json['ads_count'];
   }

@@ -1,30 +1,32 @@
+/// Response shape for POST /app/get-payments-transactions.
+/// Backend returns purchase + boost transactions via $unionWith aggregation.
+/// Dead fields (id, userName, mobile, email) removed during profile cleanup —
+/// the backend still sends them (leftover from an admin view in the old
+/// Express codebase), but the user-facing TransactionsScreen never reads them.
 class TransectionHistoryModel {
   bool? success;
   String? message;
   Data? data;
   Settings? settings;
 
-  TransectionHistoryModel(
-      {this.success, this.message, this.data, this.settings});
+  TransectionHistoryModel({this.success, this.message, this.data, this.settings});
 
   TransectionHistoryModel.fromJson(Map<String, dynamic> json) {
     success = json['success'];
     message = json['message'];
-    data = json['data'] != null ? new Data.fromJson(json['data']) : null;
-    settings = json['settings'] != null
-        ? new Settings.fromJson(json['settings'])
-        : null;
+    data = json['data'] != null ? Data.fromJson(json['data']) : null;
+    settings = json['settings'] != null ? Settings.fromJson(json['settings']) : null;
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['success'] = this.success;
-    data['message'] = this.message;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['success'] = success;
+    data['message'] = message;
     if (this.data != null) {
       data['data'] = this.data!.toJson();
     }
-    if (this.settings != null) {
-      data['settings'] = this.settings!.toJson();
+    if (settings != null) {
+      data['settings'] = settings!.toJson();
     }
     return data;
   }
@@ -43,59 +45,49 @@ class Data {
     if (json['formattedRows'] != null) {
       formattedRows = <FormattedRows>[];
       json['formattedRows'].forEach((v) {
-        formattedRows!.add(new FormattedRows.fromJson(v));
+        formattedRows!.add(FormattedRows.fromJson(v));
       });
     }
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['total_payments'] = this.totalPayments;
-    data['total_success'] = this.totalSuccess;
-    if (this.formattedRows != null) {
-      data['formattedRows'] =
-          this.formattedRows!.map((v) => v.toJson()).toList();
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['total_payments'] = totalPayments;
+    data['total_success'] = totalSuccess;
+    if (formattedRows != null) {
+      data['formattedRows'] = formattedRows!.map((v) => v.toJson()).toList();
     }
     return data;
   }
 }
 
+/// One transaction row — package purchase or listing boost.
+/// Only fields rendered by TransactionsScreen are kept.
 class FormattedRows {
-  int? id;
-  String? type;
-  String? userName;
-  String? mobile;
-  String? email;
-  String? listingTitle;
-  String? planName;
-  String? packageName;
-  String? amountPaid;
-  String? paymentStatus;
-  String? paidOn;
-  String? startDate;
-  String? endDate;
+  String? type;           // 'package' | 'boost' — branch label for the row
+  String? listingTitle;   // displayed when type == 'boost'
+  String? planName;       // displayed when type == 'package'
+  String? packageName;    // displayed when type == 'package'
+  String? amountPaid;     // string, 2 decimal places
+  String? paymentStatus;  // 'success' | 'failed' | 'pending'
+  String? paidOn;         // ISO date string
+  String? startDate;      // nullable, only for package type
+  String? endDate;        // nullable, only for package type
 
-  FormattedRows(
-      {this.id,
-        this.type,
-        this.userName,
-        this.mobile,
-        this.email,
-        this.listingTitle,
-        this.planName,
-        this.packageName,
-        this.amountPaid,
-        this.paymentStatus,
-        this.paidOn,
-        this.startDate,
-        this.endDate});
+  FormattedRows({
+    this.type,
+    this.listingTitle,
+    this.planName,
+    this.packageName,
+    this.amountPaid,
+    this.paymentStatus,
+    this.paidOn,
+    this.startDate,
+    this.endDate,
+  });
 
   FormattedRows.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
     type = json['type'];
-    userName = json['user_name'];
-    mobile = json['mobile'];
-    email = json['email'];
     listingTitle = json['listing_title'];
     planName = json['plan_name'];
     packageName = json['package_name'];
@@ -107,20 +99,16 @@ class FormattedRows {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['id'] = this.id;
-    data['type'] = this.type;
-    data['user_name'] = this.userName;
-    data['mobile'] = this.mobile;
-    data['email'] = this.email;
-    data['listing_title'] = this.listingTitle;
-    data['plan_name'] = this.planName;
-    data['package_name'] = this.packageName;
-    data['amount_paid'] = this.amountPaid;
-    data['payment_status'] = this.paymentStatus;
-    data['paid_on'] = this.paidOn;
-    data['start_date'] = this.startDate;
-    data['end_date'] = this.endDate;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['type'] = type;
+    data['listing_title'] = listingTitle;
+    data['plan_name'] = planName;
+    data['package_name'] = packageName;
+    data['amount_paid'] = amountPaid;
+    data['payment_status'] = paymentStatus;
+    data['paid_on'] = paidOn;
+    data['start_date'] = startDate;
+    data['end_date'] = endDate;
     return data;
   }
 }
@@ -134,14 +122,15 @@ class Settings {
   bool? nextPage;
   bool? prevPage;
 
-  Settings(
-      {this.status,
-        this.count,
-        this.page,
-        this.rowsPerPage,
-        this.totalPages,
-        this.nextPage,
-        this.prevPage});
+  Settings({
+    this.status,
+    this.count,
+    this.page,
+    this.rowsPerPage,
+    this.totalPages,
+    this.nextPage,
+    this.prevPage,
+  });
 
   Settings.fromJson(Map<String, dynamic> json) {
     status = json['status'];
@@ -154,14 +143,14 @@ class Settings {
   }
 
   Map<String, dynamic> toJson() {
-    final Map<String, dynamic> data = new Map<String, dynamic>();
-    data['status'] = this.status;
-    data['count'] = this.count;
-    data['page'] = this.page;
-    data['rows_per_page'] = this.rowsPerPage;
-    data['total_pages'] = this.totalPages;
-    data['next_page'] = this.nextPage;
-    data['prev_page'] = this.prevPage;
+    final Map<String, dynamic> data = <String, dynamic>{};
+    data['status'] = status;
+    data['count'] = count;
+    data['page'] = page;
+    data['rows_per_page'] = rowsPerPage;
+    data['total_pages'] = totalPages;
+    data['next_page'] = nextPage;
+    data['prev_page'] = prevPage;
     return data;
   }
 }

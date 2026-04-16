@@ -44,7 +44,7 @@ extension DetailsX on Details {
 }
 
 class ProductDetailsScreen extends StatefulWidget {
-  final int listingId;
+  final String listingId;
   final int subcategory_id;
   const ProductDetailsScreen({
     super.key,
@@ -72,7 +72,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   String? receiverId;
   String? receiverName;
   String? receiverImage;
-  int? listingId;
+  String? listingId;
   String? listingTitle;
 
   @override
@@ -930,7 +930,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   void openReportSheetForListing(
     BuildContext context, {
-    required int listingId,
+    required String listingId,
   }) {
     showModalBottomSheet(
       context: context,
@@ -1225,14 +1225,17 @@ class _PostedByCard extends StatelessWidget {
 class _BottomCtaBar extends StatelessWidget {
   final VoidCallback onContact;
   final VoidCallback onChat;
-  const _BottomCtaBar({required this.onContact, required this.onChat});
+  const _BottomCtaBar({
+    required this.onContact,
+    required this.onChat,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: Row(
           children: [
             Expanded(
@@ -1241,7 +1244,7 @@ class _BottomCtaBar extends StatelessWidget {
                 onPlusTap: onContact,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: CustomAppButton1(text: "Chat", onPlusTap: onChat),
             ),

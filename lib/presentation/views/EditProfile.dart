@@ -73,7 +73,7 @@ class _EditProfileState extends State<EditProfile> {
         final data = userData.data;
         setState(() {
           originalEmail = data?.email ?? "";
-          isEmailVerified = (data?.email_verified ?? 0) == 1;
+          isEmailVerified = data?.email_verified == true;
           otpVerifiedNow = isEmailVerified; // keep same at init
           _nameController.text = data?.name ?? "";
           _emailController.text = data?.email ?? "";
@@ -302,7 +302,9 @@ class _EditProfileState extends State<EditProfile> {
                                           context
                                               .read<EmailVerificationCubit>()
                                               .sendOTP({
-                                                "email": _emailController.text,
+                                                "email": _emailController.text
+                                                    .trim()
+                                                    .toLowerCase(),
                                               });
                                         },
                                   child: isSending
@@ -393,7 +395,8 @@ class _EditProfileState extends State<EditProfile> {
                                           .read<EmailVerificationCubit>()
                                           .verifyOTP({
                                             "email": _emailController.text
-                                                .trim(),
+                                                .trim()
+                                                .toLowerCase(),
                                             "otp":
                                                 int.tryParse(
                                                   _otpController.text,
@@ -408,7 +411,8 @@ class _EditProfileState extends State<EditProfile> {
                                           .read<EmailVerificationCubit>()
                                           .verifyOTP({
                                             "email": _emailController.text
-                                                .trim(),
+                                                .trim()
+                                                .toLowerCase(),
                                             "otp":
                                                 int.tryParse(
                                                   _otpController.text,
@@ -430,8 +434,10 @@ class _EditProfileState extends State<EditProfile> {
                                             context
                                                 .read<EmailVerificationCubit>()
                                                 .verifyOTP({
-                                                  "email":
-                                                      _emailController.text,
+                                                  "email": _emailController
+                                                      .text
+                                                      .trim()
+                                                      .toLowerCase(),
                                                   "otp": int.parse(
                                                     _otpController.text,
                                                   ),
@@ -618,7 +624,7 @@ class _EditProfileState extends State<EditProfile> {
                             }
                             final data = {
                               "name": _nameController.text.trim(),
-                              "email": _emailController.text.trim(),
+                              "email": _emailController.text.trim().toLowerCase(),
                               "mobile": _phoneController.text.trim(),
                               "image": imageToSend,
                               "state_id": selectedStateId, // Optional or null

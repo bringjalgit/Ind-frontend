@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -37,6 +38,7 @@ class NotificationService {
   // -------------------- PERMISSIONS --------------------
 
   Future<void> _requestPermissions() async {
+    if (kIsWeb) return;
     if (Platform.isIOS) {
       await FirebaseMessaging.instance.requestPermission(
         alert: true,
@@ -123,12 +125,74 @@ class NotificationService {
     debugPrint("📥 🔔 Foreground message received");
     debugPrint(message.toMap().toString());
 
+    // Suppress OS popup for chat messages while app is in foreground —
+    // the WebSocket already pushes the new message + unread count to the
+    // chat list cubit, which updates the badge in real time.
+    final type = message.data['type']?.toString();
+    if (type == 'chat_message') {
+      return;
+    }
+
+    // Data-only payload (preferred — prevents duplicate notifications)
+    final title = message.data['title']?.toString();
+    final body = message.data['body']?.toString();
+
+    if (title != null && title.isNotEmpty) {
+      showDataNotification(title, body ?? '', message.data);
+      return;
+    }
+
+    // Fallback: legacy notification payload
     final notification = message.notification;
     final android = notification?.android;
-
     if (notification != null && android != null) {
       showNotification(notification, android, message.data);
     }
+  }
+
+  // -------------------- SHOW NOTIFICATION FROM DATA PAYLOAD --------------------
+
+  Future<void> showDataNotification(
+    String title,
+    String body,
+    Map<String, dynamic> data,
+  ) async {
+    final imageUrl = data['image']?.toString();
+    BigPictureStyleInformation? style;
+
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      try {
+        final path = await _downloadAndSaveFile(imageUrl, 'bigPicture.jpg');
+        style = BigPictureStyleInformation(
+          FilePathAndroidBitmap(path),
+          contentTitle: title,
+          summaryText: body,
+        );
+      } catch (e) {
+        debugPrint('❌ Image download failed: $e');
+      }
+    }
+
+    final androidDetails = AndroidNotificationDetails(
+      _channel.id,
+      _channel.name,
+      channelDescription: _channel.description,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      icon: '@mipmap/ic_launcher',
+      styleInformation: style,
+    );
+
+    final details = NotificationDetails(android: androidDetails);
+
+    await _localNotifications.show(
+      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title: title,
+      body: body,
+      notificationDetails: details,
+      payload: jsonEncode(data),
+    );
   }
 
   // -------------------- SHOW NOTIFICATION --------------------

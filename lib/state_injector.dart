@@ -42,6 +42,8 @@ import 'package:classifieds/data/cubit/Products/products_cubit.dart';
 import 'package:classifieds/data/cubit/Products/products_repository.dart';
 import 'package:classifieds/data/cubit/Profile/profile_cubit.dart';
 import 'package:classifieds/data/cubit/Profile/profile_repo.dart';
+import 'package:classifieds/data/cubit/Aadhaar/aadhaar_cubit.dart';
+import 'package:classifieds/data/cubit/Aadhaar/aadhaar_repo.dart';
 import 'package:classifieds/data/cubit/RecoverAccount/recover_account_cubit.dart';
 import 'package:classifieds/data/cubit/RecoverAccount/recover_account_repository.dart';
 import 'package:classifieds/data/cubit/Register/register_cubit.dart';
@@ -96,6 +98,8 @@ import 'data/cubit/Products/Product_cubit1.dart';
 import 'data/cubit/Products/Product_cubit2.dart';
 import 'data/cubit/States/states_cubit.dart';
 import 'data/cubit/States/states_repository.dart';
+import 'data/cubit/GoogleAuth/google_auth_cubit.dart';
+import 'data/cubit/GoogleAuth/google_auth_repo.dart';
 import 'data/remote_data_source.dart';
 
 class StateInjector {
@@ -221,6 +225,10 @@ class StateInjector {
       create: (context) =>
           ProfileRepoImpl(remoteDataSource: context.read<RemoteDataSource>()),
     ),
+    RepositoryProvider<AadhaarRepo>(
+      create: (context) =>
+          AadhaarRepoImpl(remoteDataSource: context.read<RemoteDataSource>()),
+    ),
     RepositoryProvider<AdvertisementRepo>(
       create: (context) => AdvertisementRepoImpl(
         remoteDataSource: context.read<RemoteDataSource>(),
@@ -285,6 +293,11 @@ class StateInjector {
     ),
     RepositoryProvider<FreeAdRepository>(
       create: (context) => FreeAdRepositoryImpl(
+        remoteDataSource: context.read<RemoteDataSource>(),
+      ),
+    ),
+    RepositoryProvider<GoogleAuthRepo>(
+      create: (context) => GoogleAuthRepoImpl(
         remoteDataSource: context.read<RemoteDataSource>(),
       ),
     ),
@@ -411,6 +424,9 @@ class StateInjector {
     BlocProvider<ProfileCubit>(
       create: (context) => ProfileCubit(context.read<ProfileRepo>()),
     ),
+    BlocProvider<AadhaarCubit>(
+      create: (context) => AadhaarCubit(context.read<AadhaarRepo>()),
+    ),
     BlocProvider<UpdateProfileCubit>(
       create: (context) => UpdateProfileCubit(context.read<ProfileRepo>()),
     ),
@@ -429,7 +445,7 @@ class StateInjector {
     BlocProvider<PaymentCubit>(
       create: (context) => PaymentCubit(context.read<PaymentRepository>()),
     ),
-    BlocProvider<ChatUsersCubit>(create: (context) => ChatUsersCubit()),
+    BlocProvider<ChatUsersCubit>(create: (context) => ChatUsersCubit(remoteDataSource: RemoteDataSourceImpl())),
 
     BlocProvider<ChatMessagesCubit>(
       create: (context) =>
@@ -471,6 +487,9 @@ class StateInjector {
     ),
     BlocProvider<FreeAdCubit>(
       create: (context) => FreeAdCubit(context.read<FreeAdRepository>()),
+    ),
+    BlocProvider<GoogleAuthCubit>(
+      create: (context) => GoogleAuthCubit(context.read<GoogleAuthRepo>()),
     ),
     BlocProvider<DashboardCubit>(
       create: (context) => DashboardCubit(

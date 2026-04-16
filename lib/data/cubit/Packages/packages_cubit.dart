@@ -6,7 +6,7 @@ class PackagesCubit extends Cubit<PackagesStates> {
   PackagesRepository packagesRepository;
   PackagesCubit(this.packagesRepository) : super(PackagesInitially());
 
-  Future<void> getPackages(int id) async {
+  Future<void> getPackages(dynamic id) async {
     emit(PackagesLoading());
     try {
       final response = await packagesRepository.getPackages(id);

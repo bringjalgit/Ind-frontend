@@ -11,7 +11,7 @@ import 'SimilarProductCard.dart';
 
 class SimilarProductsSection1 extends StatefulWidget {
   final String subCategoryId;
-  final int? excludeId;
+  final String? excludeId;
   final void Function(Products product) onTap;
 
   const SimilarProductsSection1({

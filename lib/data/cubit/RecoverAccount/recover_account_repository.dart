@@ -2,7 +2,7 @@ import 'package:classifieds/data/remote_data_source.dart';
 import 'package:classifieds/model/AdSuccessModel.dart';
 
 abstract class RecoverAccountRepo {
-  Future<AdSuccessModel?> recoverAccount(String id);
+  Future<AdSuccessModel?> recoverAccount(String recoveryToken);
 }
 
 class RecoverAccountRepoImpl implements RecoverAccountRepo {
@@ -10,7 +10,7 @@ class RecoverAccountRepoImpl implements RecoverAccountRepo {
   RecoverAccountRepoImpl({required this.remoteDataSource});
 
   @override
-  Future<AdSuccessModel?> recoverAccount(String id) async {
-    return await remoteDataSource.recoverAccount(id);
+  Future<AdSuccessModel?> recoverAccount(String recoveryToken) async {
+    return await remoteDataSource.recoverAccount(recoveryToken);
   }
 }

@@ -31,10 +31,10 @@ class FreeAdData {
 
   factory FreeAdData.fromJson(Map<String, dynamic> json) {
     return FreeAdData(
-      amount: json['amount'] ?? "0.00",
-      days: json['days'] ?? 0,
-      status: json['status'] ?? "",
-      expiryDate: DateTime.parse(json['expiry_date']),
+      amount: json['amount']?.toString() ?? "0.00",
+      days: (json['days'] is int) ? json['days'] : int.tryParse(json['days']?.toString() ?? '') ?? 0,
+      status: json['status']?.toString() ?? "",
+      expiryDate: DateTime.tryParse(json['expiry_date']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 

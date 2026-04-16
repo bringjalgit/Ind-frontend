@@ -7,9 +7,10 @@ class AdvertisementDetailsModel {
 
   AdvertisementDetailsModel.fromJson(Map<String, dynamic> json) {
     success = json['success'];
-    if (json['plans'] != null) {
+    final list = json['data'] ?? json['plans'];
+    if (list != null) {
       plans = <Plans>[];
-      json['plans'].forEach((v) {
+      list.forEach((v) {
         plans!.add(new Plans.fromJson(v));
       });
     }
@@ -28,8 +29,8 @@ class AdvertisementDetailsModel {
 }
 
 class Plans {
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   String? planName;
   String? packageName;
   int? used;
@@ -48,8 +49,8 @@ class Plans {
         this.endDate});
 
   Plans.fromJson(Map<String, dynamic> json) {
-    planId = json['plan_id'];
-    packageId = json['package_id'];
+    planId = json['plan_id']?.toString();
+    packageId = json['package_id']?.toString();
     planName = json['plan_name'];
     packageName = json['package_name'];
     used = json['used'];

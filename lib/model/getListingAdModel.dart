@@ -43,14 +43,15 @@ class Data {
 }
 
 class Listing {
-  int? id;
+  String? id;
   String? title;
   String? description;
-  int? categoryId;
+  String? categoryId;
   String? price;
   String? location;
   String? fullName;
   String? mobileNumber;
+  String? brand;
   String? breedType;
   String? vechileNumber;
   String? areaSize;
@@ -85,6 +86,9 @@ class Listing {
   String? createdAt;
   List<Images>? images;
   String? languagesSpoken;
+  String? locationKey;
+  String? currentAddress;
+  String? currentAddressKey;
 
   Listing({
     this.id,
@@ -95,6 +99,7 @@ class Listing {
     this.location,
     this.fullName,
     this.mobileNumber,
+    this.brand,
     this.vechileNumber,
     this.rentalDuration,
     this.floorNo,
@@ -129,50 +134,64 @@ class Listing {
     this.fuelType,
     this.createdAt,
     this.images,
+    this.locationKey,
+    this.currentAddress,
+    this.currentAddressKey,
   });
 
+  static int? _parseInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
   Listing.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     title = json['title'];
     description = json['description'];
-    categoryId = json['category_id'];
-    price = json['price'];
+    categoryId = json['category_id']?.toString();
+    price = json['price']?.toString();
     location = json['location'];
     fullName = json['full_name'];
     mobileNumber = json['mobile_number'];
-    stateId = json['state_id'];
+    stateId = _parseInt(json['state_id']);
     stateName = json['state_name'];
     cityName = json['city_name'];
     vechileNumber = json['vehicle_number'];
-    cityId = json['city_id'];
+    cityId = _parseInt(json['city_id']);
     languagesSpoken = json['languages_spoken'];
-    yearOfManufacturing = json['year_of_manufacturing'];
-    kmsRun = json['kms_run'];
+    brand = json['brand'];
+    yearOfManufacturing = _parseInt(json['year_of_manufacturing']);
+    kmsRun = _parseInt(json['kms_run']);
     ownership = json['ownership'];
     breedType = json['pet_type'];
     rentalDuration = json['rental_duration'];
-    floorNo = json['floor_number'];
+    floorNo = _parseInt(json['floor_number']);
     listedBy = json['listed_by'];
     projectStatus = json['project_status'];
     facingDirection = json['facing_direction'];
     furnishingStatus = json['furnishing_status'];
-    noOfParking = json['no_of_carparking_spaces'];
+    noOfParking = _parseInt(json['no_of_carparking_spaces']);
     bhkType = json['bhk_type'];
-    noOfBathRooms = json['no_of_bathrooms'];
-    roomNo = json['room_no'];
+    noOfBathRooms = _parseInt(json['no_of_bathrooms']);
+    roomNo = _parseInt(json['room_no']);
     age = json['age'];
     storage = json['storage'];
     ram = json['ram'];
     salaryRange = json['salary_range'];
     instuteName = json['institute_name'];
-    availableSeats = json['available_seats'];
+    availableSeats = _parseInt(json['available_seats']);
     seatType = json['seat_type'];
-    deskCapacity = json['desk_capacity'];
+    deskCapacity = _parseInt(json['desk_capacity']);
     areaSize = json['area_size'];
     playerSlots = json['player_slots'];
     transmission = json['transmission'];
     fuelType = json['fuel_type'];
     createdAt = json['created_at'];
+    locationKey = json['location_key'];
+    currentAddress = json['current_address'];
+    currentAddressKey = json['current_address_key'];
     if (json['images'] != null) {
       images = <Images>[];
       json['images'].forEach((v) {
@@ -195,6 +214,7 @@ class Listing {
     data['city_id'] = this.cityId;
     data['year_of_manufacturing'] = this.yearOfManufacturing;
     data['languages_spoken'] = this.languagesSpoken;
+    data['brand'] = this.brand;
     data['vehicle_number'] = this.vechileNumber;
     data['rental_duration'] = this.rentalDuration;
     data['floor_number'] = this.floorNo;
@@ -212,13 +232,16 @@ class Listing {
     data['available_seats'] = this.availableSeats;
     data['institute_name'] = this.instuteName;
     data['area_size'] = this.areaSize;
-    data['seat_type'] = this.areaSize;
+    data['seat_type'] = this.seatType;
     data['player_slots'] = this.playerSlots;
     data['kms_run'] = this.kmsRun;
     data['ownership'] = this.ownership;
     data['transmission'] = this.transmission;
     data['fuel_type'] = this.fuelType;
     data['created_at'] = this.createdAt;
+    data['location_key'] = this.locationKey;
+    data['current_address'] = this.currentAddress;
+    data['current_address_key'] = this.currentAddressKey;
     if (this.images != null) {
       data['images'] = this.images!.map((v) => v.toJson()).toList();
     }
@@ -227,13 +250,13 @@ class Listing {
 }
 
 class Images {
-  int? id;
+  String? id;
   String? image;
 
   Images({this.id, this.image});
 
   Images.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     image = json['image'];
   }
 

@@ -32,14 +32,13 @@ class UserActivePlansModel {
 }
 
 class Plans {
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   String? planName;
   String? packageName;
   int? remaining;
   String? startDate;
   String? endDate;
-  dynamic totalAllowed;
 
   Plans(
       {this.planId,
@@ -48,17 +47,15 @@ class Plans {
         this.packageName,
         this.remaining,
         this.startDate,
-        this.totalAllowed,
         this.endDate});
 
   Plans.fromJson(Map<String, dynamic> json) {
-    planId = json['plan_id'];
-    packageId = json['package_id'];
+    planId = json['plan_id']?.toString();
+    packageId = json['package_id']?.toString();
     planName = json['plan_name'];
     packageName = json['package_name'];
     remaining = json['remaining'];
     startDate = json['start_date'];
-    totalAllowed = json['totalAllowed'];
     endDate = json['end_date'];
   }
 
@@ -70,7 +67,6 @@ class Plans {
     data['package_name'] = this.packageName;
     data['remaining'] = this.remaining;
     data['start_date'] = this.startDate;
-    data['totalAllowed'] = this.totalAllowed;
     data['end_date'] = this.endDate;
     return data;
   }

@@ -63,7 +63,7 @@ class Data {
 }
 
 class Friend {
-  int? id;
+  dynamic id;
   String? name;
   String? image;
   String? mobile;
@@ -71,10 +71,10 @@ class Friend {
   Friend({this.id, this.name, this.image,this.mobile});
 
   Friend.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
     image = json['image'];
-    mobile = json['mobile'];
+    mobile = json['mobile']?.toString();
   }
 
   Map<String, dynamic> toJson() {
@@ -88,9 +88,9 @@ class Friend {
 }
 
 class Messages {
-  int? id;
-  int? senderId;
-  int? receiverId;
+  dynamic id;
+  String? senderId;
+  String? receiverId;
   String? type;
   String? message;
   String? imageUrl;
@@ -107,15 +107,28 @@ class Messages {
         this.createdAt,
         this.updatedAt});
 
+  Messages copyWith({dynamic id, String? senderId, String? receiverId, String? type, String? message, String? imageUrl, String? createdAt, String? updatedAt}) {
+    return Messages(
+      id: id ?? this.id,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      type: type ?? this.type,
+      message: message ?? this.message,
+      imageUrl: imageUrl ?? this.imageUrl,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   Messages.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
-    senderId = json['sender_id'];
-    receiverId = json['receiver_id'];
+    id = (json['id'] ?? json['_id'])?.toString();
+    senderId = json['sender_id']?.toString();
+    receiverId = json['receiver_id']?.toString();
     type = json['type'];
     message = json['message'];
     imageUrl = json['image_url'];
-    createdAt = json['created_at'];
-    updatedAt = json['updated_at'];
+    createdAt = json['created_at']?.toString();
+    updatedAt = json['updated_at']?.toString();
   }
 
   Map<String, dynamic> toJson() {

@@ -135,7 +135,7 @@ class _UserListScreenState extends State<UserListScreen>
         ),
       ),
       body: (_isGuestUser == null)
-          ? const Center(child: DottedProgressWithLogo())
+          ? _buildShimmer(card)
           : (_isGuestUser == true)
           ? _buildGuestUI(textColor)
           : Column(
@@ -170,11 +170,7 @@ class _UserListScreenState extends State<UserListScreen>
 
                         return RefreshIndicator(
                           onRefresh: () async {
-                            if (userId != null) {
-                              SocketService.emit("get_chat_list", {
-                                "userId": userId,
-                              });
-                            }
+                            context.read<ChatUsersCubit>().loadChatUsers();
                           },
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
@@ -183,7 +179,7 @@ class _UserListScreenState extends State<UserListScreen>
                                 const SizedBox(height: 8),
                             itemBuilder: (context, index) {
                               final user = filteredUsers[index];
-                              final id = user.userId ?? 0;
+                              final id = user.userId ?? '';
                               final isPinned = user.pinned == true;
 
                               return BlocListener<
@@ -192,9 +188,7 @@ class _UserListScreenState extends State<UserListScreen>
                               >(
                                 listener: (context, pinState) {
                                   if (pinState is ChatUserPinLoaded) {
-                                    SocketService.emit("get_chat_list", {
-                                      "userId": userId,
-                                    });
+                                    context.read<ChatUsersCubit>().loadChatUsers();
                                   } else if (pinState is ChatUserPinFailure) {
                                     CustomSnackBar1.show(
                                       context,
@@ -231,22 +225,53 @@ class _UserListScreenState extends State<UserListScreen>
                                   ),
                                   child: _ChatCard(
                                     id: id,
-                                    listingId: user.listingId ?? 0,
+                                    listingId: user.listingId ?? '',
                                     listingTitle: user.listingTitle ?? "",
                                     name: user.name ?? "",
                                     imageUrl: user.profileImage ?? "",
                                     pinned: isPinned,
+                                    unreadCount: user.unreadCount ?? 0,
                                     card: isPinned
                                         ? Colors.teal.withOpacity(0.1)
                                         : card,
                                     textColor: textColor,
                                     animationDelay: index * 100,
                                     onTap: () {
+                                      // Guard: the backend sometimes
+                                      // returns chat list entries with
+                                      // missing user_id or listing_id
+                                      // (orphaned chats). Don't navigate
+                                      // with empty params — show an error
+                                      // and stay on the list instead of
+                                      // opening a broken chat room.
+                                      final listingIdStr = user.listingId ?? '';
+                                      if (id.isEmpty || listingIdStr.isEmpty) {
+                                        CustomSnackBar1.show(
+                                          context,
+                                          'This chat is unavailable. Please refresh the list.',
+                                        );
+                                        return;
+                                      }
+                                      // Pre-populate the chat header with
+                                      // the name and image we already have
+                                      // from the list card so the user sees
+                                      // the correct identity immediately,
+                                      // even if the messages fetch fails or
+                                      // is slow. No more "IND User" stuck
+                                      // header on network blips.
+                                      final nameParam = Uri.encodeComponent(
+                                        user.name ?? '',
+                                      );
+                                      final imageParam = Uri.encodeComponent(
+                                        user.profileImage ?? '',
+                                      );
                                       context.push(
                                         '/chat'
                                         '?receiverId=$id'
-                                        '&listingId=${user.listingId ?? 0}'
-                                        '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}',
+                                        '&listingId=$listingIdStr'
+                                        '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}'
+                                        '&receiverName=$nameParam'
+                                        '&receiverImage=$imageParam',
                                       );
                                     },
                                   ),
@@ -394,11 +419,12 @@ class _ChatCard extends StatelessWidget {
     required this.textColor,
     required this.animationDelay,
     required this.pinned,
+    this.unreadCount = 0,
   });
 
-  final int id;
+  final dynamic id;
   final String name;
-  final int listingId;
+  final dynamic listingId;
   final String listingTitle;
   final String imageUrl; // ← new
   final VoidCallback onTap;
@@ -406,6 +432,7 @@ class _ChatCard extends StatelessWidget {
   final Color textColor;
   final int animationDelay;
   final bool pinned;
+  final int unreadCount;
 
   bool get _hasImage =>
       imageUrl.trim().isNotEmpty &&
@@ -501,7 +528,7 @@ class _ChatCard extends StatelessWidget {
                               ).copyWith(fontWeight: FontWeight.w600),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                           if (pinned) Icon(Icons.push_pin, color: textColor),
                         ],
                       ),
@@ -518,6 +545,26 @@ class _ChatCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (unreadCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF25D366),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:classifieds/model/VerifyOtpModel.dart';
 import 'login_with_mobile_repository.dart';
 import 'login_with_mobile_state.dart';
 
@@ -25,11 +26,15 @@ class LogInwithMobileCubit extends Cubit<LogInWithMobileState> {
     emit(verifyWithMobileLoading());
     try {
       final response = await logInWithMobileRepository.verifyMobileOtp(data);
-      if (response != null) {
-        emit(verifyMobileSuccess(response));
-      } else {
-        emit(OtpVerifyFailure("${response?.message ?? ''}"));
-      }
+      // The repo now parses 4xx error bodies into a VerifyOtpModel with
+      // success=false + code + message populated. Emit verifyMobileSuccess
+      // unconditionally so the OTPScreen listener can read data.success
+      // and branch between login-OK / ACCOUNT_DELETED / error flows.
+      // Only a true exception (network, parse) falls through to
+      // OtpVerifyFailure in the catch below.
+      emit(verifyMobileSuccess(
+        response ?? VerifyOtpModel(success: false, message: 'Something went wrong'),
+      ));
     } catch (e) {
       emit(OtpVerifyFailure(e.toString()));
     }
@@ -53,31 +58,16 @@ class LogInwithMobileCubit extends Cubit<LogInWithMobileState> {
     emit(verifyWithMobileLoading());
     try {
       final response = await logInWithMobileRepository.verifyEmailOtp(data);
-      if (response != null && response.success == true) {
-        emit(verifyEmailSuccess(response));
-      } else {
-        emit(OtpVerifyFailure("${response?.message ?? ''}"));
-      }
+      // The repo now parses 4xx error bodies into a VerifyOtpModel with
+      // success=false + code + message populated. Emit verifyEmailSuccess
+      // unconditionally so the OTPScreen listener can read data.success
+      // and branch between login-OK / ACCOUNT_DELETED / error flows.
+      emit(verifyEmailSuccess(
+        response ?? VerifyOtpModel(success: false, message: 'Something went wrong'),
+      ));
     } catch (e) {
       emit(OtpVerifyFailure(e.toString()));
     }
   }
 
-  Future<void> postTestLogin(Map<String, dynamic> data) async {
-    emit(LogInwithMobileLoading());
-    try {
-      final response = await logInWithMobileRepository.byPassLogin(data);
-      if (response != null && response.success == true) {
-        emit(TestLoginSuccessState(response));
-      } else {
-        emit(LogInwithMobileFailure(response?.message ?? ""));
-      }
-    } catch (e) {
-      emit(
-        LogInwithMobileFailure(
-          "An error occurred while logging in. Please check your network connection and try again.",
-        ),
-      );
-    }
-  }
 }

@@ -28,14 +28,14 @@ class ContactInfoModel {
 }
 
 class Data {
-  int? id;
+  String? id;
   String? name;
   String? value;
 
   Data({this.id, this.name, this.value});
 
   Data.fromJson(Map<String, dynamic> json) {
-    id = json['id'];
+    id = (json['id'] ?? json['_id'])?.toString();
     name = json['name'];
     value = json['value'];
   }

@@ -2,7 +2,7 @@ class AdSuccessModel {
   final bool? success;
   final String? message;
   final String? error;
-  final int? listingId;
+  final String? listingId;
 
   AdSuccessModel({
     this.success,
@@ -17,7 +17,7 @@ class AdSuccessModel {
       success: json['success'] as bool?,
       message: json['message'] as String?,
       error: json['error'] as String?,
-      listingId: json['listing_id'] as int?,
+      listingId: json['listing_id']?.toString(),
     );
   }
 
@@ -36,7 +36,7 @@ class AdSuccessModel {
     bool? success,
     String? message,
     String? error,
-    int? listingId,
+    String? listingId,
   }) {
     return AdSuccessModel(
       success: success ?? this.success,

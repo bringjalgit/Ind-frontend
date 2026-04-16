@@ -23,8 +23,8 @@ class _PostAdvertisementScreenState extends State<PostAdvertisementScreen> {
   File? _image;
   final _picker = ImagePicker();
 
-  int? plan_id;
-  int? package_id;
+  String? plan_id;
+  String? package_id;
   // Function to validate the name
   String? _validateName(String? value) {
     if (value == null || value.isEmpty) {
@@ -153,8 +153,8 @@ class _PostAdvertisementScreenState extends State<PostAdvertisementScreen> {
                               onTap: () {
                                 // Set the selected plan in the TextFormField
                                 _planController.text = plan?.planName ?? 'N/A';
-                                plan_id = plan?.planId ?? 0;
-                                package_id = plan?.packageId ?? 0;
+                                plan_id = plan?.planId;
+                                package_id = plan?.packageId;
                                 Navigator.pop(
                                   context,
                                 ); // Close the bottom sheet

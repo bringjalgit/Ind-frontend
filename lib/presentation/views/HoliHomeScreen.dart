@@ -45,7 +45,9 @@ class SelectedLocation {
   SelectedLocation({required this.name, required this.latlng});
 }
 
-class _HoliHomeScreenState extends State<HoliHomeScreen> {
+class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
   final ScrollController _scrollController = ScrollController();
   int currentIndex = 0;
 
@@ -194,6 +196,7 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final textColor = ThemeHelper.textColor(context);
     final isDarkMode = ThemeHelper.isDarkMode(context);
     final cardColor = ThemeHelper.cardColor(context);

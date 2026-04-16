@@ -63,7 +63,50 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               final hasNextPage = (state as dynamic).hasNextPage;
 
               if (rows.isEmpty) {
-                return const Center(child: Text("No transactions found"));
+                final textColor = ThemeHelper.textColor(context);
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 96,
+                          height: 96,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: textColor.withOpacity(0.06),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_outlined,
+                            size: 48,
+                            color: textColor.withOpacity(0.6),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          "No transactions yet",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Your payments and purchase history will appear here once you make your first transaction.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 1.4,
+                            color: textColor.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               }
 
               return CustomScrollView(

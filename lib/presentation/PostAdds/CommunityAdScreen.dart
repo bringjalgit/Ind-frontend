@@ -78,8 +78,8 @@ class _CommunityAdScreenState extends State<CommunityAdScreen> {
   bool _isSubmitting = false; // covers pre-submit work
   List<File> _images = [];
   final int _maxImages = 6;
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   bool isLoading = true;
   List<ImageData> _imageDataList = [];
 
@@ -116,17 +116,23 @@ class _CommunityAdScreenState extends State<CommunityAdScreen> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -619,10 +625,7 @@ class _CommunityAdScreenState extends State<CommunityAdScreen> {
                                             "category_id": widget.catId,
                                             "location": locationController.text,
                                             "mobile_number": phoneController.text,
-                                            "email": emailController.text,
                                             "location_key": latlng,
-                                            "player_slots":
-                                            _availablePlayerSlots.text,
                                             "price": priceController.text,
                                             "full_name": nameController.text,
                                             "state_id": selectedStateId,
@@ -630,7 +633,10 @@ class _CommunityAdScreenState extends State<CommunityAdScreen> {
                                             locResult.locationName,
                                             "current_address_key":
                                             locResult.latlng,
-                                            // "city_id": selectedCityId,
+                                            "attributes": {
+                                              "player_slots":
+                                                  _availablePlayerSlots.text,
+                                            },
                                           };
 
                                           if (editId.isEmpty) {
@@ -639,9 +645,7 @@ class _CommunityAdScreenState extends State<CommunityAdScreen> {
                                           }
 
                                           if (_images.isNotEmpty) {
-                                            data["images"] = _images
-                                                .map((file) => file.path)
-                                                .toList();
+                                            data["images"] = _images;
                                           }
 
                                           if (editId.isNotEmpty) {

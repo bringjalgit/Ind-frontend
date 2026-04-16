@@ -83,8 +83,8 @@ class _CityRentalsAdState extends State<CityRentalsAd> {
   List<String> selectedConditions = [];
   List<File> _images = [];
   final int _maxImages = 6;
-  int? planId;
-  int? packageId;
+  String? planId;
+  String? packageId;
   List<ImageData> _imageDataList = [];
 
   bool isLoading = true;
@@ -127,17 +127,23 @@ class _CityRentalsAdState extends State<CityRentalsAd> {
             selectedCityId = commonAdData.data?.listing?.cityId;
             cityController.text = commonAdData.data?.listing?.cityName ?? '';
           }
+          if (commonAdData.data?.listing?.locationKey != null &&
+              commonAdData.data!.listing!.locationKey!.isNotEmpty) {
+            latlng = commonAdData.data!.listing!.locationKey!;
+          }
           if (commonAdData.data?.listing?.images != null) {
             _imageDataList = commonAdData.data!.listing!.images!
                 .where((img) => (img.image ?? '').isNotEmpty)
-                .map((img) => ImageData(id: img.id ?? 0, url: img.image ?? ''))
+                .map((img) => ImageData(id: img.id ?? '', url: img.image ?? ''))
                 .toList();
           }
         }
       }
 
-      // Step 2: Fetch additional data from fetchData
-      await fetchData();
+      // Step 2: Only fetch profile defaults for new ads, not edits
+      if (id.isEmpty) {
+        await fetchData();
+      }
     } catch (e) {
       // Handle errors (optional, but recommended)
       print('Error loading data: $e');
@@ -660,19 +666,20 @@ class _CityRentalsAdState extends State<CityRentalsAd> {
                                             "location": locationController.text,
                                             "mobile_number":
                                                 phoneController.text,
-                                            "vehicle_number":
-                                                vechicleNumber.text,
-                                            "rental_duration":
-                                                rentalDuration.text,
                                             "price": priceController.text,
                                             "full_name": nameController.text,
                                             "state_id": selectedStateId,
-                                            // "city_id": selectedCityId,
                                             "location_key": latlng,
                                             "current_address":
                                                 locResult.locationName,
                                             "current_address_key":
                                                 locResult.latlng,
+                                            "attributes": {
+                                              "vehicle_number":
+                                                  vechicleNumber.text,
+                                              "rental_duration":
+                                                  rentalDuration.text,
+                                            },
                                           };
 
                                           final editId = widget.editId
@@ -685,9 +692,7 @@ class _CityRentalsAdState extends State<CityRentalsAd> {
                                           }
 
                                           if (_images.isNotEmpty) {
-                                            data["images"] = _images
-                                                .map((file) => file.path)
-                                                .toList();
+                                            data["images"] = _images;
                                           }
                                           if (editId.isNotEmpty) {
                                             context

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/presentation/authentication/EmailLoginscreen.dart';
 import 'package:classifieds/presentation/authentication/RegisterUserDetailsScreen.dart';
+import 'package:classifieds/presentation/views/ForceUpdateScreen.dart';
+import 'package:classifieds/presentation/views/MaintenanceScreen.dart';
+import 'package:classifieds/presentation/views/SplashScreen.dart';
 import 'package:classifieds/presentation/views/ActivePlansScreen.dart';
 import 'package:classifieds/presentation/views/AdvertisementScreen.dart';
 import 'package:classifieds/presentation/views/ContactSupportScreen.dart';
@@ -47,6 +51,7 @@ import '../presentation/views/NotificationScreen.dart';
 import '../presentation/views/CategoryScreen.dart';
 import '../presentation/views/PostAdvertisementScreen.dart';
 import '../presentation/views/ProfileScreen.dart';
+import '../presentation/views/AadhaarVerificationScreen.dart';
 import '../presentation/views/SelectSubCategory.dart';
 import '../presentation/views/SuccessScreen.dart';
 import '../presentation/views/TransactionsScreen.dart';
@@ -62,7 +67,17 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/',
       pageBuilder: (context, state) =>
-          buildSlideTransitionPage(HoliSplashscreen(), state),
+          buildSlideTransitionPage(const Splashscreen(), state),
+    ),
+    GoRoute(
+      path: '/force-update',
+      pageBuilder: (context, state) =>
+          buildSlideTransitionPage(const ForceUpdateScreen(), state),
+    ),
+    GoRoute(
+      path: '/maintenance',
+      pageBuilder: (context, state) =>
+          buildSlideTransitionPage(const MaintenanceScreen(), state),
     ),
     GoRoute(
       path: '/no_internet',
@@ -96,14 +111,26 @@ final GoRouter appRouter = GoRouter(
           state.uri.queryParameters['listingTitle'] ?? "",
         );
 
+        // Optional pre-populated receiver name + image from the chat list
+        // card — used by ChatScreen to show the correct identity in the
+        // AppBar immediately, even before the messages fetch resolves.
+        // Empty strings when the caller doesn't supply them (e.g. chat
+        // opened via deep link) — ChatScreen falls back to the listing
+        // title in that case.
+        final receiverName = Uri.decodeComponent(
+          state.uri.queryParameters['receiverName'] ?? "",
+        );
+        final receiverImage = Uri.decodeComponent(
+          state.uri.queryParameters['receiverImage'] ?? "",
+        );
+
         return FutureBuilder<String?>(
           future: AuthService.getId(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
-                ),
+              return Scaffold(
+                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                body: const SizedBox.shrink(),
               );
             }
 
@@ -120,6 +147,10 @@ final GoRouter appRouter = GoRouter(
                 receiverId: receiverId,
                 listingId: listingId,
                 listingTitle: listingTitle,
+                initialReceiverName:
+                    receiverName.isNotEmpty ? receiverName : null,
+                initialReceiverImage:
+                    receiverImage.isNotEmpty ? receiverImage : null,
               ),
             );
           },
@@ -187,6 +218,13 @@ final GoRouter appRouter = GoRouter(
       path: '/transactions',
       pageBuilder: (context, state) =>
           buildSlideTransitionPage(TransactionsScreen(), state),
+    ),
+    GoRoute(
+      path: '/aadhaar_verification',
+      pageBuilder: (context, state) => buildSlideTransitionPage(
+        const AadhaarVerificationScreen(),
+        state,
+      ),
     ),
     GoRoute(
       path: '/search_screen',
@@ -266,7 +304,7 @@ final GoRouter appRouter = GoRouter(
         final listingIdStr = state.uri.queryParameters['listingId'];
         final subcategory_idstr = state.uri.queryParameters['subcategory_id'];
 
-        final listingId = int.tryParse(listingIdStr ?? '') ?? 0;
+        final listingId = listingIdStr ?? '';
         final subcategory_id = int.tryParse(subcategory_idstr ?? '') ?? 0;
 
         return buildSlideTransitionPage(
@@ -294,9 +332,12 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/recover_account',
       pageBuilder: (context, state) {
-        final user_id = state.uri.queryParameters['user_id'] ?? "";
+        // P0-profile-1: was user_id, now recovery_token. The token is
+        // signed + short-lived, so passing it through query params is
+        // acceptable (can't be brute-forced, expires in 30 min).
+        final recoveryToken = state.uri.queryParameters['recovery_token'] ?? "";
         return buildSlideTransitionPage(
-          RecoverAccountScreen(user_id: user_id),
+          RecoverAccountScreen(recoveryToken: recoveryToken),
           state,
         );
       },
@@ -620,11 +661,12 @@ final GoRouter appRouter = GoRouter(
         return buildSlideTransitionPage(FilterScreen(), state);
       },
     ),
+
   ],
 );
 
 Page<dynamic> buildSlideTransitionPage(Widget child, GoRouterState state) {
-  if (Platform.isIOS) {
+  if (!kIsWeb && Platform.isIOS) {
     // Use default Cupertino transition on iOS
     return CupertinoPage(key: state.pageKey, child: child);
   }
@@ -644,7 +686,7 @@ Page<dynamic> buildSlideTransitionPage(Widget child, GoRouterState state) {
 }
 
 Page<dynamic> buildSlideFromBottomPage(Widget child, GoRouterState state) {
-  if (Platform.isIOS) {
+  if (!kIsWeb && Platform.isIOS) {
     // Use default Cupertino transition on iOS
     return CupertinoPage(key: state.pageKey, child: child);
   }

@@ -111,7 +111,7 @@ class _AdsScreenState extends State<AdsScreen> {
         title: Text('My Ads', style: AppTextStyles.headlineSmall(textColor)),
       ),
       body: (isGuestUser == null)
-          ? Center(child: DottedProgressWithLogo()) // still checking
+          ? const MyAdsShimmer() // shimmer while checking auth
           : (isGuestUser == true)
           ? Center(
               child: Column(

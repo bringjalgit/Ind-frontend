@@ -25,7 +25,7 @@ android {
             keyAlias = "upload"
             keyPassword = "indclassifieds"
             storePassword = "indclassifieds"
-            storeFile = file("C:\\Users\\varun\\Desktop\\VarunWorkSpace\\indiclassifiedsNew\\android\\app\\upload-keystore.jks")
+            storeFile = file("upload-keystore.jks")
         }
     }
 

@@ -285,7 +285,7 @@ class PlanCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Remaining: ${plan.remaining ?? 0}/${plan.totalAllowed ?? 0}',
+                    'Remaining: ${plan.remaining ?? 0}',
                     style: AppTextStyles.bodyMedium(
                       ThemeHelper.textColor(context),
                     ).copyWith(fontWeight: FontWeight.w500),
@@ -330,8 +330,8 @@ class PlanCard extends StatelessWidget {
               TweenAnimationBuilder(
                 tween: Tween<double>(
                   begin: 0,
-                  end: plan.remaining != null && plan.totalAllowed != null
-                      ? plan.remaining! / plan.totalAllowed!
+                  end: plan.remaining != null && plan.remaining! > 0
+                      ? 1.0
                       : 0,
                 ),
                 duration: const Duration(milliseconds: 800),

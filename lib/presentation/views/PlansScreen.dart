@@ -77,6 +77,12 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
     AppLogger.log("💼 External wallet selected: ${response.walletName}");
   }
 
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
   void _openCheckout(String key, int amount, String order_id) {
     var options = {
       'key': '$key',
@@ -180,7 +186,7 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
                         child: _buildPlanCard(
                           context,
                           title: plan.name ?? "—",
-                          planid: plan.id ?? 0,
+                          planid: plan.id ?? '',
                           duration_days: plan.durationDays ?? 0,
                           subtitle: plan.description ?? "",
                           price: plan.startingPriceFrom != null
@@ -405,7 +411,7 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
   Widget _buildPlanCard(
     BuildContext context, {
     required String title,
-    required int planid,
+    required dynamic planid,
     required int duration_days,
     required String subtitle,
     required String price,
@@ -657,14 +663,14 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
 
   Future<void> showPlanPackagesSheet(
     BuildContext context, {
-    required int planId,
+    required dynamic planId,
     required String planName,
     required int durationDays,
   }) async {
     final existing = context.read<PackagesCubit>();
     final ValueNotifier<int?> selectedIndex = ValueNotifier(null);
-    final ValueNotifier<int?> packageId = ValueNotifier(null);
-    final ValueNotifier<int?> plan_id = ValueNotifier(null);
+    final ValueNotifier<dynamic> packageId = ValueNotifier(null);
+    final ValueNotifier<dynamic> plan_id = ValueNotifier(null);
     final ValueNotifier<String?> price = ValueNotifier("");
     final ValueNotifier<bool> isLoadingNotifier = ValueNotifier<bool>(false);
     showModalBottomSheet(

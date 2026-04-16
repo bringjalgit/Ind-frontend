@@ -150,7 +150,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                   listener: (context, state) {
                                     if (state is LogInwithEmailSuccess) {
                                       context.pushReplacement(
-                                        '/otp?email=${_emailController.text}',
+                                        '/otp?email=${_emailController.text.trim().toLowerCase()}',
                                       );
                                     } else if (state
                                         is LogInwithMobileFailure) {
@@ -183,7 +183,8 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                               : () {
                                                   final email = _emailController
                                                       .text
-                                                      .trim();
+                                                      .trim()
+                                                      .toLowerCase();
                                                   if (email.isEmpty) {
                                                     CustomSnackBar.show(
                                                       context,
