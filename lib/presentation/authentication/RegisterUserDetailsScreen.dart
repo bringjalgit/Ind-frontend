@@ -92,7 +92,18 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _googleLoading = true);
     try {
-      await _googleSignIn.signOut(); // ensure fresh sign-in picker
+      // Only force the account picker when the user's currently-signed-in
+      // Google account differs from whatever's in the email field. This
+      // avoids wiping the cached account every retry (better UX on cancel
+      // + re-tap) while still honoring the user's intent to re-auth if
+      // they've edited the email manually.
+      final current = _googleSignIn.currentUser;
+      final typedEmail = _emailCtrl.text.trim().toLowerCase();
+      if (current != null &&
+          typedEmail.isNotEmpty &&
+          current.email.toLowerCase() != typedEmail) {
+        await _googleSignIn.signOut();
+      }
       final account = await _googleSignIn.signIn();
       if (account == null) {
         setState(() => _googleLoading = false);
@@ -139,7 +150,37 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // If the user edits the pre-filled email, drop the stashed Google
+    // idToken + picture. Without this, we'd forward Google's idToken
+    // (bound to alice@gmail.com) to the register endpoint alongside a
+    // manually-typed bob@example.com. The backend's three-guard check
+    // would silently skip the email_verified attachment, but the user
+    // wouldn't know their Google verification was discarded — confusing.
+    // Clearing here + showing a snackbar makes the state transition
+    // visible and explicit.
+    _emailCtrl.addListener(_onEmailChanged);
+  }
+
+  void _onEmailChanged() {
+    if (_googleIdToken == null && _googlePictureUrl == null) return;
+    final typed = _emailCtrl.text.trim().toLowerCase();
+    // Check if typed email no longer matches any Google-sourced email.
+    // We only know the typed-at-Google-time email as the initial fill;
+    // treat ANY user edit as breaking the Google binding.
+    final google = _googleSignIn.currentUser?.email.toLowerCase();
+    if (google == null || typed.isEmpty || typed != google) {
+      setState(() {
+        _googleIdToken = null;
+        _googlePictureUrl = null;
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    _emailCtrl.removeListener(_onEmailChanged);
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _nameFocus.dispose();
@@ -148,6 +189,10 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
   }
 
   Future<void> _submit() async {
+    // Guard against double-submit from rapid button taps or a keyboard
+    // "Done" press that bypasses the button's disabled state.
+    if (_submitting) return;
+
     // Validate text fields first
     if (!_formKey.currentState!.validate()) return;
 
@@ -476,13 +521,20 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen> {
                                       await AuthService.setProfilePicture(
                                         _googlePictureUrl,
                                       );
+                                      // Await the subscription flag write
+                                      // BEFORE navigating — the Dashboard's
+                                      // first render reads isNewUser, and a
+                                      // fire-and-forget call here produced a
+                                      // race where the Dashboard saw the
+                                      // stale "true" value and disabled the
+                                      // Post-Ad CTA on freshly-registered users.
+                                      await AuthService.setUserStatus("false");
                                       if (!context.mounted) return;
                                       if (widget.from == "ad") {
                                         context.pop();
                                       } else {
                                         context.pushReplacement("/dashboard");
                                       }
-                                      AuthService.setUserStatus("false");
                                     } else if (state is RegisterFailure) {
                                       CustomSnackBar1.show(
                                         context,

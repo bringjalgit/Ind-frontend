@@ -2,6 +2,17 @@
 /// Backend returns { success, message, data: { ... } } — the backend sends
 /// 12 fields in `data`, but the Flutter UI only reads 9 of them. Dead
 /// fields (id, created_at, updated_at) removed during the profile cleanup.
+
+/// Defensive bool parse (L5) — accepts true, 1, "true", "1" as true;
+/// everything else as false. Used for flags the backend may serialize
+/// as either a boolean or a string depending on the source collection.
+bool _parseBoolish(dynamic raw) {
+  if (raw == true) return true;
+  if (raw == 1) return true;
+  final s = raw?.toString().toLowerCase();
+  return s == 'true' || s == '1';
+}
+
 class ProfileModel {
   bool? success;
   String? message;
@@ -75,8 +86,11 @@ class Data {
         : int.tryParse(json['state_id']?.toString() ?? '');
     image = json['image'];
     profilePicture = json['profilePicture'];
-    email_verified = json['email_verified'] == true || json['email_verified'] == 1;
-    is_verified = json['is_verified'] == true || json['is_verified'] == 1;
+    // L5 — accept boolean AND string variants ("true" / "1") so a
+    // migrated / legacy admin payload doesn't silently downgrade a
+    // verified user to unverified in the UI.
+    email_verified = _parseBoolish(json['email_verified']);
+    is_verified = _parseBoolish(json['is_verified']);
     aadhaar_status = json['aadhaar_status']?.toString() ?? 'none';
   }
 

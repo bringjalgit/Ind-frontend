@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
@@ -211,7 +212,16 @@ class AuthService {
     if (refreshToken == null || refreshToken.isEmpty) return false;
 
     try {
-      final response = await ApiClient.post(
+      // Bare Dio with NO interceptors — ApiClient's onRequest would see
+      // isTokenExpired()==true and call this same refreshToken() again,
+      // recursing indefinitely. Refresh must bypass the main Dio entirely.
+      final bareDio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => s != null && s < 500,
+        headers: {'Content-Type': 'application/json'},
+      ));
+      final response = await bareDio.post(
         APIEndpointUrls.refreshtoken,
         data: {"refreshToken": refreshToken},
       );

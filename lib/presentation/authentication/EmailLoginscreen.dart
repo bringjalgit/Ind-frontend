@@ -8,6 +8,7 @@ import '../../data/cubit/LogInWithMobile/login_with_mobile_state.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../widgets/CommonTextField.dart';
+import 'widgets/RateLimitCountdown.dart';
 
 class EmailLoginscreen extends StatefulWidget {
   const EmailLoginscreen({super.key});
@@ -16,7 +17,7 @@ class EmailLoginscreen extends StatefulWidget {
   State<EmailLoginscreen> createState() => _EmailLoginscreenState();
 }
 
-class _EmailLoginscreenState extends State<EmailLoginscreen> {
+class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCountdownMixin {
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -133,7 +134,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                     if (v == null || v.trim().isEmpty) {
                                       return 'Email required';
                                     } else if (!RegExp(
-                                      r'^[\w-\.]+@([\w-]+\.)+[\w]{2,4}$',
+                                      r'^[\w-\.\+]+@([\w-]+\.)+[A-Za-z]{2,}$',
                                     ).hasMatch(v.trim())) {
                                       return 'Enter a valid email';
                                     }
@@ -149,27 +150,40 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                 >(
                                   listener: (context, state) {
                                     if (state is LogInwithEmailSuccess) {
+                                      clearRateLimit();
                                       context.pushReplacement(
                                         '/otp?email=${_emailController.text.trim().toLowerCase()}',
                                       );
                                     } else if (state
                                         is LogInwithMobileFailure) {
-                                      showNotRegisteredDialog(
-                                        context,
-                                        state.error,
-                                      );
+                                      final retry = state.retryAfterSec;
+                                      if (retry != null && retry > 0) {
+                                        startRateLimit(retry);
+                                        CustomSnackBar.show(context, state.error);
+                                      } else {
+                                        showNotRegisteredDialog(
+                                          context,
+                                          state.error,
+                                        );
+                                      }
                                     }
                                   },
                                   builder: (context, state) {
                                     final bool loading =
                                         state is LogInwithMobileLoading;
+                                    final bool blocked = isRateLimited;
+                                    final String label = blocked
+                                        ? "Try again in $rateLimitMessage"
+                                        : (loading ? "Sending OTP..." : "Send OTP");
                                     return SizedBox(
                                       width: double.infinity,
                                       height: 52,
                                       child: DecoratedBox(
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
-                                            colors: [accent, gradEnd],
+                                            colors: blocked
+                                                ? [Colors.grey.shade600, Colors.grey.shade800]
+                                                : [accent, gradEnd],
                                             begin: Alignment.centerLeft,
                                             end: Alignment.centerRight,
                                           ),
@@ -178,7 +192,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                           ),
                                         ),
                                         child: ElevatedButton.icon(
-                                          onPressed: loading
+                                          onPressed: (loading || blocked)
                                               ? null
                                               : () {
                                                   final email = _emailController
@@ -191,7 +205,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                                       "Email is required",
                                                     );
                                                   } else if (!RegExp(
-                                                    r'^[\w-\.]+@([\w-]+\.)+[\w]{2,4}$',
+                                                    r'^[\w-\.\+]+@([\w-]+\.)+[A-Za-z]{2,}$',
                                                   ).hasMatch(email)) {
                                                     CustomSnackBar.show(
                                                       context,
@@ -217,13 +231,13 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> {
                                                         color: Colors.white,
                                                       ),
                                                 )
-                                              : const Icon(
-                                                  Icons.email_outlined,
+                                              : Icon(
+                                                  blocked
+                                                      ? Icons.lock_clock
+                                                      : Icons.email_outlined,
                                                 ),
                                           label: Text(
-                                            loading
-                                                ? "Sending OTP..."
-                                                : "Send OTP",
+                                            label,
                                             style:
                                                 AppTextStyles.titleMedium(
                                                   Colors.white,

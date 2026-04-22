@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:classifieds/Components/CustomSnackBar.dart';
 import 'package:classifieds/data/cubit/LogInWithMobile/login_with_mobile.dart';
 import 'package:classifieds/data/cubit/LogInWithMobile/login_with_mobile_state.dart';
+import 'package:classifieds/presentation/authentication/widgets/RateLimitCountdown.dart';
 import 'package:classifieds/widgets/CommonTextField.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
@@ -16,7 +17,7 @@ class Loginscreen extends StatefulWidget {
   State<Loginscreen> createState() => _LoginscreenState();
 }
 
-class _LoginscreenState extends State<Loginscreen> {
+class _LoginscreenState extends State<Loginscreen> with RateLimitCountdownMixin {
   final TextEditingController _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -214,8 +215,17 @@ class _LoginscreenState extends State<Loginscreen> {
                                   LogInwithMobileCubit,
                                   LogInWithMobileState
                                 >(
+                                  // Only react to fresh transitions. Prevents a
+                                  // re-navigation loop when the user returns to
+                                  // Login with the cubit still holding Success.
+                                  listenWhen: (prev, next) =>
+                                      (next is LogInwithMobileSuccess &&
+                                          prev is LogInwithMobileLoading) ||
+                                      (next is LogInwithMobileFailure &&
+                                          prev is LogInwithMobileLoading),
                                   listener: (context, state) async {
                                     if (state is LogInwithMobileSuccess) {
+                                      clearRateLimit();
                                       context.pushReplacement(
                                         '/otp?mobile=${_phoneController.text}',
                                       );
@@ -224,21 +234,35 @@ class _LoginscreenState extends State<Loginscreen> {
                                       // Prefer showing backend message if available
                                       CustomSnackBar.show(
                                         context,
-                                        state.error ??
-                                            "Failed to send OTP. Try again.",
+                                        state.error.isNotEmpty
+                                            ? state.error
+                                            : "Failed to send OTP. Try again.",
                                       );
+                                      // If backend signals rate limit, block
+                                      // the Send OTP button for the exact
+                                      // window the server returned.
+                                      final retry = state.retryAfterSec;
+                                      if (retry != null && retry > 0) {
+                                        startRateLimit(retry);
+                                      }
                                     }
                                   },
                                   builder: (context, state) {
                                     final bool loading =
                                         state is LogInwithMobileLoading;
+                                    final bool blocked = isRateLimited;
+                                    final String buttonLabel = blocked
+                                        ? "Try again in $rateLimitMessage"
+                                        : (loading ? "Sending OTP..." : "Send OTP");
                                     return SizedBox(
                                       width: double.infinity,
                                       height: 52,
                                       child: DecoratedBox(
                                         decoration: BoxDecoration(
                                           gradient: LinearGradient(
-                                            colors: [accent, gradEnd],
+                                            colors: blocked
+                                                ? [Colors.grey.shade600, Colors.grey.shade800]
+                                                : [accent, gradEnd],
                                             begin: Alignment.centerLeft,
                                             end: Alignment.centerRight,
                                           ),
@@ -247,7 +271,7 @@ class _LoginscreenState extends State<Loginscreen> {
                                           ),
                                         ),
                                         child: ElevatedButton.icon(
-                                          onPressed: loading
+                                          onPressed: (loading || blocked)
                                               ? null
                                               : () async {
                                                   final phone = _phoneController
@@ -285,11 +309,9 @@ class _LoginscreenState extends State<Loginscreen> {
                                                         color: Colors.white,
                                                       ),
                                                 )
-                                              : const Icon(Icons.sms_outlined),
+                                              : Icon(blocked ? Icons.lock_clock : Icons.sms_outlined),
                                           label: Text(
-                                            loading
-                                                ? "Sending OTP..."
-                                                : "Send OTP",
+                                            buttonLabel,
                                             style:
                                                 AppTextStyles.titleMedium(
                                                   Colors.white,

@@ -66,9 +66,21 @@ class TransactionCubit extends Cubit<TransactionsStates> {
         _hasNextPage = newData.settings?.nextPage ?? false;
 
         emit(TransactionsLoaded(transectionHistoryModel, _hasNextPage));
+      } else {
+        // M14 — pagination request completed but returned nothing. Pop
+        // back to the last-good Loaded state so the screen isn't stuck
+        // in LoadingMore; also roll back the page counter so a retry
+        // doesn't skip over a whole page.
+        _currentPage--;
+        emit(TransactionsLoaded(transectionHistoryModel, _hasNextPage));
       }
     } catch (e) {
-      print("Transaction pagination error: $e");
+      // M14 — don't swallow errors silently. Emit back to Loaded so the
+      // UI exits the spinner state, and roll back the page counter so
+      // the next scroll-triggered retry fetches the SAME page rather
+      // than skipping it.
+      _currentPage--;
+      emit(TransactionsLoaded(transectionHistoryModel, _hasNextPage));
     } finally {
       _isLoadingMore = false;
     }

@@ -110,6 +110,11 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
         imageUrl: map['imageUrl'],
         createdAt: map['createdAt']?.toString(),
         updatedAt: map['createdAt']?.toString(),
+        isSystemMessage: map['isSystemMessage'] == true,
+        swaType: map['swaType']?.toString(),
+        decision: map['decision']?.toString(),
+        counterPrice: int.tryParse(map['counterPrice']?.toString() ?? ''),
+        acceptPrice: int.tryParse(map['acceptPrice']?.toString() ?? ''),
       );
 
       // Don't add our own messages (already added optimistically)

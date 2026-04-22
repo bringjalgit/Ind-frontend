@@ -82,6 +82,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: BlocConsumer<ProfileCubit, ProfileStates>(
                 listener: (context, state) {
                   if (state is ProfileLoaded) {
+                    // Kept for back-compat with any code that still reads
+                    // the instance field, but the builder now reads
+                    // directly from state — see M20 note below.
                     mobile_number = state.profileModel.data?.mobile ?? "";
                   }
                 },
@@ -90,6 +93,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     return const ProfileShimmer();
                   } else if (state is ProfileLoaded) {
                     final user_data = state.profileModel.data;
+                    // M20 — use state mobile directly for tile visibility
+                    // checks. Previously the builder read the instance
+                    // field `mobile_number` which was populated in the
+                    // listener, so the first render (before listener
+                    // fired) saw an empty string and the conditional
+                    // rendering flickered when state caught up.
+                    mobile_number = user_data?.mobile ?? mobile_number;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [

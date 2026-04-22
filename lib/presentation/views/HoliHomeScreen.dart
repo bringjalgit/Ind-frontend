@@ -237,12 +237,11 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
                         result.latlng,
                       );
 
-                      // Convert latlng to locationKey
-                      final locationKey = "${result.latlng},${result.latlng}";
-
-                      // Fetch products based on location
+                      // LocationCubit stored latlng is already in "lat, lng"
+                      // format — backend's location_key param expects the
+                      // same shape. No duplication needed.
                       context.read<ProductsCubit>().getProducts(
-                        locationKey: locationKey,
+                        locationKey: result.latlng,
                       );
                     }
                   },
@@ -308,7 +307,27 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
           // ),
         ],
       ),
-      body: BlocBuilder<DashboardCubit, DashBoardState>(
+      body: BlocListener<LocationCubit, LocationState>(
+        // Auto-refresh LISTINGS ONLY when LocationCubit emits a different
+        // latlng than what ProductsCubit last fetched with. Banners and
+        // categories are location-independent — no need to reload them.
+        // Handles:
+        //   - first-launch GPS resolving after initial fetch
+        //   - user picks "Use current location" in the picker sheet
+        //     (sheet pops null → no inline getProducts call, so this
+        //     listener is the only path that refreshes listings)
+        //   - location changes while HoliHomeScreen is kept alive behind
+        //     another bottom-nav tab
+        listenWhen: (prev, curr) => curr is LocationLoaded,
+        listener: (context, state) {
+          if (state is LocationLoaded) {
+            final productsCubit = context.read<ProductsCubit>();
+            if (productsCubit.lastLocationKey != state.latlng) {
+              productsCubit.getProducts(locationKey: state.latlng);
+            }
+          }
+        },
+        child: BlocBuilder<DashboardCubit, DashBoardState>(
         builder: (context, state) {
           if (state is DashBoardLoading) {
             return const HomeShimmerLoader();
@@ -850,6 +869,7 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
           }
           return Center(child: Text("No Data Found!"));
         },
+        ),
       ),
     );
   }

@@ -37,7 +37,21 @@ class Data {
   Friend? friend;
   List<Messages>? messages;
 
-  Data({this.friend, this.messages});
+  // SWA bleed-through surfaced by the unified chat endpoint so the
+  // ChatScreen can render a status banner + deep-link to the SWA
+  // dashboard without a second round-trip. `conversationStatus` is
+  // the state-machine value: active | pending_acceptance | accepted |
+  // completed | declined | expired | seller_takeover | legal_hold.
+  // Null when the thread is pure P2P (no SWA conversation ever created).
+  String? conversationId;
+  String? conversationStatus;
+
+  Data({
+    this.friend,
+    this.messages,
+    this.conversationId,
+    this.conversationStatus,
+  });
 
   Data.fromJson(Map<String, dynamic> json) {
     friend =
@@ -48,6 +62,8 @@ class Data {
         messages!.add(new Messages.fromJson(v));
       });
     }
+    conversationId = json['conversation_id']?.toString();
+    conversationStatus = json['conversation_status']?.toString();
   }
 
   Map<String, dynamic> toJson() {
@@ -58,6 +74,8 @@ class Data {
     if (this.messages != null) {
       data['messages'] = this.messages!.map((v) => v.toJson()).toList();
     }
+    data['conversation_id'] = conversationId;
+    data['conversation_status'] = conversationStatus;
     return data;
   }
 }
@@ -97,6 +115,13 @@ class Messages {
   String? createdAt;
   String? updatedAt;
 
+  // SWA fields (populated when message comes from AI pipeline via WebSocket)
+  bool isSystemMessage;
+  String? swaType;     // pill_response, offer_accepted, offer_response, keyword_chat_response, etc.
+  String? decision;    // AUTO_ACCEPT, AUTO_COUNTER, AUTO_DECLINE, ROUND_CAP_EXHAUSTED
+  int? counterPrice;
+  int? acceptPrice;
+
   Messages(
       {this.id,
         this.senderId,
@@ -105,9 +130,14 @@ class Messages {
         this.message,
         this.imageUrl,
         this.createdAt,
-        this.updatedAt});
+        this.updatedAt,
+        this.isSystemMessage = false,
+        this.swaType,
+        this.decision,
+        this.counterPrice,
+        this.acceptPrice});
 
-  Messages copyWith({dynamic id, String? senderId, String? receiverId, String? type, String? message, String? imageUrl, String? createdAt, String? updatedAt}) {
+  Messages copyWith({dynamic id, String? senderId, String? receiverId, String? type, String? message, String? imageUrl, String? createdAt, String? updatedAt, bool? isSystemMessage, String? swaType, String? decision, int? counterPrice, int? acceptPrice}) {
     return Messages(
       id: id ?? this.id,
       senderId: senderId ?? this.senderId,
@@ -117,10 +147,16 @@ class Messages {
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      isSystemMessage: isSystemMessage ?? this.isSystemMessage,
+      swaType: swaType ?? this.swaType,
+      decision: decision ?? this.decision,
+      counterPrice: counterPrice ?? this.counterPrice,
+      acceptPrice: acceptPrice ?? this.acceptPrice,
     );
   }
 
-  Messages.fromJson(Map<String, dynamic> json) {
+  Messages.fromJson(Map<String, dynamic> json)
+      : isSystemMessage = false {
     id = (json['id'] ?? json['_id'])?.toString();
     senderId = json['sender_id']?.toString();
     receiverId = json['receiver_id']?.toString();

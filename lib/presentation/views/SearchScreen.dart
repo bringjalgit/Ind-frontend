@@ -793,32 +793,29 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _applyFiltersAndFetch() {
-    final filters = {
-      "categoryId": _selectedCategories.value.isNotEmpty
-          ? _selectedCategories.value.join(",")
-          : null,
-      "sort_by": _selectedSort.value,
-      "state_id": _selectedStateId.value?.toString(),
-      "city_id": _selectedCityId.value?.toString(),
-      "minPrice": minPriceController.text.isNotEmpty
-          ? minPriceController.text
-          : _selectedRange.value.start.toInt().toString(),
-      "maxPrice": maxPriceController.text.isNotEmpty
-          ? maxPriceController.text
-          : _selectedRange.value.end.toInt().toString(),
-      "location_key":
-          "${_selectedLat?.toString()}, ${_selectedLng?.toString()}",
-    };
+    // Only include location_key when both coords are set. Without this
+    // guard, clearing the location field (X button) produces the literal
+    // string "null, null" in the request body, which the backend rejects
+    // as invalid and the screen falls into an empty/failure state.
+    final locationKey = (_selectedLat != null && _selectedLng != null)
+        ? "${_selectedLat}, ${_selectedLng}"
+        : null;
 
     context.read<ProductsCubit2>().getProducts(
       search: searchController.text,
-      categoryId: filters["categoryId"],
-      sort_by: filters["sort_by"],
-      state_id: filters["state_id"],
-      city_id: filters["city_id"],
-      minPrice: filters["minPrice"],
-      maxPrice: filters["maxPrice"],
-      locationKey: filters["location_key"],
+      categoryId: _selectedCategories.value.isNotEmpty
+          ? _selectedCategories.value.join(",")
+          : null,
+      sort_by: _selectedSort.value,
+      state_id: _selectedStateId.value?.toString(),
+      city_id: _selectedCityId.value?.toString(),
+      minPrice: minPriceController.text.isNotEmpty
+          ? minPriceController.text
+          : _selectedRange.value.start.toInt().toString(),
+      maxPrice: maxPriceController.text.isNotEmpty
+          ? maxPriceController.text
+          : _selectedRange.value.end.toInt().toString(),
+      locationKey: locationKey,
     );
   }
 

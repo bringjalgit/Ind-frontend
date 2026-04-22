@@ -54,6 +54,18 @@ class Data {
   int? totalLikes;
   String? image;
 
+  // Smart Assist (Sell-with-AI) flags surfaced by the backend so the
+  // My Ads card can render the active / try-it strip without another
+  // round-trip. `swaActive` comes directly from
+  // sell_with_ai_config.is_active; `swaEligible` is derived client-side
+  // (approved + not sold) — the wizard-entry strip only shows for
+  // listings that CAN be activated.
+  bool swaActive = false;
+  String? swaExpiresAt;
+
+  bool get swaEligible =>
+      (status ?? '').toLowerCase() == 'approved' && sold != true;
+
   Data(
       {this.id,
         this.title,
@@ -72,7 +84,9 @@ class Data {
         this.subCategory,
         this.postedAt,
         this.totalLikes,
-        this.image});
+        this.image,
+        this.swaActive = false,
+        this.swaExpiresAt});
 
   Data.fromJson(Map<String, dynamic> json) {
     id = (json['id'] ?? json['_id'])?.toString();
@@ -100,6 +114,8 @@ class Data {
     postedAt = json['posted_at'];
     totalLikes = json['total_likes'];
     image = json['image'];
+    swaActive = json['swa_active'] == true;
+    swaExpiresAt = json['swa_expires_at']?.toString();
   }
 
   Map<String, dynamic> toJson() {

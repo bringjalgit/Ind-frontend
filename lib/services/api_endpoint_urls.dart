@@ -163,4 +163,34 @@ class APIEndpointUrls {
   static const String get_my_friend_messages = '${chatLambdaUrl}get-my-friend-messages';
   static const String toggle_pin_user = '${chatLambdaUrl}toggle-pin-user';
   static const String toggle_pin_message = '${chatLambdaUrl}toggle-pin-message';
+
+  // ── Sell with AI (SWA — chat stack, Lambda only) ────────────────────
+  static String swaActivate(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/activate/$listingId';
+  static String swaDeactivate(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/deactivate/$listingId';
+  static String swaUpdateSettings(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/settings/$listingId';
+  static const String swaPriceSuggestion =
+      '${chatLambdaUrl}sell-with-ai/price-suggestion';
+  static String swaDashboard(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/dashboard/$listingId';
+  static const String swaCrossListingDashboard =
+      '${chatLambdaUrl}sell-with-ai/dashboard';
+  static String swaStats(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/stats/$listingId';
+  static String swaSendMessage(String listingId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/listing/$listingId/messages';
+  static String swaGetConversation(String conversationId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/$conversationId';
+  static const String swaMyConversations =
+      '${chatLambdaUrl}sell-with-ai/conversations/buyer/me';
+  static String swaOverride(String conversationId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/$conversationId/override';
+  static String swaConfirm(String conversationId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/$conversationId/confirm';
+  static String swaCancelAcceptance(String conversationId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/$conversationId/cancel-acceptance';
+  static String swaBuyerAvailability(String conversationId) =>
+      '${chatLambdaUrl}sell-with-ai/conversations/$conversationId/buyer-availability';
 }

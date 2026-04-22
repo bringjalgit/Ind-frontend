@@ -14,10 +14,15 @@ class DeleteAccountCubit extends Cubit<DeleteAccountStates> {
       if (response != null && response.success == true) {
         emit(DeleteAccountLoaded(response));
       } else {
-        emit(DeleteAccountFailure(response?.message ?? ""));
+        // L6 — default to a user-readable fallback so empty backend
+        // message doesn't surface as a blank snackbar.
+        final msg = (response?.message?.trim().isNotEmpty == true)
+            ? response!.message!
+            : 'Could not delete account. Please try again.';
+        emit(DeleteAccountFailure(msg));
       }
-    } catch (e) {
-      emit(DeleteAccountFailure(e.toString()));
+    } catch (_) {
+      emit(DeleteAccountFailure('Could not delete account. Please try again.'));
     }
   }
 }

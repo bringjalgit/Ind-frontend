@@ -229,6 +229,10 @@ class LocationCubit extends Cubit<LocationState> {
   }
 
   Future<void> useSavedLocation(String locationName, String latlng) async {
+    // Persist so the next cold-start DashboardCubit fetch reads this value
+    // instead of falling back to old GPS coords or empty storage.
+    await _storage.setString(_kLocNameKey, locationName);
+    await _storage.setString(_kLatLngKey, latlng);
     emit(LocationLoaded(locationName: locationName, latlng: latlng));
   }
 

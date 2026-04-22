@@ -6,10 +6,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:classifieds/Components/CutomAppBar.dart';
+import 'package:classifieds/Components/Shimmers.dart';
 import 'package:classifieds/data/cubit/EmailVerification/EmailVerificationCubit.dart';
 import 'package:classifieds/data/cubit/EmailVerification/EmailVerificationStates.dart';
 import 'package:classifieds/theme/AppTextStyles.dart';
-import 'package:classifieds/widgets/CommonLoader.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import '../../Components/CustomAppButton.dart';
 import '../../Components/CustomSnackBar.dart';
@@ -68,6 +68,11 @@ class _EditProfileState extends State<EditProfile> {
   void initState() {
     super.initState();
     context.read<ProfileCubit>().getProfileDetails().then((userData) {
+      // M18 — guard against screen being popped mid-fetch. Without this,
+      // a slow profile API + quick back-navigation = setState-after-dispose
+      // which throws a framework exception in debug and silently fails in
+      // release on some Flutter channels.
+      if (!mounted) return;
       if (userData != null) {
         debugPrint("userData:${userData.data?.email ?? ""}");
         final data = userData.data;
@@ -86,6 +91,7 @@ class _EditProfileState extends State<EditProfile> {
           imagePath = data?.image ?? "";
         });
       }
+      if (!mounted) return;
       setState(() => isLoading = false);
     });
   }
@@ -143,6 +149,10 @@ class _EditProfileState extends State<EditProfile> {
         File(pickedFile.path),
       );
       if (compressedFile != null) {
+        // M18 — user can background the app / pop the screen during
+        // compression. Without this guard, setState fires on disposed
+        // state and throws in debug.
+        if (!mounted) return;
         setState(() => _image = compressedFile);
       }
     }
@@ -157,6 +167,10 @@ class _EditProfileState extends State<EditProfile> {
         File(pickedFile.path),
       );
       if (compressedFile != null) {
+        // M18 — user can background the app / pop the screen during
+        // compression. Without this guard, setState fires on disposed
+        // state and throws in debug.
+        if (!mounted) return;
         setState(() => _image = compressedFile);
       }
     }
@@ -176,7 +190,7 @@ class _EditProfileState extends State<EditProfile> {
     return Scaffold(
       appBar: CustomAppBar1(title: "Edit Profile", actions: []),
       body: isLoading
-          ? const Center(child: DottedProgressWithLogo())
+          ? const _EditProfileShimmer()
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Form(
@@ -237,12 +251,22 @@ class _EditProfileState extends State<EditProfile> {
                       controller: _emailController,
                       color: textColor,
                       onChanged: (value) {
-                        if (value.trim() != originalEmail) {
-                          // user changed email -> reset verification
+                        // M19 — compare case-insensitive and trim so a
+                        // user who types then deletes a character (or
+                        // toggles case) doesn't get stuck with a
+                        // permanently-disabled Submit. If current value
+                        // matches the original, RESTORE the verified
+                        // flag to whatever it was loaded as; otherwise
+                        // reset both to false (real change).
+                        final normalized = value.trim().toLowerCase();
+                        final original = (originalEmail ?? '').trim().toLowerCase();
+                        if (normalized == original) {
+                          otpVerifiedNow = isEmailVerified;
+                        } else {
                           otpVerifiedNow = false;
                           isEmailVerified = false;
-                          setState(() {});
                         }
+                        setState(() {});
                       },
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? "Email required"
@@ -469,6 +493,12 @@ class _EditProfileState extends State<EditProfile> {
                       hint: 'Enter Phone',
                       controller: _phoneController,
                       color: textColor,
+                      // H10 — mobile is the primary auth factor and
+                      // cannot be changed from profile (backend H2 drops
+                      // it from the payload). Marking readonly so the
+                      // user can see their current number but can't
+                      // type into a field that wouldn't save.
+                      isRead: true,
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? "Phone Number required"
                           : null,
@@ -493,7 +523,11 @@ class _EditProfileState extends State<EditProfile> {
 
                         if (selectedState != null) {
                           stateController.text = selectedState.name ?? "";
-                          selectedStateId = selectedState.id ?? "";
+                          // H8 — fallback must be a number, not "".
+                          // selectedStateId is int?; assigning an empty
+                          // string would compile only via dynamic and
+                          // then submit as state_id:"" → backend 400.
+                          selectedStateId = selectedState.id ?? 0;
                           setState(() {});
                         }
                       },
@@ -531,7 +565,7 @@ class _EditProfileState extends State<EditProfile> {
 
                         if (selectedCity != null) {
                           cityController.text = selectedCity.name ?? "";
-                          selectedCityId = selectedCity.id ?? "";
+                          selectedCityId = selectedCity.id ?? 0;
                           setState(() {});
                         }
                       },
@@ -622,13 +656,17 @@ class _EditProfileState extends State<EditProfile> {
                             if (_image != null && _image!.path.isNotEmpty) {
                               imageToSend = _image!.path;
                             }
+                            // H10 — `mobile` intentionally NOT sent. Backend
+                            // H2 drops it from the writeable set; keeping
+                            // the field here would cause silent UX drift
+                            // (typed value disappears on reload). Mobile
+                            // changes must go through a separate OTP flow.
                             final data = {
                               "name": _nameController.text.trim(),
                               "email": _emailController.text.trim().toLowerCase(),
-                              "mobile": _phoneController.text.trim(),
                               "image": imageToSend,
-                              "state_id": selectedStateId, // Optional or null
-                              "city_id": selectedCityId, // Optional or null
+                              "state_id": selectedStateId,
+                              "city_id": selectedCityId,
                             };
 
                             // Call the update profile API
@@ -650,6 +688,75 @@ class _EditProfileState extends State<EditProfile> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Skeleton placeholder that mirrors the EditProfile form layout —
+/// avatar, name, email (+ OTP), phone, state, city, submit button.
+/// Shown while the initial ProfileCubit.getProfileDetails() call is
+/// in flight so the user sees the shape of the screen immediately
+/// instead of an opaque spinner.
+class _EditProfileShimmer extends StatelessWidget {
+  const _EditProfileShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Profile avatar (CircleAvatar radius 50 = 100 diameter)
+          shimmerCircle(100, context),
+          const SizedBox(height: 24),
+
+          // Name field
+          _fieldSkeleton(context),
+          const SizedBox(height: 16),
+
+          // Email field
+          _fieldSkeleton(context),
+          const SizedBox(height: 8),
+
+          // Send OTP link on the right
+          Align(
+            alignment: Alignment.centerRight,
+            child: shimmerText(width: 80, height: 16, context: context),
+          ),
+          const SizedBox(height: 16),
+
+          // Phone field (read-only but occupies space)
+          _fieldSkeleton(context),
+          const SizedBox(height: 16),
+
+          // State dropdown
+          _fieldSkeleton(context),
+          const SizedBox(height: 16),
+
+          // City dropdown
+          _fieldSkeleton(context),
+          const SizedBox(height: 32),
+
+          // Submit button
+          shimmerButton(double.infinity, 52, context),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldSkeleton(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        shimmerText(width: 80, height: 14, context: context),
+        const SizedBox(height: 8),
+        shimmerRectangle(
+          width: double.infinity,
+          height: 52,
+          context: context,
+          radius: 12,
+        ),
+      ],
     );
   }
 }

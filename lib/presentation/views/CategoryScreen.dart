@@ -7,10 +7,10 @@ import 'package:classifieds/utils/color_constants.dart';
 import '../../data/cubit/Categories/categories_cubit.dart';
 import '../../data/cubit/PostCategories/categories_cubit.dart';
 import '../../data/cubit/PostCategories/categories_states.dart';
+import '../../Components/Shimmers.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../utils/spinkittsLoader.dart';
-import '../../widgets/CommonLoader.dart';
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -31,7 +31,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
     final isDark = ThemeHelper.isDarkMode(context);
     final bgColor = ThemeHelper.backgroundColor(context);
     final textColor = ThemeHelper.textColor(context);
-    var height = MediaQuery.sizeOf(context).height;
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
@@ -57,9 +56,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
             BlocBuilder<PostCategoriesCubit, PostCategoriesStates>(
               builder: (context, state) {
                 if (state is PostCategoriesLoading) {
-                  return SizedBox(
-                    height: height*0.55,
-                      child: Center(child: DottedProgressWithLogo()));
+                  return const _CategoryGridSkeleton();
                 } else if (state is PostCategoriesLoaded) {
                   final categories = state.categoryModel.categoriesList;
                   return Expanded(
@@ -139,6 +136,37 @@ class _CategoryScreenState extends State<CategoryScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Skeleton grid that mirrors the real category grid layout — same
+/// cross-axis count, spacing, and child aspect ratio — so the page
+/// doesn't visually jump when data arrives.
+class _CategoryGridSkeleton extends StatelessWidget {
+  const _CategoryGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 8,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 2.8,
+        ),
+        itemBuilder: (context, index) {
+          return shimmerRectangle(
+            width: double.infinity,
+            height: 64,
+            context: context,
+            radius: 12,
+          );
+        },
       ),
     );
   }

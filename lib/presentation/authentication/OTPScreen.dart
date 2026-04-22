@@ -13,6 +13,8 @@ import '../../Components/CustomAppButton.dart';
 import '../../Components/CustomSnackBar.dart';
 import '../../data/cubit/LogInWithMobile/login_with_mobile.dart';
 import '../../data/cubit/LogInWithMobile/login_with_mobile_state.dart';
+import '../../model/VerifyOtpModel.dart';
+import 'widgets/RateLimitCountdown.dart';
 import '../../services/AuthService.dart';
 import '../../services/MetaEventTracker.dart';
 import '../../theme/AppTextStyles.dart';
@@ -27,7 +29,7 @@ class Otpscreen extends StatefulWidget {
   State<Otpscreen> createState() => _OtpscreenState();
 }
 
-class _OtpscreenState extends State<Otpscreen> {
+class _OtpscreenState extends State<Otpscreen> with RateLimitCountdownMixin {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _otpController = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
@@ -361,8 +363,10 @@ class _OtpscreenState extends State<Otpscreen> {
                                                   final isLoading =
                                                       state
                                                           is LogInwithMobileLoading;
+                                                  final blocked = isRateLimited;
+                                                  final disabled = isLoading || blocked;
                                                   return TextButton.icon(
-                                                    onPressed: isLoading
+                                                    onPressed: disabled
                                                         ? null
                                                         : () {
                                                             if (widget.mobile.isNotEmpty) {
@@ -396,19 +400,25 @@ class _OtpscreenState extends State<Otpscreen> {
                                                                       2,
                                                                 ),
                                                           )
-                                                        : const Icon(
-                                                            Icons.refresh,
+                                                        : Icon(
+                                                            blocked
+                                                                ? Icons.lock_clock
+                                                                : Icons.refresh,
                                                           ),
                                                     label: Text(
-                                                      isLoading
-                                                          ? "Sending..."
-                                                          : "Resend OTP",
+                                                      blocked
+                                                          ? "Wait $rateLimitMessage"
+                                                          : (isLoading
+                                                              ? "Sending..."
+                                                              : "Resend OTP"),
                                                       style: TextStyle(
                                                         fontSize: 14,
                                                         fontFamily: 'Roboto',
-                                                        color: isDark
-                                                            ? Colors.white
-                                                            : gradStart,
+                                                        color: disabled
+                                                            ? Colors.grey
+                                                            : (isDark
+                                                                ? Colors.white
+                                                                : gradStart),
                                                         fontWeight:
                                                             FontWeight.w700,
                                                       ),
@@ -434,114 +444,112 @@ class _OtpscreenState extends State<Otpscreen> {
                                         LogInWithMobileState
                                       >(
                                         listener: (context, state) async {
+                                          // Shared handler for mobile + email success states. The
+                                          // only difference between the two branches was the
+                                          // MetaEventTracker method label — otherwise identical.
+                                          // Centralized here so the mounted-guards + return-after-
+                                          // push safety only needs to be written once.
+                                          Future<void> handleVerifySuccess(
+                                            VerifyOtpModel data, {
+                                            required String trackerMethod,
+                                          }) async {
+                                            if (data.success == true) {
+                                              await AuthService.saveTokens(
+                                                data.accessToken ?? "",
+                                                data.user?.name ?? "",
+                                                data.user?.email ?? "",
+                                                data.user?.mobile ?? "",
+                                                data.user?.id ?? "",
+                                                data.refreshToken ?? "",
+                                                data.accessTokenExpiry ?? 0,
+                                                data.newUser ?? false,
+                                                data.user?.state,
+                                                data.user?.city,
+                                                data.user?.stateId,
+                                                data.user?.cityId,
+                                                data.user?.image,
+                                                data.user?.profilePicture,
+                                              );
+                                              // saveTokens does 14 secure-storage writes; the user
+                                              // can have backgrounded or popped the screen by now.
+                                              if (!context.mounted) return;
+                                              if (data.newUser == true) {
+                                                context.pushReplacement('/register?from=otp');
+                                              } else {
+                                                context.pushReplacement('/dashboard');
+                                              }
+                                              // Fire-and-forget analytics — must run AFTER the
+                                              // navigation so a slow tracker doesn't delay UX.
+                                              MetaEventTracker.login(method: trackerMethod);
+                                              return;
+                                            }
+
+                                            // Failure branches — must `return` after each routing
+                                            // push so the fall-through snackbar doesn't flash on
+                                            // the dead OTP screen that's already been popped.
+                                            if (data.code == "ACCOUNT_DELETED") {
+                                              final token = data.recoveryToken ?? '';
+                                              if (token.isEmpty) {
+                                                // Backend didn't return a token — surface the
+                                                // failure rather than navigating to a dead-end
+                                                // recovery screen that would just error out.
+                                                CustomSnackBar1.show(
+                                                  context,
+                                                  data.message ?? 'Account recovery unavailable. Contact support.',
+                                                );
+                                                return;
+                                              }
+                                              // pushReplacement so back-nav from /recover_account
+                                              // lands on /login, not a dead OTPScreen with stale
+                                              // PinCode state.
+                                              context.pushReplacement(
+                                                "/recover_account?recovery_token=${Uri.encodeComponent(token)}",
+                                              );
+                                              return;
+                                            }
+                                            // ACCOUNT_BLOCKED (HTTP 403) is handled globally by
+                                            // ApiClient's 403 interceptor (routes to
+                                            // /blocked_account). Navigating here would double-push.
+                                            // Rate-limit on verify → start countdown so the
+                                            // Verify + Resend buttons are blocked for the
+                                            // window the server specified.
+                                            if (data.code == "RATE_LIMITED") {
+                                              final retry = data.retryAfterSec;
+                                              if (retry != null && retry > 0) startRateLimit(retry);
+                                            }
+                                            CustomSnackBar1.show(context, data.message ?? "");
+                                          }
+
                                           if (state is verifyMobileSuccess) {
-                                            final data = state.verifyOtpModel;
-                                            if (data.success == true) {
-                                              await AuthService.saveTokens(
-                                                data.accessToken ?? "",
-                                                data.user?.name ?? "",
-                                                data.user?.email ?? "",
-                                                data.user?.mobile ?? "",
-                                                data.user?.id ?? "",
-                                                data.refreshToken ?? "",
-                                                data.accessTokenExpiry ?? 0,
-                                                data.newUser ?? false,
-                                                data.user?.state,
-                                                data.user?.city,
-                                                data.user?.stateId,
-                                                data.user?.cityId,
-                                                data.user?.image,
-                                                data.user?.profilePicture,
-                                              );
-                                              if (data.newUser == true) {
-                                                context.pushReplacement(
-                                                  '/register?from=otp',
-                                                );
-                                              } else {
-                                                context.pushReplacement(
-                                                  '/dashboard',
-                                                );
-                                              }
-                                              await MetaEventTracker.login(
-                                                method: "mobile",
-                                              );
-                                            } else {
-                                              if (data.code ==
-                                                  "ACCOUNT_DELETED") {
-                                                context.push(
-                                                  "/recover_account?recovery_token=${Uri.encodeComponent(data.recoveryToken ?? '')}",
-                                                );
-                                              } else if (data.code ==
-                                                  "ACCOUNT_BLOCKED") {
-                                                context.push(
-                                                  "/blocked_account",
-                                                );
-                                              }
-                                              CustomSnackBar1.show(
-                                                context,
-                                                data.message ?? "",
-                                              );
-                                            }
-                                          } else if (state
-                                              is verifyEmailSuccess) {
-                                            final data = state.verifyOtpModel;
-                                            if (data.success == true) {
-                                              await AuthService.saveTokens(
-                                                data.accessToken ?? "",
-                                                data.user?.name ?? "",
-                                                data.user?.email ?? "",
-                                                data.user?.mobile ?? "",
-                                                data.user?.id ?? "",
-                                                data.refreshToken ?? "",
-                                                data.accessTokenExpiry ?? 0,
-                                                data.newUser ?? false,
-                                                data.user?.state,
-                                                data.user?.city,
-                                                data.user?.stateId,
-                                                data.user?.cityId,
-                                                data.user?.image,
-                                                data.user?.profilePicture,
-                                              );
-                                              if (data.newUser == true) {
-                                                context.pushReplacement(
-                                                  '/register?from=otp',
-                                                );
-                                              } else {
-                                                context.pushReplacement(
-                                                  '/dashboard',
-                                                );
-                                              }
-                                              await MetaEventTracker.login(
-                                                method: "email",
-                                              );
-                                            } else {
-                                              if (data.code ==
-                                                  "ACCOUNT_DELETED") {
-                                                context.push(
-                                                  "/recover_account?recovery_token=${Uri.encodeComponent(data.recoveryToken ?? '')}",
-                                                );
-                                              } else if (data.code ==
-                                                  "ACCOUNT_BLOCKED") {
-                                                context.push(
-                                                  "/blocked_account",
-                                                );
-                                              }
-                                              CustomSnackBar1.show(
-                                                context,
-                                                data.message ?? "",
-                                              );
-                                            }
-                                          } else if (state
-                                              is OtpVerifyFailure) {
+                                            await handleVerifySuccess(
+                                              state.verifyOtpModel,
+                                              trackerMethod: "mobile",
+                                            );
+                                          } else if (state is verifyEmailSuccess) {
+                                            await handleVerifySuccess(
+                                              state.verifyOtpModel,
+                                              trackerMethod: "email",
+                                            );
+                                          } else if (state is OtpVerifyFailure) {
                                             CustomSnackBar1.show(
                                               context,
                                               state.error,
                                             );
+                                          } else if (state is LogInwithMobileSuccess || state is LogInwithEmailSuccess) {
+                                            // Fresh resend → clear any stale countdown.
+                                            clearRateLimit();
+                                          } else if (state is LogInwithMobileFailure) {
+                                            // Resend failed with a rate-limit → start countdown
+                                            // so the Resend button blocks for the full window.
+                                            final retry = state.retryAfterSec;
+                                            if (retry != null && retry > 0) startRateLimit(retry);
+                                            CustomSnackBar1.show(context, state.error);
                                           }
                                         },
                                         builder: (context, state) {
                                           final loading =
                                               state is verifyWithMobileLoading;
+                                          final blocked = isRateLimited;
                                           return SizedBox(
                                             width: double.infinity,
                                             height: 52,
@@ -555,10 +563,12 @@ class _OtpscreenState extends State<Otpscreen> {
                                                       decoration: BoxDecoration(
                                                         gradient:
                                                             LinearGradient(
-                                                              colors: [
-                                                                accent,
-                                                                gradEnd,
-                                                              ],
+                                                              colors: blocked
+                                                                  ? [Colors.grey.shade600, Colors.grey.shade800]
+                                                                  : [
+                                                                      accent,
+                                                                      gradEnd,
+                                                                    ],
                                                               begin: Alignment
                                                                   .centerLeft,
                                                               end: Alignment
@@ -569,7 +579,7 @@ class _OtpscreenState extends State<Otpscreen> {
                                                   ),
                                                   // centered content button
                                                   ElevatedButton(
-                                                    onPressed: loading
+                                                    onPressed: (loading || blocked)
                                                         ? null
                                                         : () async {
                                                             FirebaseMessaging
@@ -680,19 +690,24 @@ class _OtpscreenState extends State<Otpscreen> {
                                                               mainAxisAlignment:
                                                                   MainAxisAlignment
                                                                       .center,
-                                                              children: const [
+                                                              children: [
                                                                 Icon(
-                                                                  Icons
-                                                                      .verified_outlined,
+                                                                  blocked
+                                                                      ? Icons
+                                                                          .lock_clock
+                                                                      : Icons
+                                                                          .verified_outlined,
                                                                   color: Colors
                                                                       .white,
                                                                 ),
-                                                                SizedBox(
+                                                                const SizedBox(
                                                                   width: 8,
                                                                 ),
                                                                 Text(
-                                                                  "Verify & Continue",
-                                                                  style: TextStyle(
+                                                                  blocked
+                                                                      ? "Try again in $rateLimitMessage"
+                                                                      : "Verify & Continue",
+                                                                  style: const TextStyle(
                                                                     color: Colors
                                                                         .white,
                                                                     fontWeight:

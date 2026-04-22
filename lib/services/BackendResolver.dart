@@ -34,7 +34,7 @@ class BackendResolver {
   static const String lambdaBaseUrl =
       'https://tn7v9gtczd.execute-api.ap-south-1.amazonaws.com/dev/app/';
   static const String ec2BaseUrl =
-      'https://remedios-unprecocious-gaynell.ngrok-free.dev/app/'; // ⚠️ ngrok for testing — replace with real domain before production deploy
+      'http://13.206.71.123:3000/app/'; // ⚠️ TEMP: raw EC2 IP + cleartext HTTP for end-to-end test. Replace with https://api-ec2.indclassifieds.in/app/ after nginx+SSL is live. DO NOT SHIP.
 
   // ── Cache + timing ───────────────────────────────────────────────────────
   static const String _cacheKey = 'backend_resolver_choice';

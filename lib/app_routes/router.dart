@@ -18,6 +18,12 @@ import 'package:classifieds/presentation/views/PlansScreen.dart';
 import 'package:classifieds/presentation/PostAdds/CommunityAdScreen.dart';
 import 'package:classifieds/presentation/PostAdds/EducationalAd.dart';
 import 'package:classifieds/presentation/views/ProductDetailsScreen.dart';
+import 'package:classifieds/presentation/swa/SWAPricingWizardScreen.dart';
+import 'package:classifieds/presentation/swa/SWAAvailabilityWizardScreen.dart';
+import 'package:classifieds/presentation/swa/SWAChatModeWizardScreen.dart';
+import 'package:classifieds/presentation/swa/SWADashboardScreen.dart';
+import 'package:classifieds/presentation/swa/SWAConversationScreen.dart';
+import 'package:classifieds/presentation/swa/SWASettingsScreen.dart';
 import 'package:classifieds/presentation/views/RecoverAccountScreen.dart';
 import 'package:classifieds/presentation/views/SearchScreen.dart';
 import 'package:classifieds/presentation/views/SubCategoriesScreen.dart';
@@ -659,6 +665,96 @@ final GoRouter appRouter = GoRouter(
       path: '/filter',
       pageBuilder: (context, state) {
         return buildSlideTransitionPage(FilterScreen(), state);
+      },
+    ),
+
+    // ── SWA Dashboard ────────────────────────────────────────���───────────
+    GoRoute(
+      path: '/swa-dashboard/:listingId',
+      pageBuilder: (context, state) {
+        final listingId = state.pathParameters['listingId'] ?? '';
+        return buildSlideTransitionPage(
+          SWADashboardScreen(listingId: listingId),
+          state,
+        );
+      },
+    ),
+
+    // ── SWA Settings ────────────────────────────────────────────────────
+    GoRoute(
+      path: '/swa-settings/:listingId',
+      pageBuilder: (context, state) {
+        final listingId = state.pathParameters['listingId'] ?? '';
+        final config = state.extra as Map<String, dynamic>? ?? {};
+        return buildSlideTransitionPage(
+          SWASettingsScreen(listingId: listingId, currentConfig: config),
+          state,
+        );
+      },
+    ),
+
+    // ── SWA Conversation Detail ──────────────────────────────────────────
+    GoRoute(
+      path: '/swa-conversation/:conversationId',
+      pageBuilder: (context, state) {
+        final conversationId = state.pathParameters['conversationId'] ?? '';
+        return buildSlideTransitionPage(
+          SWAConversationScreen(conversationId: conversationId),
+          state,
+        );
+      },
+    ),
+
+    // ── SWA Wizard ──────────────────────────────────────────────────────
+    GoRoute(
+      path: '/swa-wizard-pricing',
+      pageBuilder: (context, state) {
+        final q = state.uri.queryParameters;
+        return buildSlideTransitionPage(
+          SWAPricingWizardScreen(
+            listingId: q['listingId'] ?? '',
+            listedPrice: int.tryParse(q['listedPrice'] ?? '0') ?? 0,
+            listingTitle: q['listingTitle'] ?? '',
+          ),
+          state,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/swa-wizard-availability',
+      pageBuilder: (context, state) {
+        final data = state.extra as Map<String, dynamic>? ?? {};
+        return buildSlideTransitionPage(
+          SWAAvailabilityWizardScreen(
+            listingId: data['listingId']?.toString() ?? '',
+            listingTitle: data['listingTitle']?.toString() ?? '',
+            listedPrice: data['listedPrice'] as int? ?? 0,
+            expectedPrice: data['expectedPrice'] as int? ?? 0,
+            floorPrice: data['floorPrice'] as int? ?? 0,
+          ),
+          state,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/swa-wizard-chatmode',
+      pageBuilder: (context, state) {
+        final data = state.extra as Map<String, dynamic>? ?? {};
+        return buildSlideTransitionPage(
+          SWAChatModeWizardScreen(
+            listingId: data['listingId']?.toString() ?? '',
+            listingTitle: data['listingTitle']?.toString() ?? '',
+            listedPrice: data['listedPrice'] as int? ?? 0,
+            expectedPrice: data['expectedPrice'] as int? ?? 0,
+            floorPrice: data['floorPrice'] as int? ?? 0,
+            availabilityWindow: data['availabilityWindow'] as int? ?? 30,
+            pickupSlots: (data['pickupSlots'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                ['morning'],
+          ),
+          state,
+        );
       },
     ),
 

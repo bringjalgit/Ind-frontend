@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geocoding/geocoding.dart' as geo;
+import 'package:classifieds/presentation/swa/widgets/SWAEnableCard.dart';
+import 'package:classifieds/services/AuthService.dart' as swa_auth;
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:classifieds/Components/CustomAppButton.dart';
@@ -667,6 +669,53 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             posted?.postedAt ?? _shortDate(listing.createdAt),
                         onViewProfile: () {},
                       ),
+                    ),
+                  ),
+
+                  // ===== SWA Enable Card / Dashboard link (seller's own listing only) =====
+                  SliverToBoxAdapter(
+                    child: FutureBuilder<String?>(
+                      future: swa_auth.AuthService.getId(),
+                      builder: (context, snap) {
+                        final currentUserId = snap.data;
+                        final sellerId = data.postedBy?.id?.toString();
+                        final isOwner = currentUserId != null &&
+                            sellerId != null &&
+                            currentUserId == sellerId;
+                        final isApproved = listing.status == 'approved';
+                        final isSold = listing.sold == true;
+                        final swaActive = listing.swaIsActive == true;
+
+                        if (!isOwner || !isApproved || isSold) {
+                          return const SizedBox.shrink();
+                        }
+
+                        // SWA already active → show dashboard link
+                        if (swaActive) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                            child: _SWADashboardLink(
+                              listingId: listing.id ?? '',
+                              isDark: ThemeHelper.isDarkMode(context),
+                            ),
+                          );
+                        }
+
+                        // SWA not active → show enable card
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                          child: SWAEnableCard(
+                            onEnableTap: () {
+                              context.push(
+                                '/swa-wizard-pricing'
+                                '?listingId=${listing.id}'
+                                '&listedPrice=${int.tryParse(listing.price?.toString() ?? '0') ?? 0}'
+                                '&listingTitle=${Uri.encodeComponent(listing.title ?? '')}',
+                              );
+                            },
+                          ),
+                        );
+                      },
                     ),
                   ),
 
@@ -1377,4 +1426,81 @@ String _shortDate(String? iso) {
   final d = DateTime.tryParse(iso);
   if (d == null) return "—";
   return DateFormat('dd/MM/yyyy').format(d.toLocal());
+}
+
+// ── SWA Dashboard Link (shown when SWA is already active) ─────────────
+class _SWADashboardLink extends StatelessWidget {
+  final String listingId;
+  final bool isDark;
+
+  const _SWADashboardLink({required this.listingId, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        context.push('/swa-dashboard/$listingId');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF0A1628), const Color(0xFF0F2847)]
+                : [const Color(0xFFEBF4FF), const Color(0xFFD6E8FF)],
+          ),
+          border: Border.all(
+            color: isDark
+                ? const Color(0xFF1677FF).withOpacity(0.3)
+                : const Color(0xFF1677FF).withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
+                ),
+              ),
+              child: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Smart Assist is Active',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0A1628),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'AI is handling buyer queries for this listing',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white54 : const Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

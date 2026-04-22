@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import 'package:classifieds/Components/CutomAppBar.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_cubit.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_states.dart';
@@ -7,6 +8,25 @@ import 'package:classifieds/model/TransectionHistoryModel.dart';
 import '../../Components/Shimmers.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../widgets/CommonLoader.dart';
+
+// L7 — Indian locale formatters shared across all transaction rows.
+// Dates render as "15 Mar 2024"; amounts as "₹1,00,000.00" using the
+// Indian lakh/crore grouping rather than the default 1,000,000.
+final _dateFmt = DateFormat('dd MMM yyyy');
+final _currencyFmt = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+
+String _formatDate(String? iso) {
+  if (iso == null || iso.isEmpty) return '—';
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return iso.split('T').first;
+  return _dateFmt.format(dt.toLocal());
+}
+
+String _formatAmount(dynamic amount) {
+  if (amount == null) return _currencyFmt.format(0);
+  final n = amount is num ? amount : (num.tryParse(amount.toString()) ?? 0);
+  return _currencyFmt.format(n);
+}
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -58,9 +78,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               return Center(child: Text(state.error));
             } else if (state is TransactionsLoaded ||
                 state is TransactionsLoadingMore) {
-              final model = (state as dynamic).transactionModel;
+              // M13 — typed pattern match instead of `(state as dynamic)`
+              // so a future state class with different field names fails
+              // at compile time, not at runtime NoSuchMethodError.
+              final TransectionHistoryModel model = state is TransactionsLoaded
+                  ? state.transactionModel
+                  : (state as TransactionsLoadingMore).transactionModel;
               final rows = model.data?.formattedRows ?? [];
-              final hasNextPage = (state as dynamic).hasNextPage;
+              final bool hasNextPage = state is TransactionsLoaded
+                  ? state.hasNextPage
+                  : (state as TransactionsLoadingMore).hasNextPage;
+              final bool isFetchingMore = state is TransactionsLoadingMore;
 
               if (rows.isEmpty) {
                 final textColor = ThemeHelper.textColor(context);
@@ -118,14 +146,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           if (index == rows.length) {
-                            return hasNextPage
-                                ? const Padding(
-                                    padding: EdgeInsets.all(16),
-                                    child: Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                  )
-                                : const SizedBox.shrink();
+                            // Spinner only while actively fetching the next
+                            // page; "more pages exist" alone is no longer
+                            // enough to show an indefinite loader.
+                            if (isFetchingMore) {
+                              return const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
                           }
                           final FormattedRows tx = rows[index];
                           final bool isSuccess =
@@ -155,7 +187,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                 children: [
                                   const SizedBox(height: 6),
                                   Text(
-                                    "Amount: \₹${tx.amountPaid ?? 0}",
+                                    "Amount: ${_formatAmount(tx.amountPaid)}",
                                     style: TextStyle(
                                       fontWeight: FontWeight.w700,
                                       color: ThemeHelper.textColor(
@@ -165,7 +197,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   ),
                                   if (tx.paidOn != null)
                                     Text(
-                                      "Paid on: ${tx.paidOn!.split("T").first}",
+                                      "Paid on: ${_formatDate(tx.paidOn)}",
                                       style: TextStyle(
                                         color: ThemeHelper.textColor(
                                           context,
@@ -175,7 +207,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                                   if (tx.startDate != null &&
                                       tx.endDate != null)
                                     Text(
-                                      "Valid: ${tx.startDate} → ${tx.endDate}",
+                                      "Valid: ${_formatDate(tx.startDate)} \u2192 ${_formatDate(tx.endDate)}",
                                       style: TextStyle(
                                         color: ThemeHelper.textColor(
                                           context,

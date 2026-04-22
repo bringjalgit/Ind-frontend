@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:classifieds/data/cubit/Aadhaar/aadhaar_repo.dart';
 import 'package:classifieds/data/cubit/Aadhaar/aadhaar_states.dart';
 import 'package:classifieds/data/remote_data_source.dart';
 import 'package:classifieds/model/AadhaarStatusModel.dart';
+import 'package:classifieds/utils/ImageUtils.dart';
 
 /// Cubit for the Aadhaar verification flow.
 ///
@@ -55,9 +57,28 @@ class AadhaarCubit extends Cubit<AadhaarState> {
     required String side, // 'front' | 'back'
     required ImageSource source,
   }) async {
-    final s = state;
-    if (s is! AadhaarLoaded) return;
-    if (!s.data.canSubmit) return; // can only upload in none|rejected
+    // M17 — accept entry from AadhaarLoaded OR AadhaarFailure (with data).
+    // Previously a failed upload parked the cubit in AadhaarFailure, and
+    // the early-return here meant the user had to leave + return to retry.
+    final entryState = state;
+    final AadhaarStatusData baseData;
+    String? initialFrontUrl;
+    String? initialBackUrl;
+    if (entryState is AadhaarLoaded) {
+      baseData = entryState.data;
+      initialFrontUrl = entryState.pendingFrontUrl;
+      initialBackUrl = entryState.pendingBackUrl;
+    } else if (entryState is AadhaarFailure && entryState.data != null) {
+      baseData = entryState.data!;
+      initialFrontUrl = entryState.pendingFrontUrl;
+      initialBackUrl = entryState.pendingBackUrl;
+    } else {
+      return;
+    }
+
+    // Guard against double-entry while an upload is in flight.
+    if (state is AadhaarUploading || state is AadhaarSubmitting) return;
+    if (!baseData.canSubmit) return; // only none|rejected can upload
 
     final XFile? picked = await _picker.pickImage(
       source: source,
@@ -66,34 +87,67 @@ class AadhaarCubit extends Cubit<AadhaarState> {
     );
     if (picked == null) return;
 
+    // M15 — compress locally before reading bytes + S3 PUT. A raw 12MP
+    // Aadhaar scan can exceed 5MB; compression brings it into a range
+    // that survives slow networks and doesn't OOM low-RAM Android.
+    File toUpload = File(picked.path);
+    try {
+      final compressed = await ImageUtils.compressImage(toUpload);
+      if (compressed != null) toUpload = compressed;
+    } catch (_) {
+      // Non-fatal — fall through with the original file.
+    }
+
     emit(AadhaarUploading(
-      s.data,
+      baseData,
       side,
-      pendingFrontUrl: s.pendingFrontUrl,
-      pendingBackUrl: s.pendingBackUrl,
+      pendingFrontUrl: initialFrontUrl,
+      pendingBackUrl: initialBackUrl,
     ));
 
     try {
-      final result = await repo.uploadImage(side: side, localPath: picked.path);
+      final result = await repo.uploadImage(side: side, localPath: toUpload.path);
       final fileUrl = result['file_url']!;
-      emit(s.copyWith(
-        pendingFrontUrl: side == 'front' ? fileUrl : s.pendingFrontUrl,
-        pendingBackUrl: side == 'back' ? fileUrl : s.pendingBackUrl,
+      // H7 — re-read state at emit time instead of using the captured
+      // `entryState` snapshot. If the other side completed during this
+      // call's async pick+upload window, its URL is already in state
+      // and we must merge against that, not the stale snapshot.
+      final now = state;
+      AadhaarStatusData currentData = baseData;
+      String? currentFront;
+      String? currentBack;
+      if (now is AadhaarLoaded) {
+        currentData = now.data;
+        currentFront = now.pendingFrontUrl;
+        currentBack = now.pendingBackUrl;
+      } else if (now is AadhaarUploading) {
+        currentData = now.data;
+        currentFront = now.pendingFrontUrl;
+        currentBack = now.pendingBackUrl;
+      } else if (now is AadhaarFailure && now.data != null) {
+        currentData = now.data!;
+        currentFront = now.pendingFrontUrl;
+        currentBack = now.pendingBackUrl;
+      }
+      emit(AadhaarLoaded(
+        currentData,
+        pendingFrontUrl: side == 'front' ? fileUrl : currentFront,
+        pendingBackUrl: side == 'back' ? fileUrl : currentBack,
       ));
     } on AadhaarException catch (e) {
       emit(AadhaarFailure(
         e.message,
         code: e.code,
-        data: s.data,
-        pendingFrontUrl: s.pendingFrontUrl,
-        pendingBackUrl: s.pendingBackUrl,
+        data: baseData,
+        pendingFrontUrl: initialFrontUrl,
+        pendingBackUrl: initialBackUrl,
       ));
     } catch (_) {
       emit(AadhaarFailure(
         'Upload failed. Please try again.',
-        data: s.data,
-        pendingFrontUrl: s.pendingFrontUrl,
-        pendingBackUrl: s.pendingBackUrl,
+        data: baseData,
+        pendingFrontUrl: initialFrontUrl,
+        pendingBackUrl: initialBackUrl,
       ));
     }
   }

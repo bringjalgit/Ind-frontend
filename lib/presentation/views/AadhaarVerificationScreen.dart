@@ -7,6 +7,7 @@ import 'package:classifieds/data/cubit/Aadhaar/aadhaar_states.dart';
 import 'package:classifieds/model/AadhaarStatusModel.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
+import 'widgets/kyc_status_card.dart';
 
 /// Aadhaar KYC verification screen (Phase 1).
 ///
@@ -108,13 +109,17 @@ class _AadhaarVerificationScreenState extends State<AadhaarVerificationScreen> {
             return const SizedBox.shrink();
           }
 
-          // Pending / approved → full-screen aurora card (no scroll view,
-          // no padding — the card paints the whole body area).
+          // Pending / approved → the A·Refined Dark KYC status card.
+          // Theme-adaptive (light + dark) via WizardTokens inside the
+          // widget, so nothing to pipe in from here.
           if (data.isApproved) {
-            return _ApprovedCard(textColor: textColor);
+            return const KycStatusCard(state: KycCardState.verified);
           }
           if (data.isPending) {
-            return _PendingCard(data: data, textColor: textColor);
+            return KycStatusCard(
+              state: KycCardState.review,
+              submittedAtIso: data.submittedAt,
+            );
           }
 
           // none / rejected → scrollable upload form. Paint a solid dark
@@ -161,7 +166,10 @@ class _AadhaarVerificationScreenState extends State<AadhaarVerificationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (data.isRejected && data.rejectionReason != null) ...[
+        // M17 — hide rejection banner while a re-submit is in flight.
+        // The user has clearly acted on the rejection; keeping the banner
+        // visible during AadhaarSubmitting / AadhaarUploading is confusing.
+        if (data.isRejected && data.rejectionReason != null && !isSubmitting) ...[
           _RejectionBanner(reason: data.rejectionReason!),
           const SizedBox(height: 16),
         ],
@@ -229,12 +237,13 @@ class _StepIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFF8B5CF6);
+    final isDark = ThemeHelper.isDarkMode(context);
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: accent.withOpacity(0.14),
+            color: accent.withOpacity(isDark ? 0.14 : 0.10),
             borderRadius: BorderRadius.circular(999),
             border: Border.all(color: accent.withOpacity(0.4), width: 1),
           ),
@@ -252,8 +261,10 @@ class _StepIndicator extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Step $step of $total — $label',
-                style: const TextStyle(
-                  color: Color(0xFFC4B5FD),
+                style: TextStyle(
+                  // Light-mode uses the deeper accent for readability; dark
+                  // keeps the soft lilac so it glows against the dark bg.
+                  color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF6D28D9),
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.2,
@@ -266,7 +277,7 @@ class _StepIndicator extends StatelessWidget {
         Expanded(
           child: Container(
             height: 1,
-            color: Colors.white.withOpacity(0.08),
+            color: (isDark ? Colors.white : Colors.black).withOpacity(0.08),
           ),
         ),
       ],
@@ -281,12 +292,13 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
     return Padding(
       padding: const EdgeInsets.only(left: 2),
       child: Text(
         text,
         style: TextStyle(
-          color: Colors.white.withOpacity(0.55),
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.55),
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.4,
@@ -309,12 +321,16 @@ class _GuidelinesCard extends StatelessWidget {
       'Avoid glare, shadows, and cropped edges.',
       'Images are used only for verification and stored securely.',
     ];
+    final isDark = ThemeHelper.isDarkMode(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        color: const Color(0xFF0D1220),
-        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+        color: isDark ? const Color(0xFF0D1220) : const Color(0xFFF8F9FB),
+        border: Border.all(
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.08),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -361,7 +377,8 @@ class _GuidelineBullet extends StatelessWidget {
           child: Text(
             text,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.82),
+              color: (ThemeHelper.isDarkMode(context) ? Colors.white : Colors.black)
+                  .withOpacity(0.82),
               fontSize: 13.5,
               height: 1.4,
             ),
@@ -379,23 +396,25 @@ class _FooterNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = Colors.white.withOpacity(0.5);
+    final isDark = ThemeHelper.isDarkMode(context);
+    final muted = (isDark ? Colors.white : Colors.black).withOpacity(0.5);
     return Column(
       children: [
         RichText(
           textAlign: TextAlign.center,
           text: TextSpan(
             style: TextStyle(color: muted, fontSize: 12, height: 1.4),
-            children: const [
-              TextSpan(text: 'Your KYC will be reviewed within '),
+            children: [
+              const TextSpan(text: 'Your KYC will be reviewed within '),
               TextSpan(
                 text: '48 hours',
                 style: TextStyle(
-                  color: Color(0xFFA78BFA),
+                  // Light mode: deeper purple for contrast; dark: lilac.
+                  color: isDark ? const Color(0xFFA78BFA) : const Color(0xFF6D28D9),
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              TextSpan(text: '.'),
+              const TextSpan(text: '.'),
             ],
           ),
         ),
@@ -486,11 +505,15 @@ class _UploadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Border: green tint when this side is done, otherwise a faint white
-    // hairline that blends into the dark card background.
+    final isDark = ThemeHelper.isDarkMode(context);
+    // Theme-adaptive colors. Light mode uses a soft cream card with faint
+    // black borders so the tile reads as a card on white; dark mode keeps
+    // the deep navy from the original design.
+    final cardBg = isDark ? const Color(0xFF0D1220) : const Color(0xFFF8F9FB);
+    final onCard = isDark ? Colors.white : Colors.black;
     final Color borderColor = isDone
         ? const Color(0xFF10B981).withOpacity(0.55)
-        : Colors.white.withOpacity(0.10);
+        : onCard.withOpacity(0.10);
 
     return Material(
       color: Colors.transparent,
@@ -500,7 +523,7 @@ class _UploadTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF0D1220),
+            color: cardBg,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: borderColor, width: 1.2),
           ),
@@ -542,8 +565,8 @@ class _UploadTile extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: onCard,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -556,7 +579,7 @@ class _UploadTile extends StatelessWidget {
                               ? 'Uploaded · Tap to replace'
                               : 'Tap to upload · JPG, PNG up to 5MB',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.55),
+                        color: onCard.withOpacity(0.55),
                         fontSize: 12,
                       ),
                     ),
@@ -577,7 +600,7 @@ class _UploadTile extends StatelessWidget {
               else
                 Icon(
                   Icons.chevron_right,
-                  color: Colors.white.withOpacity(0.4),
+                  color: onCard.withOpacity(0.4),
                   size: 22,
                 ),
             ],
@@ -598,6 +621,12 @@ class _SubmitButton extends StatelessWidget {
     // Ready to submit = both sides uploaded AND not already submitting.
     // Drives the gradient (full vs muted), the pulsing glow, and tappability.
     final ready = canSubmit && !isSubmitting;
+    final isDark = ThemeHelper.isDarkMode(context);
+    // Disabled state needs contrast against both dark and light backgrounds.
+    final disabledOverlay = (isDark ? Colors.white : Colors.black).withOpacity(0.06);
+    final disabledBorder = (isDark ? Colors.white : Colors.black).withOpacity(0.08);
+    // Label/icon color for the disabled state — readable on either bg.
+    final disabledText = isDark ? Colors.white : Colors.black;
 
     final button = Container(
       height: 54,
@@ -614,13 +643,10 @@ class _SubmitButton extends StatelessWidget {
                 ],
               )
             : null,
-        color: ready ? null : Colors.white.withOpacity(0.06),
+        color: ready ? null : disabledOverlay,
         border: ready
             ? null
-            : Border.all(
-                color: Colors.white.withOpacity(0.08),
-                width: 1,
-              ),
+            : Border.all(color: disabledBorder, width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -645,7 +671,11 @@ class _SubmitButton extends StatelessWidget {
                       Icon(
                         Icons.cloud_upload_outlined,
                         size: 19,
-                        color: Colors.white.withOpacity(ready ? 1.0 : 0.4),
+                        // Active state: always white over the gradient.
+                        // Disabled: themed so it reads on either bg.
+                        color: ready
+                            ? Colors.white
+                            : disabledText.withOpacity(0.4),
                       ),
                       const SizedBox(width: 10),
                       Text(
@@ -653,8 +683,9 @@ class _SubmitButton extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color:
-                              Colors.white.withOpacity(ready ? 1.0 : 0.4),
+                          color: ready
+                              ? Colors.white
+                              : disabledText.withOpacity(0.4),
                           letterSpacing: 0.2,
                         ),
                       ),
@@ -672,336 +703,9 @@ class _SubmitButton extends StatelessWidget {
   }
 }
 
-class _PendingCard extends StatelessWidget {
-  final AadhaarStatusData data;
-  final Color textColor;
-  const _PendingCard({required this.data, required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    // Dynamic progress based on time elapsed since submission.
-    // Target review window is 48 hours. Progress starts at 15%
-    // (acknowledgement of receipt) and grows linearly up to 95% at the
-    // 48h mark, where it caps. 100% only fires once the admin actually
-    // approves — that's handled by the verified state, not here.
-    double progress = 0.15;
-    if (data.submittedAt != null) {
-      final submittedAt = DateTime.tryParse(data.submittedAt!);
-      if (submittedAt != null) {
-        final elapsed = DateTime.now().difference(submittedAt.toLocal());
-        final fraction = (elapsed.inMinutes / (48 * 60)).clamp(0.0, 1.0);
-        progress = (0.15 + fraction * 0.80).clamp(0.15, 0.95);
-      }
-    }
-
-    return _NeumorphicStatusCard(
-      icon: Icons.hourglass_top,
-      accentColor: const Color(0xFFF97316), // orange-500
-      title: 'Under review',
-      description: 'Your KYC is being reviewed.\nApprox 48 hours.',
-      pillLabel: 'Reviewing…',
-      pillIcon: Icons.hourglass_top,
-      progress: progress,
-    );
-  }
-}
-
-class _ApprovedCard extends StatelessWidget {
-  final Color textColor;
-  const _ApprovedCard({required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return const _NeumorphicStatusCard(
-      icon: Icons.check,
-      accentColor: Color(0xFF10B981), // emerald-500
-      title: 'Verified!',
-      description: 'Your identity is confirmed.\nBadge added.',
-      pillLabel: 'Complete',
-      pillIcon: Icons.check,
-      progress: 1.0,
-    );
-  }
-}
-
-/// Neumorphic soft-UI status card — full screen, theme-adaptive, with
-/// raised circular icon, title + description, pill status, and a progress
-/// bar at the bottom.
-///
-/// Renders correctly in both light and dark themes because every color is
-/// derived from [ThemeHelper.isDarkMode]. The neumorphic dual-shadow
-/// effect works in both modes:
-///   - light: white highlight + grey-blue shadow on a soft grey canvas
-///   - dark:  subtle white highlight + black shadow on a dark slate canvas
-class _NeumorphicStatusCard extends StatelessWidget {
-  final IconData icon;
-  final Color accentColor;
-  final String title;
-  final String description;
-  final String pillLabel;
-  final IconData? pillIcon;
-  final double progress;
-
-  const _NeumorphicStatusCard({
-    required this.icon,
-    required this.accentColor,
-    required this.title,
-    required this.description,
-    required this.pillLabel,
-    required this.progress,
-    this.pillIcon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = ThemeHelper.isDarkMode(context);
-
-    // Neumorphic palette — single monochromatic base color with dual
-    // shadows painting the depth illusion. Tuned by hand for both modes.
-    final bg = isDark
-        ? const Color(0xFF1A1D2E) // dark slate
-        : const Color(0xFFE8EBF0); // soft grey-blue
-    final fg = isDark ? Colors.white : const Color(0xFF1F2937);
-    final fgMuted =
-        isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF6B7280);
-    final lightShadow = isDark
-        ? Colors.white.withOpacity(0.08)
-        : Colors.white;
-    final darkShadow = isDark
-        ? Colors.black.withOpacity(0.55)
-        : const Color(0xFFA3B1C6).withOpacity(0.65);
-    final trackColor = isDark
-        ? Colors.black.withOpacity(0.35)
-        : const Color(0xFFD1D9E6);
-
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: bg,
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 36),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _NeumorphicCircle(
-                bg: bg,
-                lightShadow: lightShadow,
-                darkShadow: darkShadow,
-                size: 148,
-                child: Icon(icon, size: 64, color: accentColor),
-              ),
-              const SizedBox(height: 40),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: fg,
-                  letterSpacing: 0.2,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                description,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.45,
-                  color: fgMuted,
-                ),
-              ),
-              const SizedBox(height: 32),
-              _NeumorphicPill(
-                label: pillLabel,
-                icon: pillIcon,
-                accentColor: accentColor,
-                bg: bg,
-                lightShadow: lightShadow,
-                darkShadow: darkShadow,
-              ),
-              const SizedBox(height: 36),
-              SizedBox(
-                width: double.infinity,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _NeumorphicProgressBar(
-                      progress: progress,
-                      accentColor: accentColor,
-                      trackColor: trackColor,
-                    ),
-                    const SizedBox(height: 10),
-                    Center(
-                      child: Text(
-                        '${(progress * 100).round()}% complete',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: progress >= 1.0 ? accentColor : fgMuted,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Raised neumorphic circle. Dual box-shadows create the illusion the
-/// circle is pushed out of the page.
-class _NeumorphicCircle extends StatelessWidget {
-  final Color bg;
-  final Color lightShadow;
-  final Color darkShadow;
-  final double size;
-  final Widget child;
-
-  const _NeumorphicCircle({
-    required this.bg,
-    required this.lightShadow,
-    required this.darkShadow,
-    required this.size,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bg,
-        boxShadow: [
-          // Dark shadow — bottom-right (simulates light coming from top-left)
-          BoxShadow(
-            color: darkShadow,
-            offset: const Offset(10, 10),
-            blurRadius: 24,
-          ),
-          // Light highlight — top-left
-          BoxShadow(
-            color: lightShadow,
-            offset: const Offset(-10, -10),
-            blurRadius: 24,
-          ),
-        ],
-      ),
-      child: Center(child: child),
-    );
-  }
-}
-
-/// Raised neumorphic pill — same dual-shadow treatment as the circle,
-/// smaller padding. Label is colored with the accent so it reads as a
-/// status indicator (orange for review, green for verified).
-class _NeumorphicPill extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  final Color accentColor;
-  final Color bg;
-  final Color lightShadow;
-  final Color darkShadow;
-
-  const _NeumorphicPill({
-    required this.label,
-    required this.accentColor,
-    required this.bg,
-    required this.lightShadow,
-    required this.darkShadow,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: darkShadow,
-            offset: const Offset(6, 6),
-            blurRadius: 14,
-          ),
-          BoxShadow(
-            color: lightShadow,
-            offset: const Offset(-6, -6),
-            blurRadius: 14,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18, color: accentColor),
-            const SizedBox(width: 8),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: accentColor,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Horizontal progress bar. Track is a darker/lighter variant of the
-/// scaffold bg to suggest a pressed-in look; the fill is the accent color.
-/// 10px tall, fully rounded. No animation for now — if you want the bar
-/// to smoothly fill when the state loads, wrap the fill container in a
-/// TweenAnimationBuilder<double> driving the widthFactor.
-class _NeumorphicProgressBar extends StatelessWidget {
-  final double progress;
-  final Color accentColor;
-  final Color trackColor;
-
-  const _NeumorphicProgressBar({
-    required this.progress,
-    required this.accentColor,
-    required this.trackColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 10,
-      decoration: BoxDecoration(
-        color: trackColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(999),
-        child: FractionallySizedBox(
-          alignment: Alignment.centerLeft,
-          widthFactor: progress.clamp(0.0, 1.0),
-          heightFactor: 1.0,
-          child: Container(
-            decoration: BoxDecoration(
-              color: accentColor,
-              borderRadius: BorderRadius.circular(999),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// _PendingCard + _ApprovedCard + _Neumorphic* suite REMOVED 2026-04-21.
+// Replaced by `KycStatusCard` at presentation/views/widgets/kyc_status_card.dart
+// (A·Refined Dark design, theme-adaptive via WizardTokens).
 
 
 class _RejectionBanner extends StatelessWidget {

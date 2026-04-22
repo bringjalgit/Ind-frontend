@@ -15,7 +15,10 @@ class LogInwithMobileCubit extends Cubit<LogInWithMobileState> {
       if (response != null && response.success == true) {
         emit(LogInwithMobileSuccess(response));
       } else {
-        emit(LogInwithMobileFailure("${response?.message ?? ''}"));
+        emit(LogInwithMobileFailure(
+          "${response?.message ?? ''}",
+          retryAfterSec: response?.retryAfterSec,
+        ));
       }
     } catch (e) {
       emit(LogInwithMobileFailure(e.toString()));
@@ -47,7 +50,10 @@ class LogInwithMobileCubit extends Cubit<LogInWithMobileState> {
       if (response != null && response.success == true) {
         emit(LogInwithEmailSuccess(response));
       } else {
-        emit(LogInwithMobileFailure("${response?.message ?? ''}"));
+        emit(LogInwithMobileFailure(
+          "${response?.message ?? ''}",
+          retryAfterSec: response?.retryAfterSec,
+        ));
       }
     } catch (e) {
       emit(LogInwithMobileFailure(e.toString()));

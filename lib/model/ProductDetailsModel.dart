@@ -83,6 +83,7 @@ class Listing {
   String? city_name;
   String? state_name;
   bool? sold;
+  bool? swaIsActive;
   int? stateId;
   int? cityId;
   String? createdAt;
@@ -107,6 +108,7 @@ class Listing {
     this.isFavorited,
     this.status,
     this.sold,
+    this.swaIsActive,
     this.stateId,
     this.cityId,
     this.createdAt,
@@ -134,6 +136,7 @@ class Listing {
     isFavorited = json['is_favorited'];
     status = json['status'];
     sold = json['sold'];
+    swaIsActive = json['sell_with_ai_config']?['is_active'] == true;
     stateId = json['state_id'];
     cityId = json['city_id'];
     createdAt = json['created_at'];

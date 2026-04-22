@@ -25,14 +25,25 @@ class DeleteAccountConfirmation {
             return BlocConsumer<DeleteAccountCubit, DeleteAccountStates>(
               listener: (context, state) async {
                 if (state is DeleteAccountLoaded) {
+                  // H9 — show success message BEFORE navigating. Routing
+                  // with context.go tears down the bottom-sheet's context,
+                  // so a snackbar called after navigation is painted
+                  // against a deactivated widget (silent failure or
+                  // "Looking up deactivated widget" exception).
+                  final message = state.successModel.message?.trim().isNotEmpty == true
+                      ? state.successModel.message!
+                      : 'Your account has been deleted.';
+                  CustomSnackBar1.show(context, message);
                   await AuthService.logout();
+                  if (!context.mounted) return;
                   context.go('/login');
-                  CustomSnackBar1.show(
-                    context,
-                    state.successModel.message ?? '',
-                  );
                 } else if (state is DeleteAccountFailure) {
-                  CustomSnackBar1.show(context, state.error ?? '');
+                  // L6 — default message so users hitting a genuine
+                  // failure see something actionable instead of blank.
+                  final msg = state.error.isNotEmpty
+                      ? state.error
+                      : 'Could not delete account. Please try again.';
+                  CustomSnackBar1.show(context, msg);
                 }
               },
               builder: (context, state) {

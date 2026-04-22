@@ -26,6 +26,10 @@ class ProductsCubit extends Cubit<ProductsStates> {
   String? _lastMaxPrice;
   String? _lastLocationKey;
 
+  // Exposed for BlocListener<LocationCubit> on Home/HoliHome so it can
+  // skip redundant refetches when LocationCubit re-emits the same latlng.
+  String? get lastLocationKey => _lastLocationKey;
+
   // ==========================================================
   // 🔹 INITIAL LOAD / REFRESH
   // ==========================================================

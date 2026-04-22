@@ -511,6 +511,25 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.all(10.0),
             child: Column(
               children: [
+                // SWA status banner. Backend surfaces
+                // `data.conversation_status` on every getChatMessages
+                // response (null when the thread is pure P2P). Banner
+                // informs the user which mode the thread is in — AI
+                // active, seller has taken over, deal accepted, etc.
+                // Renders nothing when status is null or 'active'
+                // (the default happy path shouldn't shout about itself).
+                BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
+                  buildWhen: (p, c) => c is ChatMessagesLoaded || c is ChatMessagesLoadingMore,
+                  builder: (context, state) {
+                    String? status;
+                    if (state is ChatMessagesLoaded) {
+                      status = state.chatMessages.data?.conversationStatus;
+                    } else if (state is ChatMessagesLoadingMore) {
+                      status = state.chatMessages.data?.conversationStatus;
+                    }
+                    return _SwaStatusBanner(status: status);
+                  },
+                ),
                 Expanded(
                   child: MultiBlocListener(
                     listeners: [
@@ -960,6 +979,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(BuildContext context, Messages msg, bool isMe) {
+    // SWA system messages get special styling
+    if (msg.isSystemMessage && msg.swaType != null) {
+      return _buildSwaBubble(context, msg);
+    }
+
     final bubbleColor = isMe ? _meBubble(context) : _otherBubble(context);
     final bodyText = AppTextStyles.bodyMedium(ThemeHelper.textColor(context));
     final timeText = AppTextStyles.labelSmall(
@@ -1003,6 +1027,85 @@ class _ChatScreenState extends State<ChatScreen> {
                     fit: BoxFit.cover,
                   ),
                 ),
+              const SizedBox(height: 4),
+              Text(msg.formattedTime, style: timeText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── SWA bubble — AI-generated responses shown to buyer ─────────────
+  Widget _buildSwaBubble(BuildContext context, Messages msg) {
+    final isDark = ThemeHelper.isDarkMode(context);
+    final textColor = ThemeHelper.textColor(context);
+    final timeText = AppTextStyles.labelSmall(textColor.withOpacity(.6));
+    final swaType = msg.swaType ?? '';
+
+    Color bubbleColor;
+    Color? borderColor;
+    Color contentColor = textColor;
+    Widget? leadingIcon;
+
+    if (swaType == 'offer_accepted') {
+      // Deal reached — green
+      bubbleColor = isDark ? const Color(0xFF1A3A2A) : const Color(0xFFDCFCE7);
+      borderColor = const Color(0xFF22C55E);
+      contentColor = const Color(0xFF22C55E);
+    } else if (swaType == 'offer_response' && msg.decision == 'AUTO_COUNTER') {
+      // Counter offer — yellow
+      bubbleColor = isDark ? const Color(0xFF3D3418) : const Color(0xFFFEF9C3);
+      borderColor = const Color(0xFFFFD600);
+    } else if (swaType == 'offer_response' &&
+        (msg.decision == 'AUTO_DECLINE' || msg.decision == 'ROUND_CAP_EXHAUSTED')) {
+      // Decline — red
+      bubbleColor = isDark ? const Color(0xFF3A1F1F) : const Color(0xFFFEE2E2);
+      borderColor = const Color(0xFFEF4444);
+    } else {
+      // Auto-reply (pill_response, keyword_chat_response, etc.) — blue tint
+      bubbleColor = isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF);
+      leadingIcon = Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Icon(Icons.flash_on_rounded, size: 14, color: isDark ? const Color(0xFF4D9FFF) : const Color(0xFF1677FF)),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+              bottomLeft: Radius.circular(4),
+              bottomRight: Radius.circular(16),
+            ),
+            border: borderColor != null ? Border.all(color: borderColor, width: 1) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (leadingIcon != null) leadingIcon,
+                  Expanded(
+                    child: Text(
+                      msg.message ?? '',
+                      style: AppTextStyles.bodyMedium(contentColor).copyWith(
+                        fontSize: 15,
+                        fontWeight: (swaType == 'offer_accepted') ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 4),
               Text(msg.formattedTime, style: timeText),
             ],
@@ -1116,5 +1219,171 @@ class _SafetyBanner extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SWA status banner
+//
+// Renders a compact strip at the top of the chat thread that tells the
+// user what mode the conversation is in. Driven by `conversation_status`
+// from the unified getChatMessages response. The default/`active`
+// state and pure-P2P (null) threads show nothing — the banner only
+// appears when something worth surfacing has happened.
+//
+// Copy is intentionally neutral so the same string works for both
+// buyer and seller; the distinction doesn't add meaningful info (both
+// parties know who took over).
+// ─────────────────────────────────────────────────────────────────────
+class _SwaStatusBanner extends StatelessWidget {
+  final String? status;
+  const _SwaStatusBanner({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = _copyFor(status);
+    if (copy == null) return const SizedBox.shrink();
+
+    final isDark = ThemeHelper.isDarkMode(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: copy.bg(isDark),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: copy.border(isDark)),
+      ),
+      child: Row(
+        children: [
+          Icon(copy.icon, size: 18, color: copy.iconColor(isDark)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  copy.title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF0A1628),
+                  ),
+                ),
+                if (copy.subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    copy.subtitle!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white70 : const Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static _BannerCopy? _copyFor(String? s) {
+    switch (s) {
+      case 'seller_takeover':
+        return _BannerCopy(
+          title: 'Seller is handling this conversation',
+          subtitle: 'Smart Assist has paused — messages go directly to the seller.',
+          icon: Icons.pause_circle_outline_rounded,
+          tone: _BannerTone.info,
+        );
+      case 'pending_acceptance':
+        return _BannerCopy(
+          title: 'Offer pending confirmation',
+          subtitle: 'Waiting for the buyer to confirm — auto-promotes in 15 min.',
+          icon: Icons.hourglass_top_rounded,
+          tone: _BannerTone.pending,
+        );
+      case 'accepted':
+        return _BannerCopy(
+          title: 'Deal confirmed',
+          subtitle: 'Coordinate pickup in chat. Smart Assist has stepped aside.',
+          icon: Icons.check_circle_outline_rounded,
+          tone: _BannerTone.success,
+        );
+      case 'completed':
+        return _BannerCopy(
+          title: 'Deal completed',
+          icon: Icons.verified_rounded,
+          tone: _BannerTone.success,
+        );
+      case 'declined':
+        return _BannerCopy(
+          title: 'Conversation declined',
+          subtitle: 'This offer is closed.',
+          icon: Icons.cancel_outlined,
+          tone: _BannerTone.warn,
+        );
+      case 'expired':
+        return _BannerCopy(
+          title: 'Conversation ended',
+          subtitle: 'This listing is no longer active.',
+          icon: Icons.history_toggle_off_rounded,
+          tone: _BannerTone.warn,
+        );
+      case 'legal_hold':
+        return _BannerCopy(
+          title: 'Under review',
+          subtitle: 'This conversation is temporarily paused pending review.',
+          icon: Icons.gpp_maybe_outlined,
+          tone: _BannerTone.warn,
+        );
+      // 'active' and null → no banner
+      default:
+        return null;
+    }
+  }
+}
+
+enum _BannerTone { info, pending, success, warn }
+
+class _BannerCopy {
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final _BannerTone tone;
+  _BannerCopy({required this.title, this.subtitle, required this.icon, required this.tone});
+
+  Color bg(bool isDark) {
+    switch (tone) {
+      case _BannerTone.info:
+        return isDark ? const Color(0xFF0F2847) : const Color(0xFFEBF4FF);
+      case _BannerTone.pending:
+        return isDark ? const Color(0xFF3A2B0A) : const Color(0xFFFFF4E0);
+      case _BannerTone.success:
+        return isDark ? const Color(0xFF0E2E18) : const Color(0xFFE6F6EA);
+      case _BannerTone.warn:
+        return isDark ? const Color(0xFF3A1212) : const Color(0xFFFDE8E8);
+    }
+  }
+  Color border(bool isDark) {
+    switch (tone) {
+      case _BannerTone.info:
+        return const Color(0xFF1677FF).withOpacity(isDark ? 0.35 : 0.25);
+      case _BannerTone.pending:
+        return const Color(0xFFD97706).withOpacity(isDark ? 0.35 : 0.25);
+      case _BannerTone.success:
+        return const Color(0xFF16A34A).withOpacity(isDark ? 0.35 : 0.25);
+      case _BannerTone.warn:
+        return const Color(0xFFDC2626).withOpacity(isDark ? 0.35 : 0.25);
+    }
+  }
+  Color iconColor(bool isDark) {
+    switch (tone) {
+      case _BannerTone.info:    return const Color(0xFF1677FF);
+      case _BannerTone.pending: return const Color(0xFFD97706);
+      case _BannerTone.success: return const Color(0xFF16A34A);
+      case _BannerTone.warn:    return const Color(0xFFDC2626);
+    }
   }
 }

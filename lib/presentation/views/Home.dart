@@ -243,12 +243,13 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                         result.latlng,
                       );
 
-                      // Convert latlng to locationKey
-                      final locationKey = "${result.latlng},${result.latlng}";
-
-                      // Fetch products based on location
+                      // LocationCubit stored latlng is already in "lat, lng"
+                      // format — backend's location_key param expects the
+                      // same shape. No duplication needed; the prior
+                      // "$latlng,$latlng" concatenation was harmless only
+                      // because the backend split took the first 2 items.
                       context.read<ProductsCubit>().getProducts(
-                        locationKey: locationKey,
+                        locationKey: result.latlng,
                       );
                     }
                   },
@@ -314,7 +315,20 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           // ),
         ],
       ),
-      body: BlocBuilder<DashboardCubit, DashBoardState>(
+      body: BlocListener<LocationCubit, LocationState>(
+        // Auto-refresh LISTINGS ONLY when LocationCubit emits a different
+        // latlng than what ProductsCubit last fetched with. Banners and
+        // categories are location-independent, so no need to reload them.
+        listenWhen: (prev, curr) => curr is LocationLoaded,
+        listener: (context, state) {
+          if (state is LocationLoaded) {
+            final productsCubit = context.read<ProductsCubit>();
+            if (productsCubit.lastLocationKey != state.latlng) {
+              productsCubit.getProducts(locationKey: state.latlng);
+            }
+          }
+        },
+        child: BlocBuilder<DashboardCubit, DashBoardState>(
         builder: (context, state) {
           if (state is DashBoardLoading) {
             return const HomeShimmerLoader();
@@ -839,6 +853,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
           }
           return Center(child: Text("No Data Found!"));
         },
+        ),
       ),
     );
   }

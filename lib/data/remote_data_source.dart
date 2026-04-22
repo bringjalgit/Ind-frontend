@@ -378,9 +378,30 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('verifyOTP:${response.data}');
       return AdSuccessModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body (INVALID_OTP, RATE_LIMITED locked-out,
+      // EMAIL_IN_USE at commit time) so Profile email-verify shows the real reason.
+      AppLogger.error('verifyOTP dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return AdSuccessModel.fromJson(e.response!.data);
+        } catch (_) {}
+      }
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // so the user sees "No internet connection" rather than a generic
+      // "Failed to verify OTP" fallback.
+      return AdSuccessModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('verifyOTP :: $e');
-      return null;
+      return AdSuccessModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 
@@ -393,9 +414,30 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('sendOTP:${response.data}');
       return AdSuccessModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body (RATE_LIMITED, USER_NOT_FOUND) so the
+      // Profile email-verify screen shows the real reason.
+      AppLogger.error('sendOTP dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return AdSuccessModel.fromJson(e.response!.data);
+        } catch (_) {}
+      }
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // so the user sees "No internet connection" rather than a generic
+      // "Failed to send OTP" fallback.
+      return AdSuccessModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('sendOTP :: $e');
-      return null;
+      return AdSuccessModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 
@@ -413,14 +455,22 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       if (e.response?.data is Map<String, dynamic>) {
         try {
           return VerifyOtpModel.fromJson(e.response!.data);
-        } catch (_) {
-          return null;
-        }
+        } catch (_) {}
       }
-      return null;
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // so the user sees "No internet connection" rather than a blank snackbar.
+      return VerifyOtpModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('verifyEmailOtp :: $e');
-      return null;
+      return VerifyOtpModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 
@@ -438,14 +488,23 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       if (e.response?.data is Map<String, dynamic>) {
         try {
           return SendOtpModel.fromJson(e.response!.data);
-        } catch (_) {
-          return null;
-        }
+        } catch (_) {}
       }
-      return null;
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // so the user sees "No internet connection" rather than a bogus
+      // "not registered" dialog from the downstream screen.
+      return SendOtpModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('SendEmailOtp :: $e');
-      return null;
+      return SendOtpModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 
@@ -550,6 +609,18 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('deleteAccount:${response.data}');
       return AdSuccessModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body so delete UX shows real reason
+      // (rate-limited, session expired, etc.) instead of blank snackbar.
+      AppLogger.error('deleteAccount dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return AdSuccessModel.fromJson(e.response!.data);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       AppLogger.error('deleteAccount :: $e');
       return null;
@@ -611,6 +682,18 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('register:${response.data}');
       return AdSuccessModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body (EMAIL_IN_USE, TOKEN_MISSING, etc.)
+      // so the Register screen shows the real reason instead of a blank snackbar.
+      AppLogger.error('register dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return AdSuccessModel.fromJson(e.response!.data);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       AppLogger.error('register :: $e');
       return null;
@@ -640,6 +723,18 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('getTransections :${response.data}');
       return TransectionHistoryModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body so transactions screen can show
+      // real reason (session expired, rate-limited, pagination out-of-range).
+      AppLogger.error('getTransections dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return TransectionHistoryModel.fromJson(e.response!.data);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       AppLogger.error('getTransections :: $e');
       return null;
@@ -796,6 +891,19 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('updateProfileDetails:${response.data}');
       return AdSuccessModel.fromJson(response.data);
+    } on DioException catch (e) {
+      // Preserve backend error body (EMAIL_IN_USE, RATE_LIMITED, validation
+      // errors) so the UpdateProfile screen can show the real reason
+      // instead of a blank "Update failed" snackbar.
+      AppLogger.error('updateProfileDetails dio: ${e.response?.statusCode} ${e.response?.data}');
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return AdSuccessModel.fromJson(e.response!.data);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       AppLogger.error('updateProfileDetails :: $e');
       return null;
@@ -810,6 +918,18 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       );
       AppLogger.log('getProfileDetails:${response.data}');
       return ProfileModel.fromJson(response.data);
+    } on DioException catch (e) {
+      AppLogger.error('getProfileDetails dio: ${e.response?.statusCode} ${e.response?.data}');
+      // Parse backend error shape so cubit can surface real messages
+      // (session-expired, blocked, etc.) instead of silent nulls.
+      if (e.response?.data is Map<String, dynamic>) {
+        try {
+          return ProfileModel.fromJson(e.response!.data);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
     } catch (e) {
       AppLogger.error('getProfileDetails :: $e');
       return null;
@@ -1047,14 +1167,23 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       if (e.response?.data is Map<String, dynamic>) {
         try {
           return SendOtpModel.fromJson(e.response!.data);
-        } catch (_) {
-          return null;
-        }
+        } catch (_) {}
       }
-      return null;
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // instead of nulling out so the user sees "No internet connection"
+      // rather than a blank snackbar.
+      return SendOtpModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('Send Mobile OTP :: $e');
-      return null;
+      return SendOtpModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 
@@ -1076,14 +1205,22 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       if (e.response?.data is Map<String, dynamic>) {
         try {
           return VerifyOtpModel.fromJson(e.response!.data);
-        } catch (_) {
-          return null;
-        }
+        } catch (_) {}
       }
-      return null;
+      // Network / TLS / timeout — no response body. Surface Dio's reason
+      // so the user sees "No internet connection" rather than a blank snackbar.
+      return VerifyOtpModel(
+        success: false,
+        message: e.message?.isNotEmpty == true
+            ? e.message!
+            : 'Network error. Please check your connection.',
+      );
     } catch (e) {
       AppLogger.error('verify Mobile OTP :: $e');
-      return null;
+      return VerifyOtpModel(
+        success: false,
+        message: 'Network error. Please try again.',
+      );
     }
   }
 

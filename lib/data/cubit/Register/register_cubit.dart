@@ -13,10 +13,18 @@ class RegisterCubit extends Cubit<RegisterStates> {
       if (response != null && response.success == true) {
         emit(RegisterLoaded(response));
       } else {
-        emit(RegisterFailure(response?.message ?? ""));
+        // Default to a user-readable message when the backend didn't send
+        // one (e.g. response body couldn't be parsed). Empty strings used
+        // to surface as blank snackbars with no explanation.
+        emit(RegisterFailure(
+          response?.message?.trim().isNotEmpty == true
+              ? response!.message!
+              : 'Something went wrong. Please try again.',
+        ));
       }
-    } catch (e) {
-      emit(RegisterFailure(e.toString()));
+    } catch (_) {
+      // Never show raw stack-trace-like exception text to end users.
+      emit(RegisterFailure('Something went wrong. Please try again.'));
     }
   }
 }

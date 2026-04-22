@@ -18,6 +18,10 @@ class VerifyOtpModel {
   int? accessTokenExpiry;
   bool? newUser;
   User? user;
+  // Populated from backend's { retry_after_sec } on a 429 RATE_LIMITED.
+  // OTPScreen reads this to disable the Verify button + drive a countdown
+  // until the window closes.
+  int? retryAfterSec;
 
   VerifyOtpModel({
     this.success,
@@ -30,6 +34,7 @@ class VerifyOtpModel {
     this.user,
     this.id,
     this.recoveryToken,
+    this.retryAfterSec,
   });
 
   /// Factory method to handle both String and Map inputs
@@ -55,6 +60,9 @@ class VerifyOtpModel {
     refreshTokenExpiry = json['refreshTokenExpiry'];
     newUser = json['new_user'];
     user = json['user'] != null ? User.fromJson(json['user']) : null;
+    retryAfterSec = (json['retry_after_sec'] is num)
+        ? (json['retry_after_sec'] as num).toInt()
+        : int.tryParse(json['retry_after_sec']?.toString() ?? '');
   }
 
   Map<String, dynamic> toJson() {
