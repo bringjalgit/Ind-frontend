@@ -36,6 +36,7 @@ import '../../widgets/CommonTextField.dart';
 import '../../widgets/CommonWrapChipSelector.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class CarsAd extends StatefulWidget {
   final String catId;
@@ -591,7 +592,11 @@ class _CarsAdState extends State<CarsAd> {
                       if (updateState is MarkAsListingSuccess ||
                           updateState is MarkAsListingUpdateSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been updated successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.updated(
+                            listingTitle: titleController.text.trim(),
+                            listingCategory: 'Cars',
+                          ),
                         );
                       } else if (updateState is MarkAsListingFailure) {
                         CustomSnackBar1.show(context, updateState.error);
@@ -602,7 +607,14 @@ class _CarsAdState extends State<CarsAd> {
                         listener: (context, state) {
                           if (state is CarsAdSuccess) {
                             context.pushReplacement(
-                              "/successfully?title=Your ad has been Added successfully",
+                              '/listing-success',
+                              extra: SuccessRecapData.posted(
+                                listingTitle: titleController.text.trim(),
+                                listingPrice: priceController.text.trim(),
+                                listingCategory: 'Cars',
+                                planName: planController.text.trim(),
+                                durationDays: 30,
+                              ),
                             );
                           } else if (state is CarsAdFailure) {
                             CustomSnackBar1.show(context, state.error);

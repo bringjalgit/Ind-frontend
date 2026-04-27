@@ -1,8 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:classifieds/services/ApiClient.dart';
 import 'package:classifieds/services/api_endpoint_urls.dart';
+import 'package:classifieds/data/cubit/MyAds/my_ads_cubit.dart';
 import 'widgets/wizard_theme.dart';
+import 'widgets/SwaActivatedSheet.dart';
 
 /// S4 — SWA Wizard Step 3: Chat Mode + Activate.
 ///
@@ -69,7 +73,7 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
   /// Translates backend error codes to user-friendly copy. Kept
   /// character-for-character from the pre-redesign screen so every
   /// server-side error still gets its tailored message.
-  String _friendlyError(String? code, String? raw) {
+  String _friendlyError(String? code, String? raw, {String? matchedKeyword}) {
     switch (code) {
       case 'TOGGLE_RATE_LIMITED':
         return 'You\'ve made too many changes today. Please try again after 24 hours.';
@@ -86,7 +90,7 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
       case 'SLOTS_INVALID':
         return 'Please select valid pickup time slots.';
       case 'WINDOW_INVALID':
-        return 'Availability window must be between 3 and 90 days.';
+        return 'Availability window must be between 3 and 30 days.';
       case 'CHAT_MODE_INVALID':
         return 'Please select a valid chat mode.';
       case 'CATEGORY_NOT_SUPPORTED':
@@ -94,6 +98,15 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
       case 'PRICE_NOT_ELIGIBLE':
         return 'Smart Assist requires a listing price of at least ₹500.';
       case 'CONTRABAND_SUSPECTED':
+        // Surface the specific keyword when the backend provides one
+        // so the seller knows exactly what to edit. Falls back to the
+        // generic copy when the response body omits matched_keyword
+        // (older backend or keyword couldn't be pinpointed).
+        if (matchedKeyword != null && matchedKeyword.isNotEmpty) {
+          return 'Your listing text includes "$matchedKeyword" which '
+              'can\'t be used with Smart Assist. Please edit your '
+              'title or description and try again.';
+        }
         return 'Your listing contains content that can\'t be used with Smart Assist. Please review your title and description.';
       case 'NOT_FOUND':
         return 'Listing not found. It may have been deleted.';
@@ -137,24 +150,44 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
       debugPrint('🟢 ${res.statusCode} ${res.data}');
       if (!mounted) return;
       if (res.statusCode == 200 && res.data?['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Smart Assist activated! 🎉'),
-            backgroundColor: const Color(0xFF22C55E),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
+        // Show the production-grade success sheet (Option B from the
+        // design picker) instead of the small floating snackbar.
+        // Both CTAs pop the wizard's three nested routes back to the
+        // listing detail screen — this preserves the legacy navigation
+        // behaviour. A future change can route "View Dashboard" to the
+        // SWA dashboard directly.
+        await SwaActivatedSheet.show(
+          context,
+          listingTitle: widget.listingTitle,
+          chatMode: _selectedMode,
+          expectedPrice: widget.expectedPrice,
+          floorPrice: widget.floorPrice,
+          availabilityWindow: widget.availabilityWindow,
+          onViewDashboard: () {
+            if (!mounted) return;
+            // Refresh approved listings so the newly-SWA-activated
+            // listing reflects its new state on the My Ads tab.
+            try {
+              context.read<MyAdsCubit>().getMyAds('approved');
+            } catch (_) {
+              // Cubit not in scope — non-fatal; AdsScreen fetches on
+              // its own when the tab is opened.
+            }
+            // Dashboard tab 1 = AdsScreen (My Ads).
+            context.go('/dashboard?tab=1');
+          },
+          onBackToListing: () {
+            if (!mounted) return;
+            // Dashboard tab 0 = HoliHomeScreen (Home).
+            context.go('/dashboard?tab=0');
+          },
         );
-        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
       } else {
         setState(() {
           _errorMessage = _friendlyError(
             res.data?['code'],
             res.data?['message'],
+            matchedKeyword: res.data?['matched_keyword']?.toString(),
           );
         });
       }
@@ -164,8 +197,11 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
       final data = e.response?.data;
       if (data is Map<String, dynamic>) {
         setState(() {
-          _errorMessage =
-              _friendlyError(data['code']?.toString(), data['message']?.toString());
+          _errorMessage = _friendlyError(
+            data['code']?.toString(),
+            data['message']?.toString(),
+            matchedKeyword: data['matched_keyword']?.toString(),
+          );
         });
       } else {
         setState(() {

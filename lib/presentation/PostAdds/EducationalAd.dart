@@ -34,6 +34,7 @@ import '../../widgets/CommonLoader.dart';
 import '../../widgets/CommonTextField.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class EducationalAd extends StatefulWidget {
   final String catId;
@@ -517,7 +518,11 @@ class _EducationalAdState extends State<EducationalAd> {
                       if (updateState is MarkAsListingSuccess ||
                           updateState is MarkAsListingUpdateSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been updated successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.updated(
+                            listingTitle: titleController.text.trim(),
+                            listingCategory: 'Education',
+                          ),
                         );
                       } else if (updateState is MarkAsListingFailure) {
                         CustomSnackBar1.show(context, updateState.error);
@@ -528,7 +533,14 @@ class _EducationalAdState extends State<EducationalAd> {
                         listener: (context, state) async {
                           if (state is EducationAdSuccess) {
                             context.pushReplacement(
-                              "/successfully?title=Your ad has been Added successfully",
+                              '/listing-success',
+                              extra: SuccessRecapData.posted(
+                                listingTitle: titleController.text.trim(),
+                                listingPrice: priceController.text.trim(),
+                                listingCategory: 'Education',
+                                planName: planController.text.trim(),
+                                durationDays: 30,
+                              ),
                             );
                             if (isEligibleForFree) {
                               final plan = await context

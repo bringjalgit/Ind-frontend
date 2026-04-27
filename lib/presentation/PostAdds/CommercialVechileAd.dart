@@ -38,6 +38,7 @@ import '../../widgets/CommonTextField.dart';
 import '../../widgets/CommonWrapChipSelector.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class CommercialVehicleAd extends StatefulWidget {
   final String catId;
@@ -528,7 +529,11 @@ class _CommercialVehicleAdState extends State<CommercialVehicleAd> {
                       if (updateState is MarkAsListingSuccess ||
                           updateState is MarkAsListingUpdateSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been updated successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.updated(
+                            listingTitle: titleController.text.trim(),
+                            listingCategory: 'Commercial Vehicles',
+                          ),
                         );
                       } else if (updateState is MarkAsListingFailure) {
                         CustomSnackBar1.show(context, updateState.error);
@@ -542,7 +547,14 @@ class _CommercialVehicleAdState extends State<CommercialVehicleAd> {
                         listener: (context, state) {
                           if (state is CommercialVehileAdSuccess) {
                             context.pushReplacement(
-                              "/successfully?title=Your ad has been Added successfully",
+                              '/listing-success',
+                              extra: SuccessRecapData.posted(
+                                listingTitle: titleController.text.trim(),
+                                listingPrice: priceController.text.trim(),
+                                listingCategory: 'Commercial Vehicles',
+                                planName: planController.text.trim(),
+                                durationDays: 30,
+                              ),
                             );
                           } else if (state is CommercialVehileAdFailure) {
                             CustomSnackBar1.show(context, state.error);

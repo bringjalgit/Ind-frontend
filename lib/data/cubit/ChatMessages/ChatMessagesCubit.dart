@@ -31,10 +31,29 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
           pageAsc.reversed,
         ); // ← flip page
 
+        // Preserve all SWA bleed-through fields from the network response
+        // (conversationId, conversationStatus, chatModeSnapshot,
+        // pendingAcceptanceExpiresAt, currentOffer, counterOffer,
+        // agreedPrice). Constructing Data() with only friend + messages
+        // — as the old code did — silently dropped the entire SWA state
+        // block the backend had already populated.
         chatMessagesModel = ChatMessagesModel(
           success: res.success,
           message: res.message,
-          data: Data(friend: res.data?.friend, messages: newestFirst),
+          data: Data(
+            friend: res.data?.friend,
+            listing: res.data?.listing,
+            messages: newestFirst,
+            conversationId: res.data?.conversationId,
+            conversationStatus: res.data?.conversationStatus,
+            chatModeSnapshot: res.data?.chatModeSnapshot,
+            pendingAcceptanceExpiresAt:
+                res.data?.pendingAcceptanceExpiresAt,
+            currentOffer: res.data?.currentOffer,
+            counterOffer: res.data?.counterOffer,
+            agreedPrice: res.data?.agreedPrice,
+            initialPills: res.data?.initialPills,
+          ),
           settings: res.settings,
         );
 
@@ -82,12 +101,35 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
           if (seen.add(key)) deduped.add(m);
         }
 
+        // On "load older", the conversation-level SWA state is more
+        // reliable on the NEW (later) page's response — status and offer
+        // prices could have changed since the first fetch. Prefer the
+        // fresh values; fall back to the existing ones if the new page
+        // response omits them (older backend revisions did).
         chatMessagesModel = ChatMessagesModel(
           success: newData.success,
           message: newData.message,
           data: Data(
             friend: chatMessagesModel.data?.friend ?? newData.data?.friend,
+            listing: chatMessagesModel.data?.listing ?? newData.data?.listing,
             messages: deduped,
+            conversationId: newData.data?.conversationId ??
+                chatMessagesModel.data?.conversationId,
+            conversationStatus: newData.data?.conversationStatus ??
+                chatMessagesModel.data?.conversationStatus,
+            chatModeSnapshot: newData.data?.chatModeSnapshot ??
+                chatMessagesModel.data?.chatModeSnapshot,
+            pendingAcceptanceExpiresAt:
+                newData.data?.pendingAcceptanceExpiresAt ??
+                    chatMessagesModel.data?.pendingAcceptanceExpiresAt,
+            currentOffer: newData.data?.currentOffer ??
+                chatMessagesModel.data?.currentOffer,
+            counterOffer: newData.data?.counterOffer ??
+                chatMessagesModel.data?.counterOffer,
+            agreedPrice: newData.data?.agreedPrice ??
+                chatMessagesModel.data?.agreedPrice,
+            initialPills: newData.data?.initialPills ??
+                chatMessagesModel.data?.initialPills,
           ),
           settings: newData.settings,
         );

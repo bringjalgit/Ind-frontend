@@ -108,15 +108,30 @@ class ApiClient {
             );
           }
 
+          // Only admin-level account blocks should kick the user to the
+          // blocked-account screen. A 403 with any other code (FORBIDDEN
+          // from a resource-level ownership check, NOT_PARTICIPANT from
+          // the chat participant guard, seller-only SWA actions hit by a
+          // buyer, etc.) is a normal per-request denial — let the caller
+          // surface the error inline instead of nuking the session.
           if (status == 403) {
-            debugPrint('❌ 403 Account Blocked');
-            final context = navigatorKey.currentContext;
-            context?.go('/blocked_account');
+            final body = response.data;
+            final isAccountBlocked =
+                body is Map && body['code'] == 'ACCOUNT_BLOCKED';
+            if (isAccountBlocked) {
+              debugPrint('❌ 403 ACCOUNT_BLOCKED → routing to /blocked_account');
+              final context = navigatorKey.currentContext;
+              context?.go('/blocked_account');
+            } else {
+              debugPrint(
+                '⚠️ 403 ${body is Map ? body['code'] : 'no-code'} → inline error',
+              );
+            }
             return handler.reject(
               DioException(
                 requestOptions: response.requestOptions,
                 response: response,
-                error: 'Your account is blocked',
+                error: response.data ?? 'Forbidden (${response.statusCode})',
                 type: DioExceptionType.badResponse,
               ),
             );
@@ -187,14 +202,23 @@ class ApiClient {
             );
           }
 
+          // Mirror the onResponse branch: only ACCOUNT_BLOCKED (admin
+          // ban) triggers the /blocked_account redirect. Resource-level
+          // FORBIDDEN errors flow through as normal DioException so the
+          // caller can surface them inline.
           if (code == 403) {
-            final context = navigatorKey.currentContext;
-            context?.go('/blocked_account');
+            final body = e.response?.data;
+            final isAccountBlocked =
+                body is Map && body['code'] == 'ACCOUNT_BLOCKED';
+            if (isAccountBlocked) {
+              final context = navigatorKey.currentContext;
+              context?.go('/blocked_account');
+            }
             return handler.next(
               DioException(
                 requestOptions: e.requestOptions,
                 response: e.response,
-                error: 'Your account is blocked',
+                error: e.response?.data ?? 'Forbidden (403)',
                 type: DioExceptionType.badResponse,
               ),
             );

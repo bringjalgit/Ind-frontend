@@ -26,6 +26,18 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
   Timer? _peerTypingClearTimer;
   Timer? _myTypingThrottle;
 
+  /// Broadcast stream of `conversationUpdated` WS events that match the
+  /// current (listing, receiver) pair. ChatScreen subscribes so it can
+  /// re-fetch the full Conversation state (banner, offer, pills) when
+  /// the backend reports a seller-driven or cron-driven state change.
+  /// Broadcast-scoped because ChatScreen is the sole consumer but may
+  /// rebuild on hot-reload; broadcast allows multiple subscribers
+  /// without exceptions.
+  final _conversationUpdates =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get conversationUpdates =>
+      _conversationUpdates.stream;
+
   PrivateChatCubit(
     this.currentUserId,
     this.receiverId,
@@ -45,9 +57,30 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
     SocketService.on('messageSent', _onMessageSent);
     SocketService.on('typing', _onUserTyping);
     SocketService.on('messagesRead', _onMessagesRead);
+    // New: backend pushes `conversationUpdated` whenever a seller
+    // action or cron flip changes the SWA conversation's state.
+    // We fan it out through the stream so ChatScreen can refetch.
+    SocketService.on('conversationUpdated', _onConversationUpdated);
 
     // Join the listing room + auto-mark as read
     _joinRoom();
+  }
+
+  // ================= CONVERSATION UPDATED (SWA state change) =================
+
+  void _onConversationUpdated(dynamic data) {
+    try {
+      final map = Map<String, dynamic>.from(data as Map);
+      // Scope filter: only fan out events for THIS (listing, receiver)
+      // pair. Prevents a refetch when another conversation on another
+      // listing updates while the current ChatScreen is open.
+      final eventListingId = map['listing_id']?.toString();
+      if (eventListingId != null && eventListingId != listingId) return;
+      _conversationUpdates.add(map);
+      AppLogger.info('[ws] conversationUpdated: ${map['event_type']}');
+    } catch (e) {
+      AppLogger.error('conversationUpdated parse error: $e');
+    }
   }
 
   // ================= JOIN ROOM =================
@@ -92,6 +125,88 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
     AppLogger.info('[ws] sendMessage -> $message');
   }
 
+  // ================= SEND PILL TAP =================
+  // SWA-specific: buyer tapped a quick-action pill on the rail. Fires a
+  // WebSocket `sendMessage` with `type: 'pill_tap'`. The backend reads
+  // the pill ID from the `message` field (see handler/chat/messaging.js
+  // handleSWAMessage — `pillId: pillId || message`). We also send
+  // `pillId` as a sibling so the backend can migrate to the explicit
+  // field without breaking older clients.
+  void sendPillTap(String pillId) {
+    if (pillId.trim().isEmpty) return;
+
+    final now = DateTime.now().toIso8601String();
+    final tempId = -DateTime.now().microsecondsSinceEpoch;
+
+    // Optimistic local message so the tap feels instant. The AI response
+    // arrives as a separate WS `newMessage` action handled by
+    // _onReceiveMessage below.
+    final local = Messages(
+      id: tempId.toString(),
+      senderId: currentUserId,
+      receiverId: receiverId,
+      type: 'pill_tap',
+      message: pillId,
+      pillId: pillId,
+      sender: 'buyer',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    emit(state.copyWith(messages: [...state.messages, local]));
+
+    SocketService.send('sendMessage', {
+      'listingId': listingId,
+      'receiverId': receiverId,
+      'message': pillId,
+      'type': 'pill_tap',
+      'pillId': pillId,
+    });
+
+    AppLogger.info('[ws] pill_tap -> $pillId');
+  }
+
+  // ================= SEND OFFER =================
+  // SWA-specific: buyer submits a numeric offer via the offer sheet.
+  // Fires `sendMessage` with `type: 'offer'`. Backend reads the amount
+  // from the `message` field (see messaging.js handleSWAMessage —
+  // `offerAmount = parseOfferAmount(message, listing.price)`). We also
+  // send `offerAmount` as an explicit sibling so the backend can start
+  // trusting it directly in a future revision.
+  void sendOffer(int amount) {
+    if (amount <= 0) return;
+
+    final now = DateTime.now().toIso8601String();
+    final tempId = -DateTime.now().microsecondsSinceEpoch;
+
+    // Optimistic local offer bubble so the buyer sees it immediately;
+    // the AI's response (accept / counter / decline) arrives as a
+    // separate WS `newMessage` handled by _onReceiveMessage below.
+    final local = Messages(
+      id: tempId.toString(),
+      senderId: currentUserId,
+      receiverId: receiverId,
+      type: 'offer',
+      message: amount.toString(),
+      offerAmount: amount,
+      sender: 'buyer',
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    emit(state.copyWith(messages: [...state.messages, local]));
+
+    SocketService.send('sendMessage', {
+      'listingId': listingId,
+      'receiverId': receiverId,
+      'message': amount.toString(),
+      'type': 'offer',
+      'offerAmount': amount,
+    });
+
+    AppLogger.info('[ws] offer -> $amount');
+  }
+
   // ================= RECEIVE MESSAGE =================
 
   void _onReceiveMessage(dynamic data) {
@@ -101,21 +216,12 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
       // Only handle if same listing
       if (map['listingId']?.toString() != listingId) return;
 
-      final msg = Messages(
-        id: map['id']?.toString(),
-        senderId: map['senderId']?.toString(),
-        receiverId: map['receiverId']?.toString(),
-        type: map['type'],
-        message: map['message'],
-        imageUrl: map['imageUrl'],
-        createdAt: map['createdAt']?.toString(),
-        updatedAt: map['createdAt']?.toString(),
-        isSystemMessage: map['isSystemMessage'] == true,
-        swaType: map['swaType']?.toString(),
-        decision: map['decision']?.toString(),
-        counterPrice: int.tryParse(map['counterPrice']?.toString() ?? ''),
-        acceptPrice: int.tryParse(map['acceptPrice']?.toString() ?? ''),
-      );
+      // Delegate to Messages.fromJson so every SWA field the backend
+      // sends (swaType, decision, counterPrice, acceptPrice, pillId,
+      // followUpPills, offerAmount, sender, source) is picked up. fromJson
+      // accepts both camelCase (WS payload) and snake_case, so the same
+      // model serves REST history and live WebSocket pushes.
+      final msg = Messages.fromJson(map);
 
       // Don't add our own messages (already added optimistically)
       if (msg.senderId == currentUserId) return;
@@ -230,9 +336,11 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
     SocketService.off('messageSent', _onMessageSent);
     SocketService.off('typing', _onUserTyping);
     SocketService.off('messagesRead', _onMessagesRead);
+    SocketService.off('conversationUpdated', _onConversationUpdated);
 
     _peerTypingClearTimer?.cancel();
     _myTypingThrottle?.cancel();
+    _conversationUpdates.close();
 
     return super.close();
   }

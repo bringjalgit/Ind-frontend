@@ -312,7 +312,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               aadhaarStatus: user_data?.aadhaar_status,
                               isVerified: user_data?.is_verified,
                             ),
-                            onTap: () => context.push('/aadhaar_verification'),
+                            onTap: () async {
+                              await context.push('/aadhaar_verification');
+                              // Aadhaar lives in its own cubit (AadhaarCubit) but
+                              // the badge on this tile reads from ProfileCubit's
+                              // user_data.aadhaar_status / is_verified. Refetch
+                              // the profile when the user returns so a freshly
+                              // submitted KYC reflects as "Under Review" without
+                              // a manual refresh.
+                              if (context.mounted) {
+                                context.read<ProfileCubit>().getProfileDetails();
+                              }
+                            },
                           ),
                         ),
                         _settingsTile(

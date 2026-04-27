@@ -16,6 +16,9 @@ import '../../theme/ThemeHelper.dart';
 import '../../utils/AppLauncher.dart';
 import '../../widgets/SafeDealDialog.dart';
 import 'ReportBottomSheet.dart';
+import 'swa/SwaPillRail.dart';
+import 'swa/SwaOfferSheet.dart';
+import 'swa/pill_catalog.dart';
 
 extension ChatScreenMessagesX on Messages {
   DateTime get createdAtDate {
@@ -74,6 +77,11 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoadingMore = false;
   bool _hasMoreMessages = true;
 
+  // Tracks an in-flight SWA pill tap. The pill rail dims + ignores taps
+  // while this is true, preventing double-submission when the buyer
+  // double-taps before the AI response arrives.
+  bool _isPillSending = false;
+
   bool _showSafetyBanner = true; // always true when screen opens
   bool _animSafetyBannerIn = false;
 
@@ -100,6 +108,12 @@ class _ChatScreenState extends State<ChatScreen> {
   // "show while scrolling" state
   Timer? _scrollIdleTimer;
   bool _isScrolling = false;
+
+  // Subscription to PrivateChatCubit.conversationUpdates. Fires on every
+  // backend-pushed SWA state change (deal confirmed, cancelled, seller
+  // counter, takeover, etc.); triggers a ChatMessagesCubit refetch so
+  // the banner + offer state update live. Cancelled in dispose().
+  StreamSubscription<Map<String, dynamic>>? _conversationUpdateSub;
 
   void _onScrollActivity() {
     if (!_isScrolling) setState(() => _isScrolling = true);
@@ -137,6 +151,30 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       context.read<ChatMessagesCubit>().fetchMessages(widget.receiverId,widget.listingId);
     } catch (_) {}
+
+    // Subscribe to SWA conversation-update events pushed over the
+    // WebSocket. Fired by seller actions (confirm / cancel / override /
+    // implicit takeover) and by crons (auto-promote, counter expiry,
+    // listing unavailable, deal expired).
+    //
+    // Each event triggers a fresh getChatMessages fetch so the status
+    // banner, offer prices, pending-acceptance countdown and messages
+    // timeline all refresh together. Cheap — REST fetch is ~200ms.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _conversationUpdateSub = context
+            .read<PrivateChatCubit>()
+            .conversationUpdates
+            .listen((update) {
+          if (!mounted) return;
+          try {
+            context
+                .read<ChatMessagesCubit>()
+                .fetchMessages(widget.receiverId, widget.listingId);
+          } catch (_) {}
+        });
+      } catch (_) {}
+    });
 
     _positionsListener.itemPositions.addListener(() {
       final positions = _positionsListener.itemPositions.value;
@@ -225,6 +263,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     _scrollIdleTimer?.cancel();
     _controller.dispose();
+    _conversationUpdateSub?.cancel();
 
     try {
       context.read<PrivateChatCubit>().chatClosed();
@@ -521,13 +560,17 @@ class _ChatScreenState extends State<ChatScreen> {
                 BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
                   buildWhen: (p, c) => c is ChatMessagesLoaded || c is ChatMessagesLoadingMore,
                   builder: (context, state) {
-                    String? status;
+                    Data? data;
                     if (state is ChatMessagesLoaded) {
-                      status = state.chatMessages.data?.conversationStatus;
+                      data = state.chatMessages.data;
                     } else if (state is ChatMessagesLoadingMore) {
-                      status = state.chatMessages.data?.conversationStatus;
+                      data = state.chatMessages.data;
                     }
-                    return _SwaStatusBanner(status: status);
+                    return _SwaStatusBanner(
+                      status: data?.conversationStatus,
+                      expiresAt: data?.pendingAcceptanceExpiresAtDate,
+                      agreedPrice: data?.agreedPrice,
+                    );
                   },
                 ),
                 Expanded(
@@ -813,7 +856,18 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 ),
-                _buildInputArea(context),
+                // SWA pill rail — sits above the composer. Returns
+                // SizedBox.shrink() on pure-P2P threads and on SWA
+                // threads where the seller picked p2p mode, the
+                // conversation is terminal / accepted / seller_takeover,
+                // or there are no follow-up pills to show.
+                _buildPillRail(context),
+                // Mode-aware composer. Regular text input on P2P threads
+                // and on SWA threads in ai_chat / p2p / seller_takeover
+                // modes. Hidden (replaced by a "tap a quick reply" hint)
+                // when the seller picked pills_only so buyers can't
+                // type free text the AI would reject server-side.
+                _buildComposerArea(context),
               ],
             ),
           ),
@@ -979,9 +1033,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(BuildContext context, Messages msg, bool isMe) {
-    // SWA system messages get special styling
-    if (msg.isSystemMessage && msg.swaType != null) {
+    // ── SWA system / AI side ─────────────────────────────────────────
+    // Any message not from the current user that originates on the
+    // system/AI track. Detected via either the WS-set isSystemMessage
+    // flag (live pushes) or the REST-parsed `sender` field (history
+    // fetch). keyword_bot is treated as system-side because it's the
+    // pill-driven AI persona. The SWA bubble handles pill_response,
+    // counter_offer, agreement, decline, offer_disabled — all of which
+    // need distinctive chrome vs a plain seller message.
+    final isSystemSide = msg.isSystemMessage ||
+        msg.sender == 'system' ||
+        msg.sender == 'keyword_bot';
+    if (isSystemSide) {
       return _buildSwaBubble(context, msg);
+    }
+
+    // ── Buyer-side SWA actions ───────────────────────────────────────
+    // The buyer's own pill tap and offer messages get richer chrome
+    // than plain text — the raw pill ID ("is_available") is replaced
+    // by its human label, and offers show the ₹ amount prominently.
+    // Only applies to messages FROM the current user on SWA threads.
+    if (isMe && msg.type == 'pill_tap' && msg.pillId != null) {
+      return _buildBuyerPillBubble(context, msg);
+    }
+    if (isMe && msg.type == 'offer' && msg.offerAmount != null) {
+      return _buildBuyerOfferBubble(context, msg);
     }
 
     final bubbleColor = isMe ? _meBubble(context) : _otherBubble(context);
@@ -1036,38 +1112,65 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // ── SWA bubble — AI-generated responses shown to buyer ─────────────
+  // ── SWA bubble — AI / system-side responses shown to the buyer ─────
+  // Handles both wire shapes:
+  //   • WS live push: `swaType` + `decision` fields populated.
+  //   • REST history: neither set; classify by `pill_id` instead.
+  // Classification drives palette (green=agreement, yellow=counter,
+  // red=decline, blue=generic AI reply) plus the presence of the big-₹
+  // amount header on counter / agreement.
   Widget _buildSwaBubble(BuildContext context, Messages msg) {
     final isDark = ThemeHelper.isDarkMode(context);
     final textColor = ThemeHelper.textColor(context);
     final timeText = AppTextStyles.labelSmall(textColor.withOpacity(.6));
     final swaType = msg.swaType ?? '';
+    final pillId = msg.pillId ?? '';
+
+    // Discriminator: WS route (swaType/decision) wins when present;
+    // otherwise fall back to REST route (pill_id).
+    bool isAgreement = swaType == 'offer_accepted' || pillId == 'agreement';
+    bool isCounter = (swaType == 'offer_response' && msg.decision == 'AUTO_COUNTER') ||
+        pillId == 'counter_offer';
+    bool isDecline = (swaType == 'offer_response' &&
+            (msg.decision == 'AUTO_DECLINE' || msg.decision == 'ROUND_CAP_EXHAUSTED')) ||
+        pillId == 'below_floor_decline' ||
+        pillId == 'offer_disabled';
 
     Color bubbleColor;
     Color? borderColor;
     Color contentColor = textColor;
     Widget? leadingIcon;
+    String? label; // short header label — "Deal!", "Seller counters", etc.
+    int? amountToShow;
 
-    if (swaType == 'offer_accepted') {
-      // Deal reached — green
+    if (isAgreement) {
+      // Deal reached — green, celebratory
       bubbleColor = isDark ? const Color(0xFF1A3A2A) : const Color(0xFFDCFCE7);
       borderColor = const Color(0xFF22C55E);
-      contentColor = const Color(0xFF22C55E);
-    } else if (swaType == 'offer_response' && msg.decision == 'AUTO_COUNTER') {
-      // Counter offer — yellow
+      contentColor = const Color(0xFF14532D);
+      label = '✓ Deal!';
+      amountToShow = msg.acceptPrice ?? msg.offerAmount;
+    } else if (isCounter) {
+      // Seller / AI counter-offer — yellow
       bubbleColor = isDark ? const Color(0xFF3D3418) : const Color(0xFFFEF9C3);
       borderColor = const Color(0xFFFFD600);
-    } else if (swaType == 'offer_response' &&
-        (msg.decision == 'AUTO_DECLINE' || msg.decision == 'ROUND_CAP_EXHAUSTED')) {
-      // Decline — red
+      label = 'Seller counters';
+      amountToShow = msg.counterPrice ?? msg.offerAmount;
+    } else if (isDecline) {
+      // Decline — red tint
       bubbleColor = isDark ? const Color(0xFF3A1F1F) : const Color(0xFFFEE2E2);
       borderColor = const Color(0xFFEF4444);
+      contentColor = isDark ? const Color(0xFFFCA5A5) : const Color(0xFF991B1B);
     } else {
-      // Auto-reply (pill_response, keyword_chat_response, etc.) — blue tint
+      // Generic AI reply (pill_response, keyword_bot) — blue tint + lightning
       bubbleColor = isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF);
       leadingIcon = Padding(
         padding: const EdgeInsets.only(right: 6),
-        child: Icon(Icons.flash_on_rounded, size: 14, color: isDark ? const Color(0xFF4D9FFF) : const Color(0xFF1677FF)),
+        child: Icon(
+          Icons.flash_on_rounded,
+          size: 14,
+          color: isDark ? const Color(0xFF4D9FFF) : const Color(0xFF1677FF),
+        ),
       );
     }
 
@@ -1091,6 +1194,29 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Short header label + prominent ₹ amount on agreement /
+              // counter bubbles. Omitted for generic replies + declines
+              // where the body text already carries the full message.
+              if (label != null) ...[
+                Text(
+                  label,
+                  style: AppTextStyles.labelSmall(contentColor).copyWith(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                if (amountToShow != null && amountToShow > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹${_formatInr(amountToShow)}',
+                    style: AppTextStyles.bodyMedium(contentColor).copyWith(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1100,7 +1226,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       msg.message ?? '',
                       style: AppTextStyles.bodyMedium(contentColor).copyWith(
                         fontSize: 15,
-                        fontWeight: (swaType == 'offer_accepted') ? FontWeight.w600 : FontWeight.w400,
+                        fontWeight: isAgreement ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ),
@@ -1110,6 +1236,243 @@ class _ChatScreenState extends State<ChatScreen> {
               Text(msg.formattedTime, style: timeText),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── Buyer-side pill bubble ─────────────────────────────────────────
+  // Replaces the raw pillId ("is_available") with the pill's human label
+  // and icon from the catalog. Right-aligned buyer-colored bubble, same
+  // shape as regular text bubbles so it feels like "I said X" rather
+  // than a system event.
+  Widget _buildBuyerPillBubble(BuildContext context, Messages msg) {
+    final spec = PillCatalog.specFor(msg.pillId ?? '');
+    // Unknown pill → fall through to raw text rendering so nothing is
+    // invisible even if the catalog is out of date.
+    if (spec == null) return _buildDefaultBubble(context, msg, isMe: true);
+
+    final bubbleColor = _meBubble(context);
+    final textColor = ThemeHelper.textColor(context);
+    final timeText = AppTextStyles.labelSmall(textColor.withOpacity(.6));
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(spec.icon, size: 16, color: textColor.withOpacity(.85)),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      spec.label,
+                      style: AppTextStyles.bodyMedium(textColor).copyWith(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(msg.formattedTime, style: timeText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Buyer-side offer bubble ────────────────────────────────────────
+  // Used when the buyer submits an offer via the offer sheet (Step 10).
+  // Right-aligned bubble with a prominent ₹ amount + "You offered" caption.
+  Widget _buildBuyerOfferBubble(BuildContext context, Messages msg) {
+    final bubbleColor = _meBubble(context);
+    final textColor = ThemeHelper.textColor(context);
+    final timeText = AppTextStyles.labelSmall(textColor.withOpacity(.6));
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+              bottomLeft: Radius.circular(16),
+              bottomRight: Radius.circular(4),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'You offered',
+                style: AppTextStyles.labelSmall(textColor.withOpacity(.7))
+                    .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.3),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '₹${_formatInr(msg.offerAmount ?? 0)}',
+                style: AppTextStyles.bodyMedium(textColor).copyWith(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(msg.formattedTime, style: timeText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Fallback to a plain text/image bubble when an SWA-branched bubble
+  // encounters unexpected input (e.g. unknown pill id). Avoids blank
+  // rendering — the catch-all keeps content visible.
+  Widget _buildDefaultBubble(BuildContext context, Messages msg,
+      {required bool isMe}) {
+    final bubbleColor = isMe ? _meBubble(context) : _otherBubble(context);
+    final bodyText = AppTextStyles.bodyMedium(ThemeHelper.textColor(context));
+    final timeText = AppTextStyles.labelSmall(
+      ThemeHelper.textColor(context).withOpacity(.6),
+    );
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isMe ? 16 : 4),
+              bottomRight: Radius.circular(isMe ? 4 : 16),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment:
+                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Text(msg.message ?? '', style: bodyText.copyWith(fontSize: 16)),
+              const SizedBox(height: 4),
+              Text(msg.formattedTime, style: timeText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Format an integer as Indian-locale grouped currency (e.g. 52000 →
+  /// "52,000"). Kept inline — adding intl NumberFormat just for this
+  /// was overkill.
+  String _formatInr(int n) {
+    final s = n.abs().toString();
+    if (s.length <= 3) return n < 0 ? '-$s' : s;
+    // Indian grouping: last 3 digits, then pairs of 2.
+    final last3 = s.substring(s.length - 3);
+    final head = s.substring(0, s.length - 3);
+    final buf = StringBuffer();
+    int cursor = head.length;
+    while (cursor > 2) {
+      buf.write(',');
+      buf.write(head.substring(cursor - 2, cursor));
+      cursor -= 2;
+    }
+    final prefix = head.substring(0, cursor) + buf.toString();
+    return (n < 0 ? '-' : '') + prefix + ',' + last3;
+  }
+
+  // ── Composer dispatcher ───────────────────────────────────────────────
+  // Looks at the conversation's SWA mode and chooses between the real
+  // text input and a "pills-only" hint strip. Pure-P2P threads (where
+  // chatModeSnapshot is null) always see the text input — unchanged
+  // behaviour.
+  Widget _buildComposerArea(BuildContext context) {
+    return BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
+      builder: (context, historyState) {
+        Data? convData;
+        if (historyState is ChatMessagesLoaded) {
+          convData = historyState.chatMessages.data;
+        } else if (historyState is ChatMessagesLoadingMore) {
+          convData = historyState.chatMessages.data;
+        }
+
+        // Only intercept when the seller explicitly chose pills_only on
+        // an SWA thread. All other cases (P2P, ai_chat, p2p mode,
+        // seller_takeover, pending/accepted states on SWA) keep the
+        // regular text input so the buyer can coordinate pickup, reply
+        // to a seller override, etc.
+        if (convData != null && convData.isSwa && convData.isPillsOnly) {
+          return _buildPillsOnlyHint(context);
+        }
+        return _buildInputArea(context);
+      },
+    );
+  }
+
+  /// Replaces the text composer on pills_only SWA threads. A thin strip
+  /// with an icon + muted label, safe-area aware, theme-matched. Keeps
+  /// the bottom of the screen from feeling broken/empty when the text
+  /// input is intentionally absent.
+  Widget _buildPillsOnlyHint(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = ThemeHelper.backgroundColor(context);
+    final hintColor = isDark
+        ? Colors.white.withOpacity(0.55)
+        : Colors.black.withOpacity(0.55);
+    final iconColor = isDark
+        ? const Color(0xFF7DE3F0)
+        : const Color(0xFF0E7C8D);
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: bg,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.touch_app_outlined, size: 16, color: iconColor),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Tap a quick reply above to continue',
+                style: AppTextStyles.bodySmall(hintColor),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1166,6 +1529,237 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       debugPrint('Error accessing PrivateChatCubit in _sendText: $e');
     }
+  }
+
+  // ── SWA pill rail ──────────────────────────────────────────────────────
+  // Renders above the composer on Sell-with-AI threads. Watches both
+  // cubits:
+  //   • ChatMessagesCubit — provides the REST-loaded history and the
+  //     conversation-level SWA state (`data.isSwa`, `data.chatModeSnapshot`).
+  //   • PrivateChatCubit — provides live WS-delivered messages with their
+  //     own `follow_up_pills`, which should supersede history when newer.
+  //
+  // The rail only mounts when the thread is SWA (conversation_id present)
+  // AND the seller's mode allows pills (pills_only or ai_chat). It stays
+  // hidden on pure-P2P threads and on p2p mode ("Direct Messages"), so
+  // the existing ChatScreen experience is unchanged there.
+  Widget _buildPillRail(BuildContext context) {
+    return BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
+      builder: (context, historyState) {
+        // Only compute once we have a loaded history response.
+        Data? convData;
+        if (historyState is ChatMessagesLoaded) {
+          convData = historyState.chatMessages.data;
+        } else if (historyState is ChatMessagesLoadingMore) {
+          convData = historyState.chatMessages.data;
+        }
+
+        // Pure-P2P thread → rail stays hidden. No SWA chrome at all.
+        if (convData == null || !convData.isSwa) {
+          return const SizedBox.shrink();
+        }
+
+        // Status gates — hide the rail only when further interaction
+        // doesn't make sense:
+        //   • terminal (expired/completed/declined) — conversation is over
+        //   • accepted — deal is locked, only pickup coordination via text
+        //
+        // Pills REMAIN visible in Quick Replies, Smart Chat, Direct
+        // Chat, Seller Takeover, and Pending Acceptance. The pill's
+        // behaviour per mode is decided in [_onPillTap]:
+        //   • AI modes (pills_only, keyword_chat) → pill_tap WS (AI
+        //     answers)
+        //   • Human modes (p2p, seller_takeover) → plain text WS
+        //     (seller reads)
+        if (convData.isTerminal) return const SizedBox.shrink();
+        if (convData.isAccepted) return const SizedBox.shrink();
+
+        final isHumanMode =
+            convData.isP2PMode || convData.isSellerTakeover;
+
+        // Persistent rail: always render the same opener set for the
+        // lifetime of the conversation. Previously we tracked the most
+        // recent AI `follow_up_pills` which removed already-tapped
+        // pills — but that denied buyers the ability to re-tap
+        // "Make an offer" for a second try, or re-ask about pickup
+        // after reading condition. A static rail matches OLX-style
+        // quick-replies and is far more usable.
+        //
+        // PrivateChatCubit state is no longer needed here — the rail
+        // doesn't change per message. Kept as BlocBuilder so the
+        // `_isPillSending` lock still re-renders the dimmed chips.
+        return BlocBuilder<PrivateChatCubit, PrivateChatState>(
+          builder: (context, liveState) {
+            var pills = convData!.initialPills;
+            if (pills != null) {
+              if (isHumanMode) {
+                // Human modes: text composer is the escape hatch, so
+                // `something_else` is redundant. Everything else
+                // (info + action + conversational) shows.
+                pills =
+                    pills.where((id) => id != 'something_else').toList();
+              } else if (convData.isPillsOnly) {
+                // Quick Replies mode (pills_only): the seller opted
+                // out of human interaction entirely, and the
+                // pills_only_reject backend guard rejects free text.
+                // Conversational pills (hello, okay, etc.) would hit
+                // that guard and show a rejection bubble — filter
+                // them out so the rail only shows pills with AI
+                // intents that will actually produce a response.
+                pills = pills.where((id) {
+                  final spec = PillCatalog.specFor(id);
+                  return spec?.hasAiIntent == true;
+                }).toList();
+              }
+              // Smart Chat: show everything. Conversational pills send
+              // as text which the keyword engine can soft-handle.
+
+              // ── Contextual closure pills ─────────────────────────
+              // When the AI has counter-offered, the buyer needs a way
+              // to accept it (deal), lock in their own offer (final),
+              // or walk away (reject). The backend persists these in
+              // each counter response's follow_up_pills, but the rail
+              // is built from a static opener set so we re-inject them
+              // here based on conversation state. Visible in every mode
+              // (pills_only, smart_chat, human) since the closure
+              // semantics apply uniformly.
+              if (convData.counterOffer != null && convData.counterOffer! > 0) {
+                final closurePills = ['deal', 'final', 'reject'];
+                // De-dupe in case any of these ever land in the opener.
+                final seen = pills.toSet();
+                for (final p in closurePills) {
+                  if (!seen.contains(p)) pills.add(p);
+                }
+              }
+            }
+            if (pills == null || pills.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return SwaPillRail(
+              pillIds: pills,
+              enabled: !_isPillSending,
+              onTap: (pillId) => _onPillTap(context, pillId),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Opens the SWA offer sheet. Reads the listed price from current
+  /// chat state so the sheet can render "Listed at ₹X" as a reference
+  /// (optional — sheet works without it). On submit, dispatches to
+  /// PrivateChatCubit.sendOffer which fires the WS + emits an optimistic
+  /// offer bubble.
+  void _openOfferSheet(BuildContext context) {
+    int? listingPrice;
+    final state = context.read<ChatMessagesCubit>().state;
+    if (state is ChatMessagesLoaded) {
+      listingPrice = state.chatMessages.data?.listing?.price;
+    } else if (state is ChatMessagesLoadingMore) {
+      listingPrice = state.chatMessages.data?.listing?.price;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SwaOfferSheet(
+        listingPrice: listingPrice,
+        // Mode-aware submit. In AI-backed modes (pills_only,
+        // keyword_chat) the offer fires as a structured WS message
+        // that the AI scores against the seller's floor + expected
+        // price. In human-facing modes (p2p chat, seller takeover)
+        // the seller has explicitly opted out of AI handling — we
+        // honour that by sending the offer as a readable text
+        // message the seller negotiates in their own words.
+        onSubmit: (amount) {
+          try {
+            final isHumanMode = _isHumanChatModeForRail(context);
+            if (isHumanMode) {
+              final text = 'My offer: ₹${_formatInr(amount)}';
+              context.read<PrivateChatCubit>().sendMessage(text);
+            } else {
+              context.read<PrivateChatCubit>().sendOffer(amount);
+            }
+          } catch (e) {
+            debugPrint('Error dispatching offer: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  /// Dispatches a pill tap. Two-branch mode-aware routing:
+  ///   • `make_offer` → open the offer sheet (whose own submit decides
+  ///     between AI-structured offer and plain-text "My offer: ₹X"
+  ///     based on mode).
+  ///   • AI modes (pills_only, keyword_chat) → fire a WS `pill_tap` so
+  ///     the backend can respond with its canned pill template.
+  ///   • Human modes (p2p, seller_takeover) → fire a plain WS `text`
+  ///     message carrying the pill's human-readable `messageText`. The
+  ///     seller reads this in their chat tab like any other message.
+  ///
+  /// The rail self-disables for up to 10s after a tap as a double-tap
+  /// safety guard; it re-enables naturally sooner when a new message
+  /// arrives (via the BlocBuilder watching PrivateChatCubit).
+  void _onPillTap(BuildContext context, String pillId) {
+    if (_isPillSending) return;
+
+    if (pillId == 'make_offer') {
+      _openOfferSheet(context);
+      return;
+    }
+
+    try {
+      final isHumanMode = _isHumanChatModeForRail(context);
+      final spec = PillCatalog.specFor(pillId);
+
+      // Routing decision:
+      //   • Conversational pills (hasAiIntent=false) — ALWAYS sent as
+      //     plain text regardless of mode. They're chat shortcuts, not
+      //     AI commands. Filtered out of pills_only mode upstream.
+      //   • AI-intent pills — in AI modes fire pill_tap for canned
+      //     backend responses; in human modes send as text.
+      final sendAsText = !isHumanMode && spec?.hasAiIntent == true
+          ? false
+          : true;
+
+      if (sendAsText) {
+        final text = spec?.messageText ?? spec?.label ?? pillId;
+        context.read<PrivateChatCubit>().sendMessage(text);
+      } else {
+        context.read<PrivateChatCubit>().sendPillTap(pillId);
+      }
+      setState(() => _isPillSending = true);
+
+      // Defensive timeout: clears the lock after 10s so a stuck tap
+      // doesn't permanently disable the rail. Arrives of a new message
+      // from the peer normally reset the UI faster via BlocBuilder.
+      Future.delayed(const Duration(seconds: 10), () {
+        if (mounted && _isPillSending) {
+          setState(() => _isPillSending = false);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error dispatching pill tap: $e');
+    }
+  }
+
+  /// True when the current chat mode is human-facing (p2p or
+  /// seller-takeover). Pill taps in these modes send as plain text so
+  /// the seller reads them directly. Reads ChatMessagesCubit state
+  /// without subscribing because the mode doesn't flip mid-frame.
+  bool _isHumanChatModeForRail(BuildContext context) {
+    final state = context.read<ChatMessagesCubit>().state;
+    Data? data;
+    if (state is ChatMessagesLoaded) {
+      data = state.chatMessages.data;
+    } else if (state is ChatMessagesLoadingMore) {
+      data = state.chatMessages.data;
+    }
+    if (data == null) return false;
+    return data.isP2PMode || data.isSellerTakeover;
   }
 }
 
@@ -1235,13 +1829,74 @@ class _SafetyBanner extends StatelessWidget {
 // buyer and seller; the distinction doesn't add meaningful info (both
 // parties know who took over).
 // ─────────────────────────────────────────────────────────────────────
-class _SwaStatusBanner extends StatelessWidget {
+class _SwaStatusBanner extends StatefulWidget {
   final String? status;
-  const _SwaStatusBanner({required this.status});
+
+  /// Deadline for the `pending_acceptance` cooling-off window. Drives
+  /// the live countdown in the subtitle. Null on every other status.
+  final DateTime? expiresAt;
+
+  /// Locked-in price once the deal reaches `accepted`. Shown in the
+  /// success-banner subtitle so the buyer sees the amount they committed
+  /// to without scrolling back to the agreement bubble.
+  final int? agreedPrice;
+
+  const _SwaStatusBanner({
+    required this.status,
+    this.expiresAt,
+    this.agreedPrice,
+  });
+
+  @override
+  State<_SwaStatusBanner> createState() => _SwaStatusBannerState();
+}
+
+class _SwaStatusBannerState extends State<_SwaStatusBanner> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybeStartTicker();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SwaStatusBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Status changed (e.g. seller confirmed the pending offer) → either
+    // start or stop the countdown as appropriate.
+    if (widget.status != oldWidget.status ||
+        widget.expiresAt != oldWidget.expiresAt) {
+      _ticker?.cancel();
+      _ticker = null;
+      _maybeStartTicker();
+    }
+  }
+
+  void _maybeStartTicker() {
+    // Only the pending-acceptance banner shows a live "X min left"
+    // string; other statuses are static. Tick every 30s — fine for
+    // a minute-granularity display and cheap enough not to matter.
+    if (widget.status == 'pending_acceptance' && widget.expiresAt != null) {
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final copy = _copyFor(status);
+    final copy = _copyFor(
+      widget.status,
+      expiresAt: widget.expiresAt,
+      agreedPrice: widget.agreedPrice,
+    );
     if (copy == null) return const SizedBox.shrink();
 
     final isDark = ThemeHelper.isDarkMode(context);
@@ -1288,26 +1943,34 @@ class _SwaStatusBanner extends StatelessWidget {
     );
   }
 
-  static _BannerCopy? _copyFor(String? s) {
+  /// Build the banner copy for a given status. Side-data fields
+  /// (expiresAt, agreedPrice) are optional — when present they enrich
+  /// the subtitle with live countdowns and amounts.
+  static _BannerCopy? _copyFor(
+    String? s, {
+    DateTime? expiresAt,
+    int? agreedPrice,
+  }) {
     switch (s) {
       case 'seller_takeover':
         return _BannerCopy(
           title: 'Seller is handling this conversation',
-          subtitle: 'Smart Assist has paused — messages go directly to the seller.',
+          subtitle:
+              'Smart Assist has paused — messages go directly to the seller.',
           icon: Icons.pause_circle_outline_rounded,
           tone: _BannerTone.info,
         );
       case 'pending_acceptance':
         return _BannerCopy(
-          title: 'Offer pending confirmation',
-          subtitle: 'Waiting for the buyer to confirm — auto-promotes in 15 min.',
+          title: 'Your offer is in',
+          subtitle: _pendingSubtitle(expiresAt),
           icon: Icons.hourglass_top_rounded,
           tone: _BannerTone.pending,
         );
       case 'accepted':
         return _BannerCopy(
           title: 'Deal confirmed',
-          subtitle: 'Coordinate pickup in chat. Smart Assist has stepped aside.',
+          subtitle: _acceptedSubtitle(agreedPrice),
           icon: Icons.check_circle_outline_rounded,
           tone: _BannerTone.success,
         );
@@ -1334,7 +1997,8 @@ class _SwaStatusBanner extends StatelessWidget {
       case 'legal_hold':
         return _BannerCopy(
           title: 'Under review',
-          subtitle: 'This conversation is temporarily paused pending review.',
+          subtitle:
+              'This conversation is temporarily paused pending review.',
           icon: Icons.gpp_maybe_outlined,
           tone: _BannerTone.warn,
         );
@@ -1342,6 +2006,55 @@ class _SwaStatusBanner extends StatelessWidget {
       default:
         return null;
     }
+  }
+
+  /// Live countdown for the seller-confirmation window. Rounds to
+  /// whole minutes; "moments" for the last 60 seconds so the banner
+  /// never shows "0 min left" and feels alive.
+  static String _pendingSubtitle(DateTime? expiresAt) {
+    if (expiresAt == null) {
+      return 'Waiting for the seller to confirm.';
+    }
+    final now = DateTime.now();
+    final diff = expiresAt.difference(now);
+    if (diff.inSeconds <= 0) {
+      // Expiry clock ran out client-side; server's cron auto-promotes
+      // within the next minute. Keep the user informed instead of
+      // flipping to a blank subtitle.
+      return 'Finalising with the seller...';
+    }
+    if (diff.inSeconds < 60) {
+      return 'Waiting for the seller to confirm — any moment now.';
+    }
+    final mins = diff.inMinutes + (diff.inSeconds % 60 >= 30 ? 1 : 0);
+    return 'Waiting for the seller to confirm — $mins min left.';
+  }
+
+  static String _acceptedSubtitle(int? agreedPrice) {
+    if (agreedPrice != null && agreedPrice > 0) {
+      return 'Confirmed at ₹${_formatInrStatic(agreedPrice)}. '
+          'Coordinate pickup in chat.';
+    }
+    return 'Coordinate pickup in chat. Smart Assist has stepped aside.';
+  }
+
+  /// Static copy of the Indian-grouping formatter; banner is rendered
+  /// outside the `_ChatScreenState` class so it cannot reach the
+  /// instance method. Keep in sync with `_ChatScreenState._formatInr`.
+  static String _formatInrStatic(int n) {
+    final s = n.abs().toString();
+    if (s.length <= 3) return n < 0 ? '-$s' : s;
+    final last3 = s.substring(s.length - 3);
+    final head = s.substring(0, s.length - 3);
+    final buf = StringBuffer();
+    int cursor = head.length;
+    while (cursor > 2) {
+      buf.write(',');
+      buf.write(head.substring(cursor - 2, cursor));
+      cursor -= 2;
+    }
+    final prefix = head.substring(0, cursor) + buf.toString();
+    return (n < 0 ? '-' : '') + prefix + ',' + last3;
   }
 }
 

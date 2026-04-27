@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../utils/NotificationIntent.dart';
 import '../utils/constants.dart';
+import 'FcmTokenManager.dart';
 
 class NotificationService {
   NotificationService._();
@@ -33,6 +34,14 @@ class NotificationService {
     await _initializeLocalNotifications();
     await _configureForegroundPresentation();
     _setupFirebaseListeners();
+    // Subscribe to OS-initiated FCM token rotation. Without this, a
+    // rotated token (iOS does this regularly; Android less often) is
+    // never resynced — the backend keeps sending pushes to the dead
+    // old token and everything silently drops. For now the refreshed
+    // token is only cached in [FcmTokenManager.lastToken]; a future
+    // step will add a POST /app/device-token endpoint so the new
+    // token lands on the User row without requiring a fresh login.
+    FcmTokenManager.startAutoRefresh();
   }
 
   // -------------------- PERMISSIONS --------------------

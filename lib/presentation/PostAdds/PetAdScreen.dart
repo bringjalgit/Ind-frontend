@@ -35,6 +35,7 @@ import '../../widgets/CommonTextField.dart';
 import '../../widgets/CommonWrapChipSelector.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class PetAdScreen extends StatefulWidget {
   final String catId;
@@ -558,7 +559,11 @@ class _PetAdScreenState extends State<PetAdScreen> {
                       if (updateState is MarkAsListingSuccess ||
                           updateState is MarkAsListingUpdateSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been updated successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.updated(
+                            listingTitle: titleController.text.trim(),
+                            listingCategory: 'Pets',
+                          ),
                         );
                       } else if (updateState is MarkAsListingFailure) {
                         CustomSnackBar1.show(context, updateState.error);
@@ -569,7 +574,14 @@ class _PetAdScreenState extends State<PetAdScreen> {
                         listener: (context, state) {
                           if (state is PetsAdSuccess) {
                             context.pushReplacement(
-                              "/successfully?title=Your ad has been Added successfully",
+                              '/listing-success',
+                              extra: SuccessRecapData.posted(
+                                listingTitle: titleController.text.trim(),
+                                listingPrice: priceController.text.trim(),
+                                listingCategory: 'Pets',
+                                planName: planController.text.trim(),
+                                durationDays: 30,
+                              ),
                             );
                           } else if (state is PetsAdFailure) {
                             CustomSnackBar1.show(context, state.error);

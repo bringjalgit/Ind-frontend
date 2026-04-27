@@ -60,6 +60,7 @@ import '../presentation/views/ProfileScreen.dart';
 import '../presentation/views/AadhaarVerificationScreen.dart';
 import '../presentation/views/SelectSubCategory.dart';
 import '../presentation/views/SuccessScreen.dart';
+import '../presentation/views/SuccessRecapScreen.dart';
 import '../presentation/views/TransactionsScreen.dart';
 import '../presentation/views/dashboard.dart';
 import '../services/AuthService.dart';
@@ -166,8 +167,10 @@ final GoRouter appRouter = GoRouter(
 
     GoRoute(
       path: '/dashboard',
-      pageBuilder: (context, state) =>
-          buildSlideTransitionPage(Dashboard(), state),
+      pageBuilder: (context, state) {
+        final tab = int.tryParse(state.uri.queryParameters['tab'] ?? '') ?? 0;
+        return buildSlideTransitionPage(Dashboard(initialTab: tab), state);
+      },
     ),
     GoRoute(
       path: '/plans',
@@ -362,6 +365,18 @@ final GoRouter appRouter = GoRouter(
         final nextRoute = state.uri.queryParameters['next'] ?? "";
         return buildSlideTransitionPage(
           SuccessScreen1(nextRoute: nextRoute),
+          state,
+        );
+      },
+    ),
+    GoRoute(
+      path: '/listing-success',
+      pageBuilder: (context, state) {
+        final data = state.extra is SuccessRecapData
+            ? state.extra as SuccessRecapData
+            : const SuccessRecapData(variant: SuccessVariant.posted);
+        return buildSlideTransitionPage(
+          SuccessRecapScreen(data: data),
           state,
         );
       },

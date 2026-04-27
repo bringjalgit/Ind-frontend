@@ -38,6 +38,7 @@ import '../../utils/color_constants.dart';
 import '../../widgets/CommonWrapChipSelector.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class PropertiesAdScreen extends StatefulWidget {
   final String catId;
@@ -695,7 +696,11 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                   if (updateState is MarkAsListingSuccess ||
                       updateState is MarkAsListingUpdateSuccess) {
                     context.pushReplacement(
-                      "/successfully?title=Your ad has been updated successfully",
+                      '/listing-success',
+                      extra: SuccessRecapData.updated(
+                        listingTitle: titleController.text.trim(),
+                        listingCategory: 'Properties',
+                      ),
                     );
                   } else if (updateState is MarkAsListingFailure) {
                     CustomSnackBar1.show(context, updateState.error);
@@ -706,7 +711,14 @@ class _PropertiesAdScreenState extends State<PropertiesAdScreen> {
                     listener: (context, state) {
                       if (state is PropertyAdSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been Added successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.posted(
+                            listingTitle: titleController.text.trim(),
+                            listingPrice: totelPriceController.text.trim(),
+                            listingCategory: 'Properties',
+                            planName: planController.text.trim(),
+                            durationDays: 30,
+                          ),
                         );
                       } else if (state is PropertyAdFailure) {
                         CustomSnackBar1.show(context, state.error);

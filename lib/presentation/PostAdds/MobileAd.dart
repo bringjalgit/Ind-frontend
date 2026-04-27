@@ -35,6 +35,7 @@ import '../../widgets/CommonTextField.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../widgets/SelectCityBottomSheet.dart';
 import '../../widgets/SelectStateBottomSheet.dart';
+import '../views/SuccessRecapScreen.dart';
 
 class MobileAd extends StatefulWidget {
   final String catId;
@@ -557,7 +558,11 @@ class _MobileAdState extends State<MobileAd> {
                       if (updateState is MarkAsListingSuccess ||
                           updateState is MarkAsListingUpdateSuccess) {
                         context.pushReplacement(
-                          "/successfully?title=Your ad has been updated successfully",
+                          '/listing-success',
+                          extra: SuccessRecapData.updated(
+                            listingTitle: titleController.text.trim(),
+                            listingCategory: 'Mobiles',
+                          ),
                         );
                       } else if (updateState is MarkAsListingFailure) {
                         CustomSnackBar1.show(context, updateState.error);
@@ -568,7 +573,14 @@ class _MobileAdState extends State<MobileAd> {
                         listener: (context, state) {
                           if (state is MobileAdSuccess) {
                             context.pushReplacement(
-                              "/successfully?title=Your ad has been Added successfully",
+                              '/listing-success',
+                              extra: SuccessRecapData.posted(
+                                listingTitle: titleController.text.trim(),
+                                listingPrice: priceController.text.trim(),
+                                listingCategory: 'Mobiles',
+                                planName: planController.text.trim(),
+                                durationDays: 30,
+                              ),
                             );
                           } else if (state is MobileAdFailure) {
                             CustomSnackBar1.show(context, state.error);

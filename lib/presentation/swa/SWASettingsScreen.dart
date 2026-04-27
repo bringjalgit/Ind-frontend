@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/theme/ThemeHelper.dart';
 import 'package:classifieds/theme/app_colors.dart';
@@ -7,6 +8,8 @@ import 'package:classifieds/Components/CutomAppBar.dart';
 import 'package:classifieds/Components/CustomAppButton.dart';
 import 'package:classifieds/services/ApiClient.dart';
 import 'package:classifieds/services/api_endpoint_urls.dart';
+import 'package:classifieds/data/cubit/MyAds/my_ads_cubit.dart';
+import 'package:classifieds/presentation/swa/widgets/SwaModeUpdatedSheet.dart';
 
 /// Seller Settings screen for an active SWA listing.
 ///
@@ -47,7 +50,9 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
   String? _error;
   bool _hasChanges = false;
 
-  final List<int> _windowOptions = [7, 15, 30, 60, 90];
+  // Mirror SWAAvailabilityWizardScreen._windowOptions — capped at 30
+  // days so Smart Assist can't outlive the 30-day listing lifetime.
+  final List<int> _windowOptions = [7, 15, 30];
   final List<_SlotOption> _slotOptions = [
     _SlotOption('morning', 'Morning', '9 AM – 12 PM', Icons.wb_sunny_outlined),
     _SlotOption('afternoon', 'Afternoon', '12 – 5 PM', Icons.wb_cloudy_outlined),
@@ -103,10 +108,31 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
       final response = await ApiClient.post(url, data: body);
 
       if (response.statusCode == 200 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved')),
+        await SwaModeUpdatedSheet.show(
+          context,
+          chatMode: _chatMode,
+          autoNegotiate: _autoNegotiate,
+          quickResponse: _quickResponse,
+          deliveryAvailable: _deliveryAvailable,
+          onViewMyAds: () {
+            if (!mounted) return;
+            // Refresh approved listings so the updated SWA config
+            // shows on the My Ads tab.
+            try {
+              context.read<MyAdsCubit>().getMyAds('approved');
+            } catch (_) {}
+            // Dashboard tab 1 = AdsScreen (My Ads).
+            context.go('/dashboard?tab=1');
+          },
+          onBackToHome: () {
+            if (!mounted) return;
+            // Dashboard tab 0 = HoliHomeScreen (Home).
+            context.go('/dashboard?tab=0');
+          },
         );
-        context.pop(true); // pass true to indicate refresh needed
+        // Sheet dismissed via swipe / tap-outside without hitting a
+        // CTA — reset saving state so the seller can save again.
+        if (mounted) setState(() => _saving = false);
       } else {
         setState(() {
           _error = response.data?['message']?.toString() ?? 'Failed to save';

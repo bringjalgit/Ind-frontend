@@ -7,6 +7,7 @@ import '../services/api_endpoint_urls.dart';
 import '../services/ApiClient.dart';
 import '../utils/constants.dart';
 import 'SecureStorageService.dart';
+import 'SocketService.dart';
 
 class AuthService {
   static const String _accessTokenKey = "access_token";
@@ -254,6 +255,12 @@ class AuthService {
   /// ------------------------
 
   static Future<void> logout() async {
+    // Close the authenticated WebSocket BEFORE clearing tokens so the old
+    // user's JWT-backed socket is not left dangling for the next user who
+    // signs in on the same device. disconnect() also nulls _currentUserId
+    // which disables the auto-reconnect path in SocketService.
+    SocketService.disconnect();
+
     await _secure.deleteAll();
     debugPrint("🚪 User logged out");
 

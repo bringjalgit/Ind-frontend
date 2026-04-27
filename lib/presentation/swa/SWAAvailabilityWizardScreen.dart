@@ -34,7 +34,11 @@ class _SWAAvailabilityWizardScreenState
   final Set<String> _selectedSlots = {'morning', 'evening'};
   String? _slotError;
 
-  static const _windowOptions = [7, 15, 30, 60, 90];
+  // Capped at 30 days because a listing's lifetime is 30 days — running
+  // Smart Assist past the listing's expiry would leave it answering
+  // buyers about a dead listing. 60/90 day options were removed for
+  // this reason; backend schema enforces the same 30-day maximum.
+  static const _windowOptions = [7, 15, 30];
   static const _slots = [
     _SlotOption('morning', 'Morning', '9 AM – 12 PM'),
     _SlotOption('afternoon', 'Afternoon', '12 – 5 PM'),

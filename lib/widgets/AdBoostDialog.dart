@@ -10,6 +10,7 @@ import 'package:classifieds/widgets/CommonLoader.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../data/cubit/MyAds/my_ads_cubit.dart';
 import '../services/AuthService.dart';
+import '../presentation/views/SuccessRecapScreen.dart';
 import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
 import 'package:classifieds/utils/AppLogger.dart';
@@ -152,7 +153,14 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
                       } else if (state is BoostAdPaymentVerified) {
                         context.read<MyAdsCubit>().getMyAds("approved");
                         context.pop();
-                        context.push('/successfully1');
+                        context.push(
+                          '/listing-success',
+                          extra: SuccessRecapData.boost(
+                            boostAmount: data?.amount?.toString(),
+                            boostDescription: data?.description,
+                            listingId: widget.listing_id,
+                          ),
+                        );
                       } else if (state is BoostAdFailure) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(state.error), backgroundColor: Colors.red),

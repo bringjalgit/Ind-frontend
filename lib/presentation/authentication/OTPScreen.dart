@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_messaging/firebase_messaging.dart';
+import '../../services/FcmTokenManager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -582,13 +582,10 @@ class _OtpscreenState extends State<Otpscreen> with RateLimitCountdownMixin {
                                                     onPressed: (loading || blocked)
                                                         ? null
                                                         : () async {
-                                                            FirebaseMessaging
-                                                            messaging =
-                                                                FirebaseMessaging
-                                                                    .instance;
-                                                            String? fcmToken =
-                                                                await messaging
-                                                                    .getToken();
+                                                            // Validate OTP BEFORE we spend 3-8 seconds
+                                                            // fetching the FCM token — a malformed OTP
+                                                            // should fail instantly, not hang on token
+                                                            // provisioning.
                                                             final otp =
                                                                 _otpController
                                                                     .text
@@ -605,17 +602,23 @@ class _OtpscreenState extends State<Otpscreen> with RateLimitCountdownMixin {
                                                               return;
                                                             }
 
-                                                            // ✅ handle null fcm token gracefully
+                                                            // Single source of truth for token fetch:
+                                                            // requests permission, retries on null,
+                                                            // never throws. Returns null only when
+                                                            // the user has denied notification
+                                                            // permission or provisioning is stalled —
+                                                            // in both cases login must still proceed
+                                                            // (no push doesn't block auth).
+                                                            final String?
+                                                                fcmToken =
+                                                                await FcmTokenManager
+                                                                    .ensureFcmToken();
                                                             if (fcmToken ==
                                                                     null ||
                                                                 fcmToken
                                                                     .isEmpty) {
                                                               debugPrint(
-                                                                "⚠️ FCM token is null/empty, sending without it",
-                                                              );
-                                                              CustomSnackBar.show(
-                                                                context,
-                                                                '⚠️ FCM token is null/empty, sending without it',
+                                                                "⚠️ FCM token unavailable — logging in without it. Push notifications will be off until permission is re-granted.",
                                                               );
                                                             }
                                                             if (widget
