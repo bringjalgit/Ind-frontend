@@ -13,6 +13,15 @@ class SWAAvailabilityWizardScreen extends StatefulWidget {
   final int listedPrice;
   final int expectedPrice;
   final int floorPrice;
+  // ISO timestamps for the listing's plan window. The chip filter uses
+  // (expires - created) — the listing's plan-total validity — not
+  // (expires - now), because `.inDays` truncation would otherwise hide
+  // the matching chip within an hour of listing creation (a fresh
+  // 30-day listing would compute 29 days remaining and lose the 30
+  // chip). Null when the entry point didn't supply them; we then fall
+  // back to all five chips (backend still caps at 90).
+  final String? expiresListDate;
+  final String? createdAt;
 
   const SWAAvailabilityWizardScreen({
     super.key,
@@ -21,6 +30,8 @@ class SWAAvailabilityWizardScreen extends StatefulWidget {
     required this.listedPrice,
     required this.expectedPrice,
     required this.floorPrice,
+    this.expiresListDate,
+    this.createdAt,
   });
 
   @override
@@ -31,20 +42,78 @@ class SWAAvailabilityWizardScreen extends StatefulWidget {
 class _SWAAvailabilityWizardScreenState
     extends State<SWAAvailabilityWizardScreen> {
   int _selectedWindow = 30;
-  final Set<String> _selectedSlots = {'morning', 'evening'};
+  // Pickup slots start EMPTY — the seller must pick at least one. Earlier
+  // we pre-selected morning + evening which read as a quiet auto-decision
+  // sellers didn't realise they'd made. The downstream validator in
+  // _onNext catches the empty set and asks them to choose.
+  final Set<String> _selectedSlots = <String>{};
   String? _slotError;
 
-  // Capped at 30 days because a listing's lifetime is 30 days — running
-  // Smart Assist past the listing's expiry would leave it answering
-  // buyers about a dead listing. 60/90 day options were removed for
-  // this reason; backend schema enforces the same 30-day maximum.
-  static const _windowOptions = [7, 15, 30];
+  // Phone-privacy toggle. When true (default), the seller's mobile number
+  // is hidden from buyers chatting via SWA on this listing — the call
+  // icon doesn't render in the buyer's chat. Auto-unlocks for any
+  // conversation the seller takes over manually (status =
+  // seller_takeover). Toggle survives deactivate/reactivate cycles. The
+  // value is forwarded all the way to the activation API and persisted on
+  // sell_with_ai_config.hide_phone_from_buyers.
+  bool _hidePhoneFromBuyers = true;
+
+  // Preset durations. Backend caps at 90; the visible subset is further
+  // capped by the listing's remaining validity (see initState).
+  static const _windowOptions = [7, 15, 30, 60, 90];
+
+  // Largest window chip we'll render. Computed from expiresListDate at
+  // mount; defaults to 90 when no expiry is supplied so the picker
+  // behaves exactly like before for legacy entry points.
+  int _maxWindowDays = 90;
   static const _slots = [
     _SlotOption('morning', 'Morning', '9 AM – 12 PM'),
     _SlotOption('afternoon', 'Afternoon', '12 – 5 PM'),
     _SlotOption('evening', 'Evening', '5 – 9 PM'),
     _SlotOption('weekend', 'Weekend', 'Sat & Sun'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final expiresRaw = widget.expiresListDate;
+    final createdRaw = widget.createdAt;
+    final expiresAt = (expiresRaw != null && expiresRaw.isNotEmpty)
+        ? DateTime.tryParse(expiresRaw)
+        : null;
+    final createdAt = (createdRaw != null && createdRaw.isNotEmpty)
+        ? DateTime.tryParse(createdRaw)
+        : null;
+
+    if (expiresAt != null && createdAt != null) {
+      // Plan-total validity: invariant for the lifetime of the listing.
+      // A 30-day listing always reads as 30 days here regardless of when
+      // the seller is viewing the wizard.
+      //
+      // `.inDays` truncates, and the backend sets expires_list_date a
+      // few milliseconds after created_at, so a 30-day plan computes as
+      // 29 days, 23:59:59.99x → 29. Round to nearest day to recover the
+      // integer the seller actually purchased.
+      final diffMs = expiresAt.difference(createdAt).inMilliseconds;
+      final planDays =
+          (diffMs / Duration.millisecondsPerDay).round();
+      _maxWindowDays = planDays < 7 ? 7 : (planDays > 90 ? 90 : planDays);
+    } else if (expiresAt != null) {
+      // Fallback when createdAt wasn't supplied: use remaining days.
+      // Less accurate but better than no cap. Floor at 7 so a listing
+      // about to expire still shows at least one chip.
+      final remaining = expiresAt.difference(DateTime.now()).inDays;
+      _maxWindowDays = remaining < 7 ? 7 : (remaining > 90 ? 90 : remaining);
+    }
+    // Clamp the initial selection if it's now out of range. 30 is the
+    // default — for a 15-day listing that's invalid, so drop down to
+    // the largest visible chip.
+    if (_selectedWindow > _maxWindowDays) {
+      final allowed =
+          _windowOptions.where((d) => d <= _maxWindowDays).toList();
+      _selectedWindow = allowed.isNotEmpty ? allowed.last : _maxWindowDays;
+    }
+  }
 
   void _toggleSlot(String id) {
     setState(() {
@@ -72,6 +141,7 @@ class _SWAAvailabilityWizardScreenState
         'floorPrice': widget.floorPrice,
         'availabilityWindow': _selectedWindow,
         'pickupSlots': _selectedSlots.toList(),
+        'hidePhoneFromBuyers': _hidePhoneFromBuyers,
       },
     );
   }
@@ -105,6 +175,7 @@ class _SWAAvailabilityWizardScreenState
                 spacing: 8,
                 runSpacing: 8,
                 children: _windowOptions
+                    .where((d) => d <= _maxWindowDays)
                     .map((d) => _buildDurationPill(t, d))
                     .toList(),
               ),
@@ -150,6 +221,12 @@ class _SWAAvailabilityWizardScreenState
                     _slots.map((s) => _buildSlotCard(t, s)).toList(),
               ),
 
+              const SizedBox(height: 22),
+
+              // ── PHONE PRIVACY ────────────────────────────────────
+              _sectionLabel(t, 'PHONE PRIVACY'),
+              const SizedBox(height: 12),
+              _buildPrivacyCard(t),
               const SizedBox(height: 18),
 
               WizardTipChip(
@@ -182,6 +259,115 @@ class _SWAAvailabilityWizardScreenState
           color: t.dim2,
         ),
       );
+
+  /// Phone-privacy toggle card. Mirrors the slot/duration card surfaces
+  /// so it visually lives inside the Availability step rather than feeling
+  /// bolted on. The trailing Switch flips `_hidePhoneFromBuyers`; the
+  /// hint line below the card swaps copy + dot colour based on state so
+  /// the seller has unambiguous feedback about whether their number is
+  /// reachable. Auto-unlock-on-takeover semantics are mentioned in the
+  /// hint so the seller doesn't have to read the spec to understand the
+  /// edge case.
+  Widget _buildPrivacyCard(WizardTokens t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(
+            color: t.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: t.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: t.accent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.phonelink_lock_outlined,
+                  color: t.accent,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Hide phone from buyers',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                        color: t.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Buyers can't see or dial your number while Smart "
+                      'Assist is negotiating. They reach you only via this '
+                      'chat.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: t.dim,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Switch.adaptive(
+                value: _hidePhoneFromBuyers,
+                activeColor: t.accent,
+                onChanged: (v) => setState(() => _hidePhoneFromBuyers = v),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 4, right: 8),
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _hidePhoneFromBuyers ? t.warn : t.success,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  _hidePhoneFromBuyers
+                      ? 'Active for every buyer on this listing. Auto-unlocks '
+                          'for any conversation you take over.'
+                      : 'Buyers on this listing can see your number and call '
+                          'directly.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: t.dim2,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   /// Duration pill with mono numeral on top of "days" label.
   Widget _buildDurationPill(WizardTokens t, int days) {

@@ -194,7 +194,7 @@ class WizardPrimaryButton extends StatelessWidget {
     final fg = t.onAccent;
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 56,
       child: ElevatedButton(
         onPressed: loading ? null : onPressed,
         style: ElevatedButton.styleFrom(
@@ -202,7 +202,13 @@ class WizardPrimaryButton extends StatelessWidget {
           foregroundColor: fg,
           disabledBackgroundColor: bg.withOpacity(0.5),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          // 2026-05-17 — pill shape (radius 28 = half of 56 height) so
+          // the wizard CTAs match the rounded primary-button language
+          // used on Login + OTP + Register.
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          shadowColor: Colors.transparent,
         ),
         child: loading
             ? SizedBox(
@@ -218,16 +224,22 @@ class WizardPrimaryButton extends StatelessWidget {
                 children: [
                   Text(
                     label,
+                    // 2026-05-17 v2 — bumped to 19/w900 + tiny positive
+                    // tracking so the CTA reads bold on light cyan /
+                    // lime backgrounds (low-contrast surfaces need more
+                    // weight to feel substantial). 17/w800 was getting
+                    // visually swallowed by the bg colour.
                     style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.1,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
                       color: fg,
+                      height: 1.0,
                     ),
                   ),
                   if (icon != null) ...[
-                    const SizedBox(width: 8),
-                    Icon(icon, size: 18, color: fg),
+                    const SizedBox(width: 10),
+                    Icon(icon, size: 22, color: fg),
                   ],
                 ],
               ),

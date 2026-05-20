@@ -31,6 +31,12 @@ class ChatUsersModel {
 class Data {
   String? listingId;
   String? listingTitle;
+  // True when the underlying listing has been marked sold. UserListScreen
+  // dims the entire chat row (opacity + light grayscale) when this is
+  // true, so seller and buyer both see at a glance which chats are on
+  // closed deals. Defaults false when the backend omits the field —
+  // older responses are treated as not-sold so we never over-dim.
+  bool listingSold = false;
 
   String? userId;
   String? name;
@@ -45,6 +51,7 @@ class Data {
   Data({
     this.listingId,
     this.listingTitle,
+    this.listingSold = false,
     this.userId,
     this.name,
     this.profileImage,
@@ -58,6 +65,7 @@ class Data {
   Data.fromJson(Map<String, dynamic> json) {
     listingId = json['listing_id']?.toString();
     listingTitle = json['listing_title'];
+    listingSold = json['listing_sold'] == true;
 
     userId = json['user_id']?.toString();
     name = json['name'];
@@ -74,6 +82,7 @@ class Data {
     return {
       'listing_id': listingId,
       'listing_title': listingTitle,
+      'listing_sold': listingSold,
       'user_id': userId,
       'name': name,
       'profile_image': profileImage,

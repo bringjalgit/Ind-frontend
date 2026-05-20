@@ -17,7 +17,16 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
 
   // Fetch initial chat messages (make newest-first for reverse:true lists)
   Future<void> fetchMessages(String userId, String listingId) async {
-    emit(ChatMessagesLoading());
+    // Only show the shimmer placeholder on the very first fetch when we
+    // have no data to render. On subsequent re-fetches (e.g. WS-triggered
+    // refresh after seller_takeover), keep the existing Loaded state on
+    // screen so the message list doesn't blank-out for the duration of
+    // the network round-trip — the user sees a seamless update once the
+    // new Loaded state lands.
+    final hasPriorData = chatMessagesModel.data?.messages != null;
+    if (!hasPriorData) {
+      emit(ChatMessagesLoading());
+    }
     _currentPage = 1;
     try {
       final res = await chatMessagesRepository.getChatMessages(
@@ -52,7 +61,10 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
             currentOffer: res.data?.currentOffer,
             counterOffer: res.data?.counterOffer,
             agreedPrice: res.data?.agreedPrice,
+            expiryReason: res.data?.expiryReason,
+            completedAt: res.data?.completedAt,
             initialPills: res.data?.initialPills,
+            viewerIsSeller: res.data?.viewerIsSeller ?? false,
           ),
           settings: res.settings,
         );
@@ -128,8 +140,15 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
                 chatMessagesModel.data?.counterOffer,
             agreedPrice: newData.data?.agreedPrice ??
                 chatMessagesModel.data?.agreedPrice,
+            expiryReason: newData.data?.expiryReason ??
+                chatMessagesModel.data?.expiryReason,
+            completedAt: newData.data?.completedAt ??
+                chatMessagesModel.data?.completedAt,
             initialPills: newData.data?.initialPills ??
                 chatMessagesModel.data?.initialPills,
+            viewerIsSeller: newData.data?.viewerIsSeller ??
+                chatMessagesModel.data?.viewerIsSeller ??
+                false,
           ),
           settings: newData.settings,
         );

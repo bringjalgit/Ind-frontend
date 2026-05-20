@@ -231,6 +231,7 @@ class _UserListScreenState extends State<UserListScreen>
                                     imageUrl: user.profileImage ?? "",
                                     pinned: isPinned,
                                     unreadCount: user.unreadCount ?? 0,
+                                    listingSold: user.listingSold,
                                     card: isPinned
                                         ? Colors.teal.withOpacity(0.1)
                                         : card,
@@ -420,6 +421,7 @@ class _ChatCard extends StatelessWidget {
     required this.animationDelay,
     required this.pinned,
     this.unreadCount = 0,
+    this.listingSold = false,
   });
 
   final dynamic id;
@@ -433,6 +435,12 @@ class _ChatCard extends StatelessWidget {
   final int animationDelay;
   final bool pinned;
   final int unreadCount;
+  // When true the row is rendered at 0.55 opacity + slight desaturation,
+  // so seller and buyer see at a glance that this chat is on a sold
+  // listing. Tap stays enabled — the user can still open the chat to
+  // read the negotiation history; we just signal that no further deal
+  // is possible.
+  final bool listingSold;
 
   bool get _hasImage =>
       imageUrl.trim().isNotEmpty &&
@@ -495,81 +503,134 @@ class _ChatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      opacity: 1.0,
-      duration: Duration(milliseconds: 300 + animationDelay),
-      child: Material(
-        color: card,
+    Widget cardBody = Material(
+      color: card,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.1),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.1),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                _avatar(size: 48), // ← image or initials
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.titleMedium(
-                                textColor,
-                              ).copyWith(fontWeight: FontWeight.w600),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              _avatar(size: 48), // ← image or initials
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.titleMedium(
+                              textColor,
+                            ).copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        if (listingSold) ...[
+                          // Compact "Sold" pill — stays sharp on top of
+                          // the dimmed body so the cause of the visual
+                          // muting is unambiguous. Crimson tone shared
+                          // with the Sold Out badge on the listing card.
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0xFFDC2626).withOpacity(0.35),
+                              ),
+                            ),
+                            child: const Text(
+                              'Sold',
+                              style: TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 4),
-                          if (pinned) Icon(Icons.push_pin, color: textColor),
                         ],
-                      ),
-                      Text(
-                        listingTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.titleSmall(
-                          textColor,
-                        ).copyWith(fontWeight: FontWeight.w400),
-                      ),
-                      const SizedBox(height: 4),
-                      // You can add last message preview/time here later
-                    ],
+                        if (pinned) Icon(Icons.push_pin, color: textColor),
+                      ],
+                    ),
+                    Text(
+                      listingTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleSmall(
+                        textColor,
+                      ).copyWith(fontWeight: FontWeight.w400),
+                    ),
+                    const SizedBox(height: 4),
+                    // You can add last message preview/time here later
+                  ],
+                ),
+              ),
+              if (unreadCount > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF25D366),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                if (unreadCount > 0) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF25D366),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      unreadCount > 99 ? '99+' : '$unreadCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
         ),
       ),
+    );
+
+    // Sold listings get a muted treatment so the seller / buyer can
+    // tell at a glance the chat is on a closed deal. Tap stays enabled
+    // (the user can still open the chat to read history) — we just
+    // visually demote it relative to active chats.
+    if (listingSold) {
+      cardBody = Opacity(
+        opacity: 0.55,
+        child: ColorFiltered(
+          // Light desaturation — keeps colours recognisable while
+          // pulling the row visually behind active rows. The 5x4
+          // matrix below is the standard "30% grayscale" mix.
+          colorFilter: const ColorFilter.matrix(<double>[
+            0.65, 0.27, 0.08, 0, 0,
+            0.21, 0.79, 0.00, 0, 0,
+            0.21, 0.27, 0.52, 0, 0,
+            0,    0,    0,    1, 0,
+          ]),
+          child: cardBody,
+        ),
+      );
+    }
+
+    return AnimatedOpacity(
+      opacity: 1.0,
+      duration: Duration(milliseconds: 300 + animationDelay),
+      child: cardBody,
     );
   }
 }

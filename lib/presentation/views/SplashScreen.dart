@@ -26,6 +26,17 @@ class _SplashscreenState extends State<Splashscreen> {
     requestTrackingPermission();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Warm up the auth-screen logo so it's already decoded and on the
+    // GPU by the time the user reaches LoginScreen / OTPScreen. The
+    // splash is on-screen for several seconds anyway — wasting that
+    // time waiting on an image decode at login is silly. precacheImage
+    // needs a BuildContext, so it lives here (not initState).
+    precacheImage(const AssetImage('assets/images/applogonew.png'), context);
+  }
+
   Future<void> requestTrackingPermission() async {
     if (!kIsWeb && Platform.isIOS) {
       final status = await AppTrackingTransparency.trackingAuthorizationStatus;
@@ -57,7 +68,63 @@ class _SplashscreenState extends State<Splashscreen> {
       return;
     }
 
-    // 3. All clear — go to dashboard (handles guest mode internally)
+    // 3. Auth gate — only registered users with a valid cached token
+    //    go straight to the dashboard. Everyone else (first-time
+    //    install, logged out, expired token that can't be refreshed)
+    //    lands on the login screen.
+    final guest = await AuthService.isGuest;
+    if (guest) {
+      if (!mounted) return;
+      context.pushReplacement('/login');
+      return;
+    }
+
+    // Has a cached access token. Check expiry and refresh if needed —
+    // a stale token where the refresh fails (refresh token expired or
+    // revoked) is functionally guest, so route to login rather than
+    // letting the dashboard hit 401 on every call.
+    //
+    // Bug #7 fix — on refresh failure, call AuthService.logout()
+    // instead of a bare pushReplacement. logout() clears the stale
+    // auth_session_v1 blob AND navigates to /login, mirroring exactly
+    // what the ApiClient interceptor does on a failed mid-session
+    // refresh. Without this, the splash would leave the dead tokens
+    // sitting in SecureStorage; the user's next cold-start would read
+    // them, attempt refresh, fail again, and re-loop — wasting a
+    // refresh round-trip every launch until something else (manual
+    // logout, app uninstall) wipes the cache.
+    if (await AuthService.isTokenExpired()) {
+      final refreshed = await AuthService.refreshToken();
+      if (!refreshed) {
+        if (!mounted) return;
+        await AuthService.logout();
+        return;
+      }
+    }
+
+    // Bug #4 — Onboarded check.
+    //
+    // Token is valid, but that ALONE is not enough to land on the
+    // dashboard. A user who verifies OTP receives a token immediately
+    // (so they can submit the next step's register form) and is
+    // dropped on the Register screen. If they walk away or force-close
+    // before completing the form, their cache holds a valid token AND
+    // `isNewUser=true`. Without this check the splash would route them
+    // to the dashboard on next launch, where every screen reads a
+    // half-filled profile — visible day-one bug.
+    //
+    // `AuthService.isNewUser` reads the cached flag (stored in the
+    // atomic auth_session_v1 blob from Bug #1's fix). The backend sets
+    // it on OTP verify and the Register screen flips it to "false"
+    // after a successful submit — see
+    // RegisterUserDetailsScreen.dart:531.
+    if (await AuthService.isNewUser) {
+      if (!mounted) return;
+      context.pushReplacement('/register');
+      return;
+    }
+
+    if (!mounted) return;
     context.pushReplacement('/dashboard');
   }
 

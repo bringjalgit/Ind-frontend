@@ -19,6 +19,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../Components/Shimmers.dart';
+import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
+import '../../data/cubit/AddToWishlist/addToWishlistStates.dart';
 import '../../data/cubit/ProductDetails/product_details_cubit.dart';
 import '../../data/cubit/ProductDetails/product_details_states.dart';
 import '../../data/cubit/Products/Product_cubit1.dart';
@@ -68,7 +70,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final Completer<GoogleMapController> _mapCtrl = Completer();
 
   LatLng? _listingLatLng;
-  Set<Marker> _markers = {};
+  // Privacy circle around the listing rather than an exact pin —
+  // OLX-style fuzzy area so buyers see roughly where the item is
+  // without revealing the seller's street/door.
+  Set<Circle> _circles = {};
   bool _isResolvingLocation = false;
 
   String? receiverId;
@@ -76,6 +81,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   String? receiverImage;
   String? listingId;
   String? listingTitle;
+
+  // Wishlist UI state. Seeded from listing.is_favorited the first time
+  // the bloc emits Loaded (see _didInitFromBloc guard). The heart button
+  // toggles optimistically and the AddToWishlistCubit listener
+  // reconciles with the backend response (or reverts on failure).
+  bool? _isFavorited;
 
   @override
   void initState() {
@@ -145,11 +156,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       if (pos != null) {
         setState(() {
           _listingLatLng = pos;
-          _markers = {
-            Marker(
-              markerId: const MarkerId('listing'),
-              position: pos!,
-              infoWindow: InfoWindow(title: listing.title ?? 'Listing'),
+          _circles = {
+            Circle(
+              circleId: const CircleId('listing-area'),
+              center: pos!,
+              radius: 500,
+              fillColor: Colors.blue.withOpacity(0.18),
+              strokeColor: Colors.blue.withOpacity(0.7),
+              strokeWidth: 2,
             ),
           };
         });
@@ -226,56 +240,95 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           final isGuest = results[0] as bool;
           final userId = results[1] as String?;
 
-          /// 4️⃣ HIDE IF INVALID
-          if (userId == null ||
-              userId.isEmpty ||
-              receiverId == null ||
-              receiverId!.isEmpty ||
-              userId == receiverId) {
+          /// 4️⃣ HIDE IF NO RECEIVER (listing data missing — can't
+          /// contact a phantom seller).
+          if (receiverId == null || receiverId!.isEmpty) {
             return const SizedBox.shrink();
           }
 
-          /// 5️⃣ SHOW CTA
+          /// 5️⃣ HIDE ON OWN LISTING (logged-in user viewing their own
+          /// post — contact/chat-yourself makes no sense). Skipped for
+          /// guests since they have no userId to compare against.
+          if (!isGuest && userId != null && userId == receiverId) {
+            return const SizedBox.shrink();
+          }
+
+          /// 6️⃣ SHOW CTA. Guests see the buttons too; tapping either
+          /// shows a snackbar + redirects to /login (matches the
+          /// like-button pattern in Home.dart). Reverted from the
+          /// hide-entirely behavior on 2026-05-08 — hiding made the app
+          /// look broken to first-time visitors who don't realize they
+          /// need to log in to interact. (2026-05-08)
           return _BottomCtaBar(
-            onContact: isGuest
-                ? () => context.push("/login")
-                : () async {
-                    if (mobile_number != null && mobile_number!.isNotEmpty) {
-                      AppLauncher.call(mobile_number!);
-                    } else {
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (_) =>
-                            const Center(child: CircularProgressIndicator()),
-                      );
-                      await Future.delayed(const Duration(seconds: 2));
-                      if (context.mounted) Navigator.of(context).pop();
-                      if (mobile_number != null && mobile_number!.isNotEmpty) {
-                        AppLauncher.call(mobile_number!);
-                      } else {
-                        CustomSnackBar1.show(
-                          context,
-                          "Mobile number not available",
-                        );
-                      }
-                    }
-                  },
-            onChat: isGuest
-                ? () => context.push("/login")
-                : () {
-                    context.push(
-                      '/chat'
-                      '?receiverId=$receiverId'
-                      '&listingId=$listingId'
-                      '&listingTitle=${Uri.encodeComponent(listingTitle ?? "")}',
-                    );
-                  },
+            onContact: () async {
+              if (isGuest) {
+                CustomSnackBar1.show(context, 'Please log in to contact the seller');
+                context.push('/login');
+                return;
+              }
+              if (mobile_number != null && mobile_number!.isNotEmpty) {
+                AppLauncher.call(mobile_number!);
+              } else {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) =>
+                      const Center(child: CircularProgressIndicator()),
+                );
+                await Future.delayed(const Duration(seconds: 2));
+                if (context.mounted) Navigator.of(context).pop();
+                if (mobile_number != null && mobile_number!.isNotEmpty) {
+                  AppLauncher.call(mobile_number!);
+                } else {
+                  CustomSnackBar1.show(
+                    context,
+                    "Mobile number not available",
+                  );
+                }
+              }
+            },
+            onChat: () {
+              if (isGuest) {
+                CustomSnackBar1.show(context, 'Please log in to chat with the seller');
+                context.push('/login');
+                return;
+              }
+              context.push(
+                '/chat'
+                '?receiverId=$receiverId'
+                '&listingId=$listingId'
+                '&listingTitle=${Uri.encodeComponent(listingTitle ?? "")}',
+              );
+            },
           );
         },
       ),
       body: SafeArea(
-        child: BlocConsumer<ProductDetailsCubit, ProductDetailsStates>(
+        child: BlocListener<AddToWishlistCubit, AddToWishlistStates>(
+          listener: (context, state) {
+            if (state is AddToWishlistLoaded &&
+                listingId != null &&
+                state.product_id == listingId) {
+              // Reconcile local state with the server's authoritative
+              // value — `liked` is true when the listing was just
+              // wishlisted, false when removed.
+              if (mounted) {
+                setState(() {
+                  _isFavorited = state.addToWishlistModel.liked == true;
+                });
+              }
+            } else if (state is AddToWishlistFailure) {
+              // Optimistic update failed — flip the heart back and
+              // surface the error.
+              if (mounted) {
+                setState(() {
+                  _isFavorited = !(_isFavorited ?? false);
+                });
+                CustomSnackBar1.show(context, state.error);
+              }
+            }
+          },
+          child: BlocConsumer<ProductDetailsCubit, ProductDetailsStates>(
           listenWhen: (prev, curr) => curr is ProductDetailsLoaded,
           listener: (context, state) async {
             final s = state as ProductDetailsLoaded;
@@ -291,6 +344,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               receiverName = data.postedBy?.name ?? "";
               receiverImage = data.postedBy?.image ?? "";
               mobile_number = listing.mobileNumber ?? "";
+              _isFavorited = listing.isFavorited == true;
 
               // Initialize map position once
               await _prepareMap(listing);
@@ -387,7 +441,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                 ),
                               ),
 
-                              // 3) Top-right actions
+                              // 3) Top-right actions (heart moved to
+                              //    the title/price row opposite ₹price).
                               Positioned(
                                 top: 12,
                                 right: 12,
@@ -459,62 +514,90 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            title,
-                            style: AppTextStyles.headlineSmall(textColor),
-                          ),
-                          const SizedBox(height: 6),
-                          listing.price == "0.0" ||
-                                  listing.price == "0" ||
-                                  listing.price == "0.00"
-                              ? const SizedBox.shrink()
-                              : Text(
-                                  "₹${_formatINR(listing.price)}",
-                                  style: AppTextStyles.headlineMedium(
-                                    textColor,
-                                  ).copyWith(fontWeight: FontWeight.w800),
+                          // Title + price — main column.
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: AppTextStyles.headlineSmall(textColor),
                                 ),
-                          const SizedBox(height: 20),
+                                const SizedBox(height: 6),
+                                listing.price == "0.0" ||
+                                        listing.price == "0" ||
+                                        listing.price == "0.00"
+                                    ? const SizedBox.shrink()
+                                    : Text(
+                                        "₹${_formatINR(listing.price)}",
+                                        style: AppTextStyles.headlineMedium(
+                                          textColor,
+                                        ).copyWith(fontWeight: FontWeight.w800),
+                                      ),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                          // Wishlist heart, opposite the price.
+                          IconButton(
+                            tooltip: (_isFavorited ?? false)
+                                ? 'Remove from wishlist'
+                                : 'Add to wishlist',
+                            icon: Icon(
+                              (_isFavorited ?? false)
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: (_isFavorited ?? false)
+                                  ? Colors.redAccent
+                                  : textColor.withOpacity(.75),
+                              size: 28,
+                            ),
+                            onPressed: () async {
+                              if (await AuthService.isGuest) {
+                                if (context.mounted) {
+                                  context.push('/login');
+                                }
+                                return;
+                              }
+                              if (listing.id == null) return;
+                              setState(() {
+                                _isFavorited = !(_isFavorited ?? false);
+                              });
+                              context
+                                  .read<AddToWishlistCubit>()
+                                  .addToWishlist(listing.id!);
+                              await MetaEventTracker.addToWishlist(
+                                listing.id.toString(),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
                   ),
+                  // ===== Posted By (right under the title — OLX-style.
+                  //       The card already shows "Posted N hours ago"
+                  //       so the standalone "Item Information" /
+                  //       "Posted At" chip would just duplicate it.) =====
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        "Item Information",
-                        style: AppTextStyles.headlineSmall(
-                          textColor,
-                        ).copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                  // Chips (Posted + Location)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Wrap(
-                        spacing: 16,
-                        runSpacing: 12,
-                        children: [
-                          if (listing.createdAt != null)
-                            _InfoChip(
-                              icon: Icons.calendar_today_rounded,
-                              label: "Posted At",
-                              value: _shortDate(listing.createdAt),
-                            ),
-                          if (location.isNotEmpty)
-                            _InfoChip(
-                              icon: Icons.place_rounded,
-                              label: "",
-                              value: location,
-                            ),
-                        ],
+                      child: _PostedByCard(
+                        avatarUrl: posted?.image,
+                        name: posted?.name ?? "—",
+                        postedOn:
+                            posted?.postedAt ?? _shortDate(listing.createdAt),
+                        memberSince: posted?.memberSince,
+                        activeListings: posted?.activeListings,
+                        soldListings: posted?.soldListings,
+                        onViewProfile: () {
+                          final sellerId = posted?.id;
+                          if (sellerId == null || sellerId.isEmpty) return;
+                          context.push('/seller_profile?userId=$sellerId');
+                        },
                       ),
                     ),
                   ),
@@ -563,29 +646,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: 20)),
                   ],
-                  // ===== AD ID =====
+                  // ===== Report this Ad =====
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "AD ID ${listing.id.toString()}",
-                            style: AppTextStyles.bodyLarge(
-                              textColor,
-                            ).copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              openReportSheetForListing(
-                                context,
-                                listingId: widget.listingId,
-                              );
-                            },
-                            child: Text("REPORT THIS AD"),
-                          ),
-                        ],
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            openReportSheetForListing(
+                              context,
+                              listingId: widget.listingId,
+                            );
+                          },
+                          child: Text("REPORT THIS AD"),
+                        ),
                       ),
                     ),
                   ),
@@ -627,14 +702,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                   : GoogleMap(
                                       initialCameraPosition: CameraPosition(
                                         target: _listingLatLng!,
-                                        zoom: 14.5,
+                                        zoom: 13.5,
                                       ),
                                       zoomGesturesEnabled: false,
                                       myLocationButtonEnabled: false,
                                       zoomControlsEnabled: false,
                                       rotateGesturesEnabled: false,
                                       tiltGesturesEnabled: false,
-                                      markers: _markers,
+                                      circles: _circles,
                                       onMapCreated: (c) => _mapCtrl.complete(c),
                                     ),
                             ),
@@ -658,20 +733,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 10)),
 
-                  // ===== Posted By =====
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _PostedByCard(
-                        avatarUrl: posted?.image,
-                        name: posted?.name ?? "—",
-                        postedOn:
-                            posted?.postedAt ?? _shortDate(listing.createdAt),
-                        onViewProfile: () {},
-                      ),
-                    ),
-                  ),
-
                   // ===== SWA Enable Card / Dashboard link (seller's own listing only) =====
                   SliverToBoxAdapter(
                     child: FutureBuilder<String?>(
@@ -685,8 +746,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         final isApproved = listing.status == 'approved';
                         final isSold = listing.sold == true;
                         final swaActive = listing.swaIsActive == true;
+                        // Category-level SWA gate. Hides the entire SWA
+                        // entry (both the EnableCard and the dashboard
+                        // link) for the four non-tradable categories —
+                        // Find Investor / Events / Films / Community.
+                        // Defaults true on older responses so we never
+                        // silently kill SWA on real sale listings.
+                        final categoryAllowsSwa =
+                            listing.swaCategoryEligible != false;
 
-                        if (!isOwner || !isApproved || isSold) {
+                        if (!isOwner || !isApproved || isSold || !categoryAllowsSwa) {
                           return const SizedBox.shrink();
                         }
 
@@ -739,6 +808,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             }
             return SizedBox.shrink();
           },
+        ),
         ),
       ),
     );
@@ -1204,12 +1274,18 @@ class _PostedByCard extends StatelessWidget {
   final String? avatarUrl;
   final String name;
   final String postedOn;
+  final String? memberSince;
+  final int? activeListings;
+  final int? soldListings;
   final VoidCallback onViewProfile;
   const _PostedByCard({
     required this.avatarUrl,
     required this.name,
     required this.postedOn,
     required this.onViewProfile,
+    this.memberSince,
+    this.activeListings,
+    this.soldListings,
   });
 
   @override
@@ -1221,52 +1297,194 @@ class _PostedByCard extends StatelessWidget {
         : Colors.black12;
 
     return Container(
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
-                ? NetworkImage(avatarUrl!)
-                : null,
-            child: (avatarUrl == null || avatarUrl!.isEmpty)
-                ? Icon(Icons.person, color: textColor)
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // Top row: avatar + name + posted-on
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
               children: [
-                Text(
-                  "Posted by",
-                  style: AppTextStyles.bodySmall(textColor.withOpacity(.6)),
+                CircleAvatar(
+                  radius: 26,
+                  // Same fallback the profile dashboard uses
+                  // (assets/images/profile.png) so the placeholder
+                  // looks consistent across the app.
+                  backgroundImage:
+                      (avatarUrl != null && avatarUrl!.isNotEmpty)
+                          ? NetworkImage(avatarUrl!) as ImageProvider
+                          : const AssetImage('assets/images/profile.png'),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  name,
-                  style: AppTextStyles.bodyMedium(
-                    textColor,
-                  ).copyWith(fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  "Posted on $postedOn",
-                  style: AppTextStyles.bodySmall(textColor.withOpacity(.6)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Posted by",
+                        style: AppTextStyles.bodySmall(
+                          textColor.withOpacity(.6),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        style: AppTextStyles.bodyLarge(textColor)
+                            .copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Posted $postedOn",
+                        style: AppTextStyles.bodySmall(
+                          textColor.withOpacity(.6),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          // IconButton(
-          //   onPressed: onViewProfile,
-          //   icon: Icon(Icons.person_add_alt_1, color: textColor),
-          // ),
+          // Middle row: Member Since + listing counts (only when data
+          // present — older accounts predate `created_at` and free
+          // listings may have 0 active/sold).
+          if (memberSince != null ||
+              (activeListings ?? 0) > 0 ||
+              (soldListings ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Divider(
+                color: borderColor,
+                height: 1,
+                thickness: 1,
+              ),
+            ),
+          if (memberSince != null ||
+              (activeListings ?? 0) > 0 ||
+              (soldListings ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              // Stats on a single row — first item flush-left, last
+              // item flush-right, anything in the middle distributed
+              // evenly. Each cell is Flexible so long text shrinks
+              // (with ellipsis) instead of overflowing.
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (memberSince != null)
+                    Flexible(
+                      child: _SellerStat(
+                        icon: Icons.person_outline,
+                        iconColor: textColor.withOpacity(.6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Member since ",
+                              style: AppTextStyles.bodySmall(
+                                textColor.withOpacity(.7),
+                              ),
+                            ),
+                            Flexible(
+                              child: Text(
+                                memberSince!,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodySmall(textColor)
+                                    .copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  if ((activeListings ?? 0) > 0)
+                    Flexible(
+                      child: _SellerStat(
+                        icon: Icons.list_alt,
+                        iconColor: textColor.withOpacity(.6),
+                        child: Text(
+                          "${activeListings!} active",
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySmall(textColor),
+                        ),
+                      ),
+                    ),
+                  if ((soldListings ?? 0) > 0)
+                    Flexible(
+                      child: _SellerStat(
+                        icon: Icons.check_circle_outline,
+                        iconColor: textColor.withOpacity(.6),
+                        child: Text(
+                          "${soldListings!} sold",
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySmall(textColor),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          // Bottom row: View seller profile (placeholder action — full
+          // seller-profile screen is a follow-up).
+          InkWell(
+            onTap: onViewProfile,
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      "View seller profile",
+                      style: AppTextStyles.bodyMedium(Colors.blue)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: textColor.withOpacity(.6),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Tiny icon+label pair used inside the seller-card Wrap. Keeping each
+/// pair as a discrete child lets `Wrap` flow them on the next line
+/// when the row would otherwise overflow on narrow phones.
+class _SellerStat extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Widget child;
+  const _SellerStat({
+    required this.icon,
+    required this.iconColor,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 16, color: iconColor),
+        const SizedBox(width: 4),
+        child,
+      ],
     );
   }
 }
@@ -1308,10 +1526,12 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final String? tooltip;
   final VoidCallback onTap;
+  final Color? iconColor;
   const _RoundIconButton({
     required this.icon,
     required this.onTap,
     this.tooltip,
+    this.iconColor,
     super.key,
   });
 
@@ -1330,7 +1550,8 @@ class _RoundIconButton extends StatelessWidget {
               child: Icon(
                 icon,
                 size: 20,
-                color: isDark ? Colors.white : Colors.black87,
+                color: iconColor ??
+                    (isDark ? Colors.white : Colors.black87),
               ),
             ),
           ),

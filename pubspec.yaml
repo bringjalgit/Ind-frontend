@@ -76,6 +76,10 @@ dependencies:
   google_sign_in: ^6.2.2
   web_socket_channel: ^3.0.3
   package_info_plus: ^9.0.1
+  # Fraunces serif for the onboarding headlines — matches the
+  # mockups/onboarding-mocks.html design (italic gradient on the
+  # accent word in "Login to continue your journey.").
+  google_fonts: ^6.2.1
 
 
 

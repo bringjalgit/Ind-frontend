@@ -256,23 +256,66 @@ class NotificationService {
   // -------------------- NAVIGATION --------------------
 
   void _navigateFromPushData(Map<String, dynamic> data) {
+    // The notification's "other party" is the senderId (whoever sent
+    // the chat message). From the receiver-of-the-notification's POV
+    // that user is the chat's `receiverId` — match the keys the
+    // backend [messaging.js sendChatNotification](handler/chat/messaging.js)
+    // emits + a few legacy aliases.
+    // The notification recipient (seller, in the SWA case) wants to land
+    // on a chat with the OTHER party. For P2P chat notifications the
+    // "other party" is `senderId` (whoever sent the chat). For SWA
+    // `offer_forwarded` notifications the backend sends `buyer_id` —
+    // the buyer is the other party from the seller's POV. Both shapes
+    // resolve to the same `/chat?receiverId=...` URL, so we accept
+    // either key and route to ChatScreen (NOT the SWA dashboard).
     final receiverId =
-        (data['receiverId'] ??
+        (data['senderId'] ??
+                data['sender_id'] ??
+                data['receiverId'] ??
                 data['receiver_id'] ??
-                data['senderId'] ??
+                data['buyer_id'] ??
                 data['rid'])
             ?.toString();
 
+    // listingId is required — chats are scoped to (listing, peer)
+    // pairs. Without it the /chat route falls back to "0" and the
+    // PrivateChatCubit can't load any messages.
+    final listingId =
+        (data['listingId'] ?? data['listing_id'])?.toString();
+
+    final listingTitle =
+        (data['listingTitle'] ?? data['listing_title'])?.toString();
+
     if (receiverId == null || receiverId.isEmpty) return;
+    if (listingId == null || listingId.isEmpty) return;
+
+    final query = StringBuffer('/chat?receiverId=$receiverId&listingId=$listingId');
+    if (listingTitle != null && listingTitle.isNotEmpty) {
+      query.write('&listingTitle=${Uri.encodeComponent(listingTitle)}');
+    }
 
     final ctx = navigatorKey.currentContext;
 
-    if (ctx != null && GoRouter.of(ctx).canPop()) {
-      GoRouter.of(ctx).push('/chat?receiverId=$receiverId');
-    } else {
-      NotificationIntent.setPendingChat(receiverId);
-      GoRouter.of(navigatorKey.currentContext!).go('/');
+    // If the app's UI is up, push /chat directly on top of whatever
+    // the user is currently on. We previously gated this on
+    // `canPop()`, but `canPop()` returns false when the user is
+    // sitting on Dashboard (the root) — and `go('/')` to the same
+    // route is a no-op, so the pending intent never got consumed and
+    // the user stayed on home. Push always works (chat sits on top
+    // of dashboard / chat list / wherever).
+    if (ctx != null) {
+      GoRouter.of(ctx).push(query.toString());
+      return;
     }
+
+    // No context → app hasn't finished booting (cold start from
+    // notification tap). Stash the intent; Dashboard.initState picks
+    // it up via the post-frame callback once the router is ready.
+    NotificationIntent.setPendingChat(
+      receiverId: receiverId,
+      listingId: listingId,
+      listingTitle: listingTitle,
+    );
   }
 
   // -------------------- HELPERS --------------------

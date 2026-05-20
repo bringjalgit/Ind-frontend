@@ -142,6 +142,7 @@ class _SWAConversationScreenState extends State<SWAConversationScreen> {
     }
   }
 
+  // ignore: unused_element  // preserved for revert — see action-bar comment
   void _showCounterDialog() {
     final controller = TextEditingController();
     showDialog(
@@ -179,6 +180,7 @@ class _SWAConversationScreenState extends State<SWAConversationScreen> {
     );
   }
 
+  // ignore: unused_element  // preserved for revert — see action-bar comment
   void _showMessageDialog() {
     final controller = TextEditingController();
     showDialog(
@@ -562,27 +564,38 @@ class _SWAConversationScreenState extends State<SWAConversationScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Action buttons row (only when active)
-          if (isActive)
-            Row(
-              children: [
-                _actionButton('Accept', Icons.check_rounded, const Color(0xFF22C55E), isDark ? const Color(0xFF1A3A2A) : const Color(0xFFDCFCE7), () {
-                  _sendOverride('accept');
-                }),
-                const SizedBox(width: 8),
-                _actionButton('Counter', Icons.swap_horiz_rounded, AppColors.primary, isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF), () {
-                  _showCounterDialog();
-                }),
-                const SizedBox(width: 8),
-                _actionButton('Decline', Icons.close_rounded, const Color(0xFFEF4444), isDark ? const Color(0xFF3A1F1F) : const Color(0xFFFEE2E2), () {
-                  _sendOverride('decline');
-                }),
-                const SizedBox(width: 8),
-                _actionButton('Message', Icons.chat_bubble_outline, AppColors.primary, isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF), () {
-                  _showMessageDialog();
-                }),
-              ],
-            ),
+          // 2026-05-17 — Accept / Counter / Decline / Message action
+          // row commented out. SWA's job is to surface a real buyer;
+          // sellers now close deals via a normal chat (the Dashboard
+          // routes taps to `/chat` and the seller's first typed
+          // message triggers implicit takeover server-side).
+          //
+          // Code preserved (not deleted) so we can revive this flow
+          // if product wants the structured-override path back. To
+          // restore, un-comment the block below and the helpers
+          // [_sendOverride], [_showCounterDialog], [_showMessageDialog]
+          // earlier in this file.
+          //
+          // if (isActive)
+          //   Row(
+          //     children: [
+          //       _actionButton('Accept', Icons.check_rounded, const Color(0xFF22C55E), isDark ? const Color(0xFF1A3A2A) : const Color(0xFFDCFCE7), () {
+          //         _sendOverride('accept');
+          //       }),
+          //       const SizedBox(width: 8),
+          //       _actionButton('Counter', Icons.swap_horiz_rounded, AppColors.primary, isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF), () {
+          //         _showCounterDialog();
+          //       }),
+          //       const SizedBox(width: 8),
+          //       _actionButton('Decline', Icons.close_rounded, const Color(0xFFEF4444), isDark ? const Color(0xFF3A1F1F) : const Color(0xFFFEE2E2), () {
+          //         _sendOverride('decline');
+          //       }),
+          //       const SizedBox(width: 8),
+          //       _actionButton('Message', Icons.chat_bubble_outline, AppColors.primary, isDark ? const Color(0xFF1E2A3E) : const Color(0xFFEBF4FF), () {
+          //         _showMessageDialog();
+          //       }),
+          //     ],
+          //   ),
 
           // Confirm deal button (when pending_acceptance)
           if (hasDealPending) ...[
@@ -652,6 +665,7 @@ class _SWAConversationScreenState extends State<SWAConversationScreen> {
     );
   }
 
+  // ignore: unused_element  // preserved for revert — see action-bar comment
   Widget _actionButton(String label, IconData icon, Color color, Color bg, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(

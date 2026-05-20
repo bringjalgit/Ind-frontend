@@ -62,9 +62,31 @@ class Data {
   // listings that CAN be activated.
   bool swaActive = false;
   String? swaExpiresAt;
+  // True when this listing has been activated at SWA at least once
+  // before (server-side check: stored `expected_price > 0`). Drives the
+  // listing-card SWA strip: when SWA is off but the seller has already
+  // configured it once, the strip flips to "Smart Assist Deactivated —
+  // Tap to activate" with a one-tap reactivate using the stored config.
+  // For listings that were never activated this stays false and the
+  // strip remains the first-time "Try Smart Assist" wizard opener.
+  bool swaPreviouslyActivated = false;
+  // Category-level SWA gate. False for Find Investor / Events / Films /
+  // Community — those listings aren't tradable goods so SWA doesn't
+  // make sense. ANDed into `swaEligible` so every SWA chrome (Try /
+  // Deactivated strips, wizard entry) is hidden for these categories.
+  // Defaults true so older backend responses without the field don't
+  // silently kill SWA on existing eligible listings.
+  bool swaCategoryEligible = true;
+  // ISO timestamp for the listing's own expiry (driven by the plan/
+  // package the seller purchased). Used by the SWA activation wizard to
+  // cap the availability_window picker — offering 60 / 90 days on a
+  // 30-day listing is pointless because SWA can't outlive its listing.
+  String? expiresListDate;
 
   bool get swaEligible =>
-      (status ?? '').toLowerCase() == 'approved' && sold != true;
+      (status ?? '').toLowerCase() == 'approved' &&
+      sold != true &&
+      swaCategoryEligible;
 
   Data(
       {this.id,
@@ -116,6 +138,12 @@ class Data {
     image = json['image'];
     swaActive = json['swa_active'] == true;
     swaExpiresAt = json['swa_expires_at']?.toString();
+    swaPreviouslyActivated = json['swa_previously_activated'] == true;
+    // Default true — older responses without this field don't get
+    // their SWA chrome silently nuked. Backend explicitly sets false
+    // for the four blocked categories.
+    swaCategoryEligible = json['swa_category_eligible'] != false;
+    expiresListDate = json['expires_list_date']?.toString();
   }
 
   Map<String, dynamic> toJson() {
