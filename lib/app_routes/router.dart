@@ -57,6 +57,7 @@ import '../presentation/views/NotificationScreen.dart';
 import '../presentation/views/CategoryScreen.dart';
 import '../presentation/views/PostAdvertisementScreen.dart';
 import '../presentation/views/ProfileScreen.dart';
+import '../presentation/views/SellerProfileScreen.dart';
 import '../presentation/views/AadhaarVerificationScreen.dart';
 import '../presentation/views/SelectSubCategory.dart';
 import '../presentation/views/SuccessScreen.dart';
@@ -435,6 +436,21 @@ final GoRouter appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: '/seller_profile',
+      pageBuilder: (context, state) {
+        final userId = state.uri.queryParameters['userId'] ?? '';
+        // Optional header title — used by ChatScreen to flip the
+        // page label to "Buyer Profile" when the seller taps the
+        // buyer's name in the chat AppBar. Default stays "Seller
+        // Profile" (the original entry point from listing detail).
+        final title = state.uri.queryParameters['title'];
+        return buildSlideTransitionPage(
+          SellerProfileScreen(userId: userId, title: title),
+          state,
+        );
+      },
+    ),
+    GoRoute(
       path: '/category',
       pageBuilder: (context, state) =>
           buildSlideFromBottomPage(CategoryScreen(), state),
@@ -730,6 +746,8 @@ final GoRouter appRouter = GoRouter(
             listingId: q['listingId'] ?? '',
             listedPrice: int.tryParse(q['listedPrice'] ?? '0') ?? 0,
             listingTitle: q['listingTitle'] ?? '',
+            expiresListDate: q['expiresListDate'],
+            createdAt: q['createdAt'],
           ),
           state,
         );
@@ -746,6 +764,8 @@ final GoRouter appRouter = GoRouter(
             listedPrice: data['listedPrice'] as int? ?? 0,
             expectedPrice: data['expectedPrice'] as int? ?? 0,
             floorPrice: data['floorPrice'] as int? ?? 0,
+            expiresListDate: data['expiresListDate']?.toString(),
+            createdAt: data['createdAt']?.toString(),
           ),
           state,
         );
@@ -767,6 +787,11 @@ final GoRouter appRouter = GoRouter(
                     ?.map((e) => e.toString())
                     .toList() ??
                 ['morning'],
+            // Phone-privacy default ON (hide) when missing — matches
+            // the Availability wizard's default. Older clients that
+            // don't forward the field still get the privacy-first
+            // behaviour.
+            hidePhoneFromBuyers: data['hidePhoneFromBuyers'] as bool? ?? true,
           ),
           state,
         );

@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:classifieds/theme/ThemeHelper.dart';
 import 'package:classifieds/theme/app_colors.dart';
 import 'package:classifieds/Components/CutomAppBar.dart';
-import 'package:classifieds/Components/CustomAppButton.dart';
 import 'package:classifieds/services/ApiClient.dart';
 import 'package:classifieds/services/api_endpoint_urls.dart';
 import 'package:classifieds/data/cubit/MyAds/my_ads_cubit.dart';
@@ -45,24 +44,39 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
   late bool _autoNegotiate;
   late bool _quickResponse;
   late bool _deliveryAvailable;
+  // Phone-privacy toggle. Mirrors `sell_with_ai_config.hide_phone_from_buyers`.
+  // True = hide the seller's number from buyers in SWA chats.
+  late bool _hidePhoneFromBuyers;
 
   bool _saving = false;
   String? _error;
   bool _hasChanges = false;
 
-  // Mirror SWAAvailabilityWizardScreen._windowOptions — capped at 30
-  // days so Smart Assist can't outlive the 30-day listing lifetime.
-  final List<int> _windowOptions = [7, 15, 30];
+  // Max availability_window the seller can pick. Capped by the listing's
+  // remaining validity — offering 60 / 90 days for a listing that itself
+  // expires in 30 makes no sense because SWA would outlive its parent.
+  // Set in initState from `listing_expires_at` forwarded by the dashboard.
+  int _maxWindowDays = 90;
+
+  // Mirror SWAAvailabilityWizardScreen._windowOptions. Backend caps at 90.
+  final List<int> _windowOptions = [7, 15, 30, 60, 90];
   final List<_SlotOption> _slotOptions = [
     _SlotOption('morning', 'Morning', '9 AM – 12 PM', Icons.wb_sunny_outlined),
     _SlotOption('afternoon', 'Afternoon', '12 – 5 PM', Icons.wb_cloudy_outlined),
     _SlotOption('evening', 'Evening', '5 – 9 PM', Icons.nights_stay_outlined),
     _SlotOption('weekend', 'Weekend', 'Sat & Sun', Icons.weekend_outlined),
   ];
+  // 2026-05-17 — mirrors the activation wizard: only `disabled`
+  // (rebranded to "Smart Assist") is exposed in the UI. The backend
+  // still accepts `keyword_chat` / `human` if existing sellers have
+  // them set, but no new selection is offered here. Sellers who were
+  // already on those modes keep them until they re-pick from here.
   final List<_ChatModeOption> _chatModeOptions = [
-    _ChatModeOption('disabled', 'Pills Only', 'Buyers tap preset options'),
-    _ChatModeOption('keyword_chat', 'Keyword Chat', 'AI answers common questions'),
-    _ChatModeOption('human', 'Human Chat', 'Buyers type freely, you reply'),
+    _ChatModeOption(
+      'disabled',
+      'Smart Assist',
+      'AI replies on your behalf — qualifies buyers, negotiates within your range, closes fair deals.',
+    ),
   ];
 
   @override
@@ -77,6 +91,44 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
     _autoNegotiate = config['auto_negotiate'] == true;
     _quickResponse = config['quick_response'] == true;
     _deliveryAvailable = config['delivery_available'] == true;
+    // Default true (privacy-first) when the field is missing — same
+    // semantics as the schema default. Mongo's $ne check on activate
+    // already enforces this for new listings.
+    _hidePhoneFromBuyers = config['hide_phone_from_buyers'] != false;
+
+    // Cap availability_window options by the listing's plan-total
+    // validity (expires - created). Plan-total is invariant for the
+    // listing's lifetime; using (expires - now) would drop the matching
+    // chip within an hour of creation due to .inDays truncation. If
+    // dashboard payload only carries expires (older response), fall
+    // back to remaining-days mode.
+    final expiresRaw = config['listing_expires_at'];
+    final createdRaw = config['listing_created_at'];
+    final expiresAt = expiresRaw != null
+        ? DateTime.tryParse(expiresRaw.toString())
+        : null;
+    final createdAt = createdRaw != null
+        ? DateTime.tryParse(createdRaw.toString())
+        : null;
+    if (expiresAt != null && createdAt != null) {
+      // Round, don't truncate — backend sets expires_list_date a few
+      // ms after created_at, so a 30-day plan reads as 29d23h59m → 29
+      // without rounding.
+      final diffMs = expiresAt.difference(createdAt).inMilliseconds;
+      final planDays =
+          (diffMs / Duration.millisecondsPerDay).round();
+      _maxWindowDays = planDays < 7 ? 7 : (planDays > 90 ? 90 : planDays);
+    } else if (expiresAt != null) {
+      final remaining = expiresAt.difference(DateTime.now()).inDays;
+      _maxWindowDays = remaining < 7 ? 7 : (remaining > 90 ? 90 : remaining);
+    }
+    // If the currently-saved window exceeds what the listing can support
+    // (e.g. seller bought a 90-day plan, downgraded, now editing), clamp
+    // to the largest valid option so the picker shows a selection.
+    if (_availabilityWindow > _maxWindowDays) {
+      final allowed = _windowOptions.where((d) => d <= _maxWindowDays).toList();
+      _availabilityWindow = allowed.isNotEmpty ? allowed.last : _maxWindowDays;
+    }
   }
 
   void _markChanged() {
@@ -103,6 +155,7 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
         'auto_negotiate': _autoNegotiate,
         'quick_response': _quickResponse,
         'delivery_available': _deliveryAvailable,
+        'hide_phone_from_buyers': _hidePhoneFromBuyers,
       };
 
       final response = await ApiClient.post(url, data: body);
@@ -224,7 +277,9 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _windowOptions.map((days) {
+                children: _windowOptions
+                    .where((d) => d <= _maxWindowDays)
+                    .map((days) {
                   final isSelected = _availabilityWindow == days;
                   return GestureDetector(
                     onTap: () {
@@ -276,6 +331,25 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
                 setState(() => _deliveryAvailable = v);
                 _markChanged();
               }, isDark, textColor, secondaryText, cardBg),
+              const SizedBox(height: 10),
+              // Phone-privacy toggle — moved from the activation wizard so
+              // the seller can revise mid-listing without deactivating.
+              // Toggle ON = number hidden from SWA buyers. Auto-unlocks
+              // for any conversation that flips to seller_takeover.
+              _toggleRow(
+                'Hide phone from buyers',
+                "Buyers can't see or dial your number while Smart Assist is "
+                    'negotiating. Auto-unlocks for any conversation you take over.',
+                _hidePhoneFromBuyers,
+                (v) {
+                  setState(() => _hidePhoneFromBuyers = v);
+                  _markChanged();
+                },
+                isDark,
+                textColor,
+                secondaryText,
+                cardBg,
+              ),
 
               const SizedBox(height: 28),
 
@@ -321,9 +395,68 @@ class _SWASettingsScreenState extends State<SWASettingsScreen> {
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           border: Border(top: BorderSide(color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE5E7EB))),
         ),
-        child: CustomAppButton1(
-          text: _saving ? 'Saving...' : 'Save Settings',
-          onPlusTap: _saving ? null : _saveSettings,
+        // Save button stays transparent / outlined until the seller
+        // actually edits something. The unconditional blue fill that
+        // shipped earlier read as "primary CTA" even on a pristine form,
+        // which was confusing — now the colour only kicks in once the
+        // form is dirty.
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: (_saving || !_hasChanges) ? null : _saveSettings,
+            style: ButtonStyle(
+              elevation: WidgetStateProperty.all(0),
+              shadowColor: WidgetStateProperty.all(Colors.transparent),
+              overlayColor: WidgetStateProperty.all(Colors.transparent),
+              shape: WidgetStateProperty.all(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) {
+                  return Colors.transparent;
+                }
+                return AppColors.primary;
+              }),
+              foregroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) {
+                  return secondaryText;
+                }
+                return Colors.white;
+              }),
+              side: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) {
+                  return BorderSide(
+                    color: isDark
+                        ? const Color(0xFF3A3A3A)
+                        : const Color(0xFFD1D5DB),
+                    width: 1,
+                  );
+                }
+                return BorderSide.none;
+              }),
+            ),
+            child: _saving
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    'Save Settings',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: _hasChanges ? Colors.white : secondaryText,
+                    ),
+                  ),
+          ),
         ),
       ),
     );

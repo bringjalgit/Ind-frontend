@@ -3,12 +3,14 @@ class SubcategoryProductsModel {
   String? message;
   List<Products>? products;
   Settings? settings;
+  LocationMeta? locationMeta;
 
   SubcategoryProductsModel({
     this.success,
     this.message,
     this.products,
     this.settings,
+    this.locationMeta,
   });
 
   SubcategoryProductsModel copyWith({
@@ -16,12 +18,14 @@ class SubcategoryProductsModel {
     String? message,
     List<Products>? products,
     Settings? settings,
+    LocationMeta? locationMeta,
   }) {
     return SubcategoryProductsModel(
       success: success ?? this.success,
       message: message ?? this.message,
       products: products ?? this.products,
       settings: settings ?? this.settings,
+      locationMeta: locationMeta ?? this.locationMeta,
     );
   }
 
@@ -37,6 +41,9 @@ class SubcategoryProductsModel {
     settings = json['settings'] != null
         ? Settings.fromJson(json['settings'])
         : null;
+    locationMeta = json['location_meta'] != null
+        ? LocationMeta.fromJson(json['location_meta'])
+        : null;
   }
 
   Map<String, dynamic> toJson() {
@@ -49,8 +56,31 @@ class SubcategoryProductsModel {
     if (settings != null) {
       data['settings'] = settings!.toJson();
     }
+    if (locationMeta != null) {
+      data['location_meta'] = locationMeta!.toJson();
+    }
     return data;
   }
+}
+
+class LocationMeta {
+  bool? radiusApplied;
+  int? radiusKm;
+  bool? fellBackToNationwide;
+
+  LocationMeta({this.radiusApplied, this.radiusKm, this.fellBackToNationwide});
+
+  LocationMeta.fromJson(Map<String, dynamic> json) {
+    radiusApplied = json['radius_applied'];
+    radiusKm = json['radius_km'];
+    fellBackToNationwide = json['fell_back_to_nationwide'];
+  }
+
+  Map<String, dynamic> toJson() => {
+        'radius_applied': radiusApplied,
+        'radius_km': radiusKm,
+        'fell_back_to_nationwide': fellBackToNationwide,
+      };
 }
 
 class Products {
@@ -76,6 +106,10 @@ class Products {
   SubCategory? city;
   String? postedAt;
   bool? isFavorited;
+  /// Plan tier of the seller's active subscription stamped on this
+  /// listing (`"essential"` / `"power"` / `"pro"`). Null on free posts.
+  /// Drives the small tier badge on the listing card.
+  String? planTier;
 
   Products({
     this.id,
@@ -100,6 +134,7 @@ class Products {
     this.city,
     this.postedAt,
     this.isFavorited,
+    this.planTier,
   });
 
   Products copyWith({
@@ -182,6 +217,7 @@ class Products {
     city = cityName != null ? SubCategory(name: cityName.toString()) : null;
     postedAt = json['posted_at'];
     isFavorited = json['is_favorited'];
+    planTier = json['plan_tier']?.toString();
   }
 
   Map<String, dynamic> toJson() {

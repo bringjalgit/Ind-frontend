@@ -156,6 +156,7 @@ class _SimilarProductsSectionState extends State<SimilarProductsSection> {
                   final p = items[index];
                   return SimilarProductCard(
                     title: (p.title ?? "—").trim(),
+                    planTier: p.planTier,
                     isFeatured: p.featured_status ?? false,
                     price: "₹${_formatINR(p.price)}",
                     location: (p.location ?? "").trim(),

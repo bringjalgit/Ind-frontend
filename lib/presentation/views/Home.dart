@@ -27,6 +27,7 @@ import '../../theme/ThemeHelper.dart';
 import '../../utils/media_query_helper.dart';
 import '../../utils/spinkittsLoader.dart';
 import '../../widgets/CommonLoader.dart';
+import '../../widgets/LocationFallbackBanner.dart';
 import '../../widgets/LocationSelectionSheet.dart';
 import '../../widgets/SimilarProductCard.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -708,6 +709,9 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
 
                           return Column(
                             children: [
+                              LocationFallbackBanner(
+                                locationMeta: productsModel.locationMeta,
+                              ),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -786,6 +790,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                           },
                                           child: SimilarProductCard(
                                             title: p.title ?? "—",
+                                            planTier: p.planTier,
                                             isFeatured:
                                                 p.featured_status ?? false,
                                             price: "₹${_formatINR(p.price)}",

@@ -58,12 +58,36 @@ class Data {
   int? currentOffer;
   int? counterOffer;
   int? agreedPrice;
+  // Phase 2 spam-lowball cooldown (2026-04-26): null when not
+  // applicable. ChatScreen renders the "Chat paused" banner when
+  // conversationStatus == 'closed' && expiryReason == 'spam_lowball'
+  // && completedAt + 48h is still in the future. Computed entirely
+  // client-side; no extra server call.
+  String? expiryReason;
+  String? completedAt; // ISO timestamp string
+
+  /// True when the caller owns the listing (i.e. is the seller). Set
+  /// by the backend in [chatApi.js getChatMessages]. Used by ChatScreen
+  /// to hide the buyer-only pill rail and force the regular text
+  /// composer when the seller opens this thread from his chat list.
+  /// Defaults to false on responses that don't carry the field (legacy /
+  /// cached payloads), keeping the existing buyer experience intact.
+  bool viewerIsSeller = false;
 
   /// Opener pill IDs the backend supplies for a fresh SWA conversation
   /// (no messages yet, or no message carries `follow_up_pills`). The
   /// pill rail falls back to this list via `lastFollowUpPills` when the
   /// message walk comes up empty. Empty/null on pure-P2P threads.
   List<String>? initialPills;
+
+  /// True when the listing's category supports SWA-style chat (offers,
+  /// pills, AI-managed flow). False for the four blocklist categories
+  /// (Community, Events, Films, Find Investor) where chat must be
+  /// plain text P2P only. ChatScreen reads this to hide the P2P
+  /// pill rail / hero "Make an offer" pill so buyers don't see
+  /// nonsensical openers on a community post. Defaults to true so
+  /// older API responses don't accidentally suppress pills.
+  bool swaCategoryEligible = true;
 
   Data({
     this.friend,
@@ -76,7 +100,11 @@ class Data {
     this.currentOffer,
     this.counterOffer,
     this.agreedPrice,
+    this.expiryReason,
+    this.completedAt,
     this.initialPills,
+    this.viewerIsSeller = false,
+    this.swaCategoryEligible = true,
   });
 
   Data.fromJson(Map<String, dynamic> json) {
@@ -100,6 +128,13 @@ class Data {
     currentOffer = _parseInt(json['current_offer']);
     counterOffer = _parseInt(json['counter_offer']);
     agreedPrice = _parseInt(json['agreed_price']);
+    expiryReason = json['expiry_reason']?.toString();
+    completedAt = json['completed_at']?.toString();
+    viewerIsSeller = json['viewer_is_seller'] == true;
+    // Default true when the field is absent — keeps older / cached
+    // responses behaving exactly as before. Only an explicit `false`
+    // from the backend suppresses pills.
+    swaCategoryEligible = json['swa_category_eligible'] != false;
 
     final rawOpener = json['initial_pills'];
     if (rawOpener is List) {
@@ -125,6 +160,8 @@ class Data {
     data['current_offer'] = currentOffer;
     data['counter_offer'] = counterOffer;
     data['agreed_price'] = agreedPrice;
+    data['expiry_reason'] = expiryReason;
+    data['completed_at'] = completedAt;
     data['initial_pills'] = initialPills;
     return data;
   }
@@ -153,6 +190,44 @@ class Data {
       conversationStatus == 'expired' ||
       conversationStatus == 'completed' ||
       conversationStatus == 'declined';
+
+  // ── Phase 2 spam-lowball cooldown (2026-04-26) ───────────────────────
+  // Cooldown duration is 48h, hard-coded in lockstep with the backend's
+  // SPAM_LOWBALL_COOLDOWN_HOURS constant in pricing/counter.js.
+  // Bumping one without the other will desync seller dashboard /
+  // buyer banner — keep them aligned.
+  static const int _spamLowballCooldownHours = 48;
+
+  /// True when this conversation was closed by SPAM_LOWBALL_CLOSE
+  /// AND the cooldown is still in effect. ChatScreen renders the
+  /// "Chat paused" banner instead of the input composer when true.
+  bool get isSpamLowballCooldown {
+    if (conversationStatus != 'closed') return false;
+    if (expiryReason != 'spam_lowball') return false;
+    final ms = _spamLowballCooldownEndMs;
+    return ms != null && ms > DateTime.now().millisecondsSinceEpoch;
+  }
+
+  /// Whole hours remaining until the cooldown elapses, ROUNDED UP so a
+  /// buyer 5 minutes into the cooldown still sees "48 hours" instead
+  /// of "47 hours". Returns 0 when the cooldown is not applicable or
+  /// has already elapsed.
+  int get spamLowballCooldownHoursRemaining {
+    final endMs = _spamLowballCooldownEndMs;
+    if (endMs == null) return 0;
+    final remainingMs = endMs - DateTime.now().millisecondsSinceEpoch;
+    if (remainingMs <= 0) return 0;
+    // Round UP — match the backend's Math.ceil so the two stay in sync.
+    return ((remainingMs + 3599999) ~/ 3600000).clamp(1, 999);
+  }
+
+  int? get _spamLowballCooldownEndMs {
+    if (completedAt == null || completedAt!.isEmpty) return null;
+    final closedAt = DateTime.tryParse(completedAt!);
+    if (closedAt == null) return null;
+    return closedAt.millisecondsSinceEpoch +
+        _spamLowballCooldownHours * 3600 * 1000;
+  }
 
   /// Pill rail data source for the chat screen. Resolution order:
   ///   1. The `follow_up_pills` on the most recent message that carries
@@ -231,14 +306,20 @@ class ChatListingSummary {
   String? title;
   int? price;
   bool? sold;
+  // First listing image — used by the chat-screen listing context
+  // strip above the message thread. Null when the listing has no
+  // images (Flutter falls back to a placeholder icon). Set server-
+  // side by chatApi.js getChatMessages.
+  String? image;
 
-  ChatListingSummary({this.id, this.title, this.price, this.sold});
+  ChatListingSummary({this.id, this.title, this.price, this.sold, this.image});
 
   ChatListingSummary.fromJson(Map<String, dynamic> json) {
     id = (json['id'] ?? json['_id'])?.toString();
     title = json['title']?.toString();
     price = _parseInt(json['price']);
     sold = json['sold'] == true;
+    image = json['image']?.toString();
   }
 
   Map<String, dynamic> toJson() => {
@@ -246,6 +327,7 @@ class ChatListingSummary {
         'title': title,
         'price': price,
         'sold': sold,
+        'image': image,
       };
 
   static int? _parseInt(dynamic v) {
@@ -291,6 +373,13 @@ class Messages {
   String? source;           // 'p2p' | 'swa' — REST unified timeline only
   String? sender;           // 'buyer' | 'seller' | 'system' | 'keyword_bot' — REST SWA side only
 
+  // P2P pill-tap intent (non-SWA chats only). When a buyer or seller
+  // taps a chip from `P2PPillCatalog`, the intent id rides along with
+  // the message. Receiver uses it to render contextual answer chips.
+  // Null on free-text and image messages, and on all SWA paths (those
+  // carry intent semantics via `pillId` / `swaType`).
+  String? intent;
+
   // ── Convenience flags for renderer branching ─────────────────────────
   bool get isPillResponse => swaType == 'pill_response';
   bool get isOfferResponse =>
@@ -316,7 +405,8 @@ class Messages {
         this.followUpPills,
         this.offerAmount,
         this.source,
-        this.sender});
+        this.sender,
+        this.intent});
 
   Messages copyWith({
     dynamic id,
@@ -337,6 +427,7 @@ class Messages {
     int? offerAmount,
     String? source,
     String? sender,
+    String? intent,
   }) {
     return Messages(
       id: id ?? this.id,
@@ -357,6 +448,7 @@ class Messages {
       offerAmount: offerAmount ?? this.offerAmount,
       source: source ?? this.source,
       sender: sender ?? this.sender,
+      intent: intent ?? this.intent,
     );
   }
 
@@ -393,6 +485,11 @@ class Messages {
     if (raw is List) {
       followUpPills = raw.map((e) => e.toString()).toList();
     }
+
+    // P2P pill-tap intent id (round-tripped through ChatMessage.intent
+    // on the server). Snake_case + camelCase both accepted for
+    // forward-compat with future endpoints.
+    intent = json['intent']?.toString();
   }
 
   static int? _parseInt(dynamic v) {
@@ -422,6 +519,7 @@ class Messages {
     data['offer_amount'] = this.offerAmount;
     data['source'] = this.source;
     data['sender'] = this.sender;
+    data['intent'] = this.intent;
     return data;
   }
 }

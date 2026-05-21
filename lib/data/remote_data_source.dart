@@ -17,6 +17,7 @@ import '../model/MarkAsListingModel.dart';
 import '../model/MyAdsModel.dart';
 import '../model/PackagesModel.dart';
 import '../model/PlansModel.dart';
+import '../model/OfferRecommendationModel.dart';
 import '../model/ProductDetailsModel.dart';
 import '../model/ProfileModel.dart';
 import '../model/AadhaarStatusModel.dart';
@@ -55,6 +56,8 @@ abstract class RemoteDataSource {
     String? locationKey,
   });
   Future<ProductDetailsModel?> getProductDetails(String id);
+  // P2P offer recommendation (AI card inside the Make-an-Offer sheet).
+  Future<OfferRecommendationModel?> getOfferRecommendation(String listingId);
   Future<WishlistModel?> getWishlistProducts(int page);
   Future<AddToWishlistModel?> addToWishlist(String product_id);
   Future<SelectStatesModel?> getStates(String search);
@@ -1043,6 +1046,21 @@ class RemoteDataSourceImpl implements RemoteDataSource {
       return ProductDetailsModel.fromJson(response.data);
     } catch (e) {
       AppLogger.error('getProductDetails :: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<OfferRecommendationModel?> getOfferRecommendation(String listingId) async {
+    try {
+      Response response = await ApiClient.get(
+        "${APIEndpointUrls.get_offer_recommendation}/$listingId",
+      );
+      return OfferRecommendationModel.fromJson(response.data);
+    } catch (e) {
+      // Null = fall back to local heuristic in the offer sheet.
+      // Don't crash the chat flow over a missing recommendation.
+      AppLogger.error('getOfferRecommendation :: $e');
       return null;
     }
   }

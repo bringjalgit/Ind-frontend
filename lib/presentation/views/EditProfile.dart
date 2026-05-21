@@ -488,20 +488,50 @@ class _EditProfileState extends State<EditProfile> {
                         );
                       },
                     ),
-                    CommonTextField1(
-                      lable: "Phone",
-                      hint: 'Enter Phone',
-                      controller: _phoneController,
-                      color: textColor,
-                      // H10 — mobile is the primary auth factor and
-                      // cannot be changed from profile (backend H2 drops
-                      // it from the payload). Marking readonly so the
-                      // user can see their current number but can't
-                      // type into a field that wouldn't save.
-                      isRead: true,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? "Phone Number required"
-                          : null,
+                    // H10 — mobile is the primary auth factor and cannot
+                    // be changed from this screen (backend H2 drops it
+                    // from the profile-update payload). Previously this
+                    // was just `isRead: true`, which let the keyboard
+                    // briefly try to open on tap and then close —
+                    // leading users to report "the keyboard isn't
+                    // responding". Wrapping in GestureDetector +
+                    // AbsorbPointer prevents the field from ever
+                    // grabbing focus, and the tap shows a clear info
+                    // dialog so users know to contact support if they
+                    // need their number changed.
+                    GestureDetector(
+                      onTap: () {
+                        showDialog<void>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Phone number locked'),
+                            content: const Text(
+                              'Your phone number is your login identity '
+                              'and cannot be changed from this screen.\n\n'
+                              'To change your number, please contact '
+                              'support@indclassifieds.in.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: AbsorbPointer(
+                        child: CommonTextField1(
+                          lable: "Phone",
+                          hint: 'Enter Phone',
+                          controller: _phoneController,
+                          color: textColor,
+                          isRead: true,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? "Phone Number required"
+                              : null,
+                        ),
+                      ),
                     ),
                     GestureDetector(
                       onTap: () async {

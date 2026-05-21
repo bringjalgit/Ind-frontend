@@ -23,6 +23,7 @@ import '../../services/MetaEventTracker.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../widgets/CommonLoader.dart';
+import '../../widgets/LocationFallbackBanner.dart';
 import '../../widgets/ProductCard.dart';
 
 class ProductsListScreen extends StatefulWidget {
@@ -399,6 +400,11 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                     return CustomScrollView(
                       controller: _scrollController,
                       slivers: [
+                        SliverToBoxAdapter(
+                          child: LocationFallbackBanner(
+                            locationMeta: productsModel.locationMeta,
+                          ),
+                        ),
                         SliverPadding(
                           padding: const EdgeInsets.all(16),
                           sliver: SliverList(

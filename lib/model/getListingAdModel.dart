@@ -89,6 +89,11 @@ class Listing {
   String? locationKey;
   String? currentAddress;
   String? currentAddressKey;
+  // Category-level SWA gate. False for Find Investor / Events / Films /
+  // Community. ProductDetailsScreen reads this to hide the SWAEnableCard
+  // for non-tradable categories. Defaults true so older responses
+  // without the field keep the existing behaviour.
+  bool swaCategoryEligible = true;
 
   Listing({
     this.id,
@@ -192,6 +197,10 @@ class Listing {
     locationKey = json['location_key'];
     currentAddress = json['current_address'];
     currentAddressKey = json['current_address_key'];
+    // Default true so older responses without the field keep the
+    // current SWA behaviour intact; backend sets false only for the
+    // four blocked categories.
+    swaCategoryEligible = json['swa_category_eligible'] != false;
     if (json['images'] != null) {
       images = <Images>[];
       json['images'].forEach((v) {

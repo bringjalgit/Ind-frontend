@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:classifieds/Components/debugPrint.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:classifieds/data/cubit/ChatMessages/ChatMessagesCubit.dart';
@@ -13,6 +15,11 @@ import '../../data/cubit/ChatMessages/ChatMessagesStates.dart';
 import '../../model/ChatMessagesModel.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
+import '../../widgets/P2PPillCatalog.dart';
+import '../../widgets/P2POfferSheet.dart';
+import '../../widgets/IncomingOfferCard.dart';
+import '../../model/OfferRecommendationModel.dart';
+import '../../data/remote_data_source.dart';
 import '../../utils/AppLauncher.dart';
 import '../../widgets/SafeDealDialog.dart';
 import 'ReportBottomSheet.dart';
@@ -23,7 +30,12 @@ import 'swa/pill_catalog.dart';
 extension ChatScreenMessagesX on Messages {
   DateTime get createdAtDate {
     final raw = createdAt?.toString() ?? '';
-    return DateTime.tryParse(raw) ?? DateTime.now();
+    // Backend serializes timestamps as ISO with the 'Z' suffix (UTC).
+    // DateTime.tryParse honors that and returns a UTC DateTime; we
+    // convert to local once here so every call site (formatting, day
+    // bucketing, comparisons) sees IST without having to remember to
+    // toLocal() again.
+    return (DateTime.tryParse(raw) ?? DateTime.now()).toLocal();
   }
 
   String get formattedTime {
@@ -71,7 +83,8 @@ class ChatScreen extends StatefulWidget {
 
 enum _MenuAction { report, safetyTips }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final _controller = TextEditingController();
 
   bool _isLoadingMore = false;
@@ -115,6 +128,38 @@ class _ChatScreenState extends State<ChatScreen> {
   // the banner + offer state update live. Cancelled in dispose().
   StreamSubscription<Map<String, dynamic>>? _conversationUpdateSub;
 
+  // Coupled-scroll controllers for the P2P pill rail's two rows.
+  // Lazily created the first time the rail mounts (non-SWA only). The
+  // listeners mirror one controller's offset onto the other so the
+  // bottom row glides in the opposite direction as the user drags the
+  // top — and vice versa. `_railLock` prevents the mirror set from
+  // looping back through the destination's listener.
+  ScrollController? _p2pTopRailCtrl;
+  ScrollController? _p2pBotRailCtrl;
+  bool _railLock = false;
+  bool _railCouplingAttached = false;
+
+  // P2P "Make an Offer" — AI recommendation cache. Fetched once on
+  // chat open (best-effort, non-blocking) so the hero pill can show
+  // "AI suggests ₹X" before the buyer taps, and the sheet can render
+  // the AI card without spinning. Null when the fetch hasn't returned
+  // yet OR failed — both the hero pill and the sheet fall back to
+  // local heuristics in that case.
+  OfferRecommendation? _offerRec;
+  bool _offerRecLoaded = false;
+
+  // Continuous gradient-flow animation for the buyer-side hero pill.
+  // One controller drives a single [_SlidingGradient] transform on
+  // the pill's LinearGradient — the colours appear to slide left →
+  // right indefinitely while only the pill rebuilds (AnimatedBuilder
+  // scope = the gradient layer, not the chat list). 4.5 s per cycle
+  // matches the "gradient flow" variant chosen during design.
+  late final AnimationController _heroPillFlowCtrl =
+      AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4500),
+  )..repeat();
+
   void _onScrollActivity() {
     if (!_isScrolling) setState(() => _isScrolling = true);
     _scrollIdleTimer?.cancel();
@@ -151,6 +196,13 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       context.read<ChatMessagesCubit>().fetchMessages(widget.receiverId,widget.listingId);
     } catch (_) {}
+
+    // Best-effort AI recommendation fetch for the P2P "Make an Offer"
+    // hero pill + sheet. Non-blocking — the sheet still renders
+    // without a server rec (falls back to local heuristic). Fired
+    // once per chat open; the value is cached for the lifetime of
+    // the screen since listing prices don't move during a session.
+    _prefetchOfferRecommendation();
 
     // Subscribe to SWA conversation-update events pushed over the
     // WebSocket. Fired by seller actions (confirm / cancel / override /
@@ -264,6 +316,9 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollIdleTimer?.cancel();
     _controller.dispose();
     _conversationUpdateSub?.cancel();
+    _p2pTopRailCtrl?.dispose();
+    _p2pBotRailCtrl?.dispose();
+    _heroPillFlowCtrl.dispose();
 
     try {
       context.read<PrivateChatCubit>().chatClosed();
@@ -363,55 +418,87 @@ class _ChatScreenState extends State<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    ClipOval(
-                      child:
-                          (_hasReceiverImage &&
-                              receiverImage.value != null &&
-                              receiverImage.value!.isNotEmpty)
-                          ? Image.network(
-                              receiverImage.value!,
-                              width: 36,
-                              height: 36,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) {
-                                final initials = _initials1(
-                                  capitalize(receiverName.value ?? ""),
-                                );
-                                return _fallbackAvatar(36, initials);
-                              },
-                            )
-                          : _fallbackAvatar(
-                              36,
-                              _initials1(capitalize(receiverName.value ?? "")),
-                            ),
-                    ),
-                    SizedBox(width: 10,),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            capitalize(receiverName.value ?? ""),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.titleLarge(
-                              textColor,
-                            ).copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            capitalize(widget.listingTitle ?? ""),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.titleSmall(
-                              textColor,
-                            ).copyWith(fontWeight: FontWeight.w400),
-                          ),
-                        ],
+                // Avatar + name + listing title is a tap target —
+                // routes to the OTHER party's profile. The screen
+                // (SellerProfileScreen) is generic; we override the
+                // header title based on which role the OTHER party
+                // plays:
+                //   • Buyer viewing seller's profile → "Seller Profile"
+                //   • Seller viewing buyer's profile → "Buyer Profile"
+                // We read `viewer_is_seller` from the loaded chat data
+                // when available; otherwise default to "Seller Profile"
+                // (the original entry-point flow).
+                InkWell(
+                  onTap: () {
+                    try {
+                      if (widget.receiverId.isEmpty) return;
+                      final cubitState =
+                          context.read<ChatMessagesCubit>().state;
+                      bool viewerIsSeller = false;
+                      if (cubitState is ChatMessagesLoaded) {
+                        viewerIsSeller =
+                            cubitState.chatMessages.data?.viewerIsSeller ?? false;
+                      } else if (cubitState is ChatMessagesLoadingMore) {
+                        viewerIsSeller =
+                            cubitState.chatMessages.data?.viewerIsSeller ?? false;
+                      }
+                      final title = Uri.encodeComponent(
+                          viewerIsSeller ? 'Buyer Profile' : 'Seller Profile');
+                      context.push(
+                        '/seller_profile?userId=${widget.receiverId}&title=$title',
+                      );
+                    } catch (_) {}
+                  },
+                  child: Row(
+                    children: [
+                      ClipOval(
+                        child:
+                            (_hasReceiverImage &&
+                                receiverImage.value != null &&
+                                receiverImage.value!.isNotEmpty)
+                            ? Image.network(
+                                receiverImage.value!,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) {
+                                  final initials = _initials1(
+                                    capitalize(receiverName.value ?? ""),
+                                  );
+                                  return _fallbackAvatar(36, initials);
+                                },
+                              )
+                            : _fallbackAvatar(
+                                36,
+                                _initials1(capitalize(receiverName.value ?? "")),
+                              ),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 10,),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              capitalize(receiverName.value ?? ""),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.titleLarge(
+                                textColor,
+                              ).copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              capitalize(widget.listingTitle ?? ""),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.titleSmall(
+                                textColor,
+                              ).copyWith(fontWeight: FontWeight.w400),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 BlocBuilder<PrivateChatCubit, PrivateChatState>(
                   buildWhen: (p, c) => p.isPeerTyping != c.isPeerTyping,
@@ -429,39 +516,25 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
             actions: [
+              // Phone-privacy gate (2026-05-19): the call icon only
+              // renders when the other party's mobile number is actually
+              // available in the REST response. For SWA chats where the
+              // seller has `hide_phone_from_buyers` ON, the backend
+              // returns mobile=null and we render nothing here — no
+              // confusing icon that always snackbar-fails. The icon
+              // reappears automatically once mobile is populated again
+              // (seller flipped the toggle / conversation went to
+              // seller_takeover) because ValueListenableBuilder rebuilds.
               ValueListenableBuilder(
                 valueListenable: mobileNotifier,
-                builder: (context, value, child) {
+                builder: (context, mobile, child) {
+                  if (mobile == null || mobile.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
                   return IconButton(
                     icon: const Icon(Icons.call),
                     color: textColor,
-                    onPressed: () async {
-                      final mobile = mobileNotifier.value;
-                      if (mobile != null && mobile.isNotEmpty) {
-                        AppLauncher.call(mobile);
-                      } else {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (_) =>
-                              const Center(child: CircularProgressIndicator()),
-                        );
-
-                        await Future.delayed(const Duration(seconds: 2));
-
-                        if (context.mounted) Navigator.of(context).pop();
-
-                        final updatedMobile = mobileNotifier.value;
-                        if (updatedMobile != null && updatedMobile.isNotEmpty) {
-                          AppLauncher.call(updatedMobile);
-                        } else {
-                          CustomSnackBar1.show(
-                            context,
-                            "Mobile number not available",
-                          );
-                        }
-                      }
-                    },
+                    onPressed: () => AppLauncher.call(mobile),
                   );
                 },
               ),
@@ -570,6 +643,37 @@ class _ChatScreenState extends State<ChatScreen> {
                       status: data?.conversationStatus,
                       expiresAt: data?.pendingAcceptanceExpiresAtDate,
                       agreedPrice: data?.agreedPrice,
+                      viewerIsSeller: data?.viewerIsSeller ?? false,
+                    );
+                  },
+                ),
+                // Listing context strip — sits directly under the app
+                // bar so the buyer/seller always sees what they're
+                // negotiating on. Renders nothing when the chat hasn't
+                // loaded yet OR when the listing has no price (an
+                // unpriced listing has no anchor for an offer flow,
+                // and the strip would just be visual noise).
+                BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
+                  buildWhen: (p, c) =>
+                      c is ChatMessagesLoaded || c is ChatMessagesLoadingMore,
+                  builder: (context, state) {
+                    ChatListingSummary? listing;
+                    bool viewerIsSeller = false;
+                    if (state is ChatMessagesLoaded) {
+                      listing = state.chatMessages.data?.listing;
+                      viewerIsSeller = state.chatMessages.data?.viewerIsSeller ?? false;
+                    } else if (state is ChatMessagesLoadingMore) {
+                      listing = state.chatMessages.data?.listing;
+                      viewerIsSeller = state.chatMessages.data?.viewerIsSeller ?? false;
+                    }
+                    if (listing == null ||
+                        (listing.price ?? 0) <= 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildListingStrip(
+                      context,
+                      listing: listing,
+                      viewerIsSeller: viewerIsSeller,
                     );
                   },
                 ),
@@ -681,6 +785,20 @@ class _ChatScreenState extends State<ChatScreen> {
                         }
 
                         final history = <Messages>[];
+
+                        // Captured for the SWA-aware isMe alignment fix
+                        // below — when the seller views an SWA thread,
+                        // messages authored by the AI on their behalf
+                        // (sender=seller|system|keyword_bot) need to
+                        // render on the RIGHT, not the LEFT.
+                        bool viewerIsSeller = false;
+                        if (historyState is ChatMessagesLoaded) {
+                          viewerIsSeller =
+                              historyState.chatMessages.data?.viewerIsSeller ?? false;
+                        } else if (historyState is ChatMessagesLoadingMore) {
+                          viewerIsSeller =
+                              historyState.chatMessages.data?.viewerIsSeller ?? false;
+                        }
 
                         if (historyState is ChatMessagesLoaded) {
                           history.addAll(
@@ -796,10 +914,40 @@ class _ChatScreenState extends State<ChatScreen> {
                                           );
                                         } else {
                                           final msg = it.message!;
+                                          // SWA-aware "is mine" check.
+                                          // The viewer-owned senderId
+                                          // catches buyer-typed and
+                                          // seller-typed messages. The
+                                          // OR-branch catches AI
+                                          // auto-replies on the
+                                          // seller's behalf (sender =
+                                          // seller / system /
+                                          // keyword_bot) — those land
+                                          // with a non-seller senderId
+                                          // server-side but should
+                                          // visually read as the
+                                          // seller's own outgoing
+                                          // messages, on the right.
+                                          final senderRole = msg.sender ?? '';
+                                          // SWA messages loaded from REST don't carry a
+                                          // per-message `sender_id` — the schema records
+                                          // the role string ('buyer' / 'seller' / 'system')
+                                          // and the user IDs live at the conversation
+                                          // root. Resolve `isMe` from the role too so that
+                                          // a buyer's REST-loaded pill_tap message still
+                                          // renders as the buyer's own bubble (pretty
+                                          // labelled pill) rather than falling through to
+                                          // the plain-text path that dumps the raw pill ID.
                                           final isMe =
                                               (msg.senderId?.toString() ??
                                                   '') ==
-                                              widget.currentUserId;
+                                                  widget.currentUserId ||
+                                              (viewerIsSeller &&
+                                                  (senderRole == 'seller' ||
+                                                      senderRole == 'system' ||
+                                                      senderRole == 'keyword_bot')) ||
+                                              (!viewerIsSeller &&
+                                                  senderRole == 'buyer');
                                           return _buildMessageBubble(
                                             context,
                                             msg,
@@ -1045,7 +1193,11 @@ class _ChatScreenState extends State<ChatScreen> {
         msg.sender == 'system' ||
         msg.sender == 'keyword_bot';
     if (isSystemSide) {
-      return _buildSwaBubble(context, msg);
+      // Pass isMe down so the SWA bubble can flip to the right side
+      // when the SELLER views the conversation (AI auto-replies are
+      // effectively the seller's outgoing messages and should mirror
+      // a normal sent bubble).
+      return _buildSwaBubble(context, msg, isMe);
     }
 
     // ── Buyer-side SWA actions ───────────────────────────────────────
@@ -1119,7 +1271,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // Classification drives palette (green=agreement, yellow=counter,
   // red=decline, blue=generic AI reply) plus the presence of the big-₹
   // amount header on counter / agreement.
-  Widget _buildSwaBubble(BuildContext context, Messages msg) {
+  Widget _buildSwaBubble(BuildContext context, Messages msg, bool isMe) {
     final isDark = ThemeHelper.isDarkMode(context);
     final textColor = ThemeHelper.textColor(context);
     final timeText = AppTextStyles.labelSmall(textColor.withOpacity(.6));
@@ -1175,7 +1327,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     return Align(
-      alignment: Alignment.centerLeft,
+      // 2026-05-17 — alignment + corner tail now respect isMe so the
+      // seller sees AI-on-their-behalf replies on the RIGHT (like
+      // their own outgoing messages) instead of stacked on the left
+      // beside the buyer's messages.
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 320),
         child: Container(
@@ -1183,11 +1339,11 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: bubbleColor,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
-              bottomLeft: Radius.circular(4),
-              bottomRight: Radius.circular(16),
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(isMe ? 16 : 4),
+              bottomRight: Radius.circular(isMe ? 4 : 16),
             ),
             border: borderColor != null ? Border.all(color: borderColor, width: 1) : null,
           ),
@@ -1426,16 +1582,131 @@ class _ChatScreenState extends State<ChatScreen> {
           convData = historyState.chatMessages.data;
         }
 
+        // Phase 2 spam-lowball cooldown (2026-04-26) — when the chat
+        // was closed by the engine for joke offers AND the 48h
+        // cooldown is still active, replace the composer with the
+        // "Chat paused" banner so the buyer can't keep retrying. The
+        // banner shows hours remaining; once the cooldown elapses,
+        // `isSpamLowballCooldown` flips false and the regular
+        // composer comes back (the next send naturally resets the
+        // conversation server-side).
+        if (convData != null && convData.isSpamLowballCooldown) {
+          return _buildSpamLowballCooldownBanner(
+            context,
+            convData.spamLowballCooldownHoursRemaining,
+          );
+        }
+
         // Only intercept when the seller explicitly chose pills_only on
-        // an SWA thread. All other cases (P2P, ai_chat, p2p mode,
-        // seller_takeover, pending/accepted states on SWA) keep the
-        // regular text input so the buyer can coordinate pickup, reply
-        // to a seller override, etc.
-        if (convData != null && convData.isSwa && convData.isPillsOnly) {
+        // an SWA thread AND the conversation hasn't been taken over.
+        // All other cases (P2P, ai_chat, p2p mode, seller_takeover,
+        // pending/accepted states on SWA) keep the regular text input
+        // so the buyer can coordinate pickup, reply to a seller
+        // override, etc.
+        //
+        // The `!convData.isSellerTakeover` guard is the second half of
+        // the per-conversation takeover model: once the seller types
+        // anything on this thread, AI goes silent forever for this
+        // (listing, buyer) pair, and the buyer needs a composer to
+        // close out the deal 1:1. `chatModeSnapshot` stays frozen at
+        // 'disabled' for the lifetime of the conversation, so we
+        // can't rely on it alone — we have to combine it with the
+        // live `conversation_status` to pick the right surface.
+        //
+        // Sellers always see the plain text composer regardless of mode
+        // — typing here is the implicit-takeover signal handled by the
+        // gateway in messaging.js, and they need a way to do it from
+        // the regular chat list (not just from the SWA Dashboard).
+        if (convData != null &&
+            convData.isSwa &&
+            convData.isPillsOnly &&
+            !convData.viewerIsSeller &&
+            !convData.isSellerTakeover) {
           return _buildPillsOnlyHint(context);
         }
         return _buildInputArea(context);
       },
+    );
+  }
+
+  /// "Chat paused" banner — replaces the input composer when the chat
+  /// was closed by SPAM_LOWBALL_CLOSE and the 48h cooldown is still
+  /// active. Headline + body match Option C wording. Read-only —
+  /// the buyer cannot dismiss it (the cooldown is what dismisses it).
+  Widget _buildSpamLowballCooldownBanner(BuildContext context, int hoursRemaining) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = ThemeHelper.backgroundColor(context);
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF0A1628);
+    final mutedColor = isDark
+        ? Colors.white.withOpacity(0.65)
+        : const Color(0xFF6B7280);
+    final amberFg = isDark ? const Color(0xFFFFD600) : const Color(0xFFB45309);
+    final amberBg = isDark
+        ? const Color(0x14FFD600)
+        : const Color(0x0FB45309);
+
+    return Container(
+      color: bg,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: amberFg.withOpacity(0.35)),
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: amberBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.pause_circle_outline_rounded,
+                    color: amberFg,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Chat paused',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'This chat is paused for the next ${hoursRemaining}h. '
+                        'Come back with a serious offer.',
+                        style: TextStyle(
+                          color: mutedColor,
+                          fontSize: 12.5,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1520,15 +1791,235 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _sendText(BuildContext context) {
+  Future<void> _sendText(BuildContext context) async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+
+    // ── Takeover warning gate (point 2) ───────────────────────────────
+    // First-time warning for the seller when they're about to send a
+    // text-box message on an SWA-active conversation. Per-conversation
+    // flag in SharedPreferences (`swa_takeover_warned_<conversationId>`)
+    // so re-opening the same chat doesn't keep nagging. Cancelling the
+    // dialog leaves the typed message in the input — the seller can
+    // tap Cancel without losing their draft.
+    final cubitState = context.read<ChatMessagesCubit>().state;
+    Data? convData;
+    if (cubitState is ChatMessagesLoaded) {
+      convData = cubitState.chatMessages.data;
+    } else if (cubitState is ChatMessagesLoadingMore) {
+      convData = cubitState.chatMessages.data;
+    }
+    final viewerIsSeller = convData?.viewerIsSeller ?? false;
+    final status = convData?.conversationStatus;
+    final convId = convData?.conversationId;
+    final swaStillRunning =
+        status == 'active' || status == 'pending_acceptance';
+
+    if (viewerIsSeller &&
+        swaStillRunning &&
+        convId != null &&
+        convId.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      final key = 'swa_takeover_warned_$convId';
+      final alreadyWarned = prefs.getBool(key) ?? false;
+      if (!alreadyWarned) {
+        if (!context.mounted) return;
+        final proceed = await _showTakeoverWarningDialog(context);
+        if (proceed != true) return; // cancelled — keep draft
+        await prefs.setBool(key, true);
+        if (!context.mounted) return;
+      }
+    }
+
     try {
       context.read<PrivateChatCubit>().sendMessage(text);
       _controller.clear();
     } catch (e) {
       debugPrint('Error accessing PrivateChatCubit in _sendText: $e');
     }
+  }
+
+  /// Modal dialog shown the first time a seller sends a text-box
+  /// message on an SWA-active conversation. Returns true when the
+  /// seller confirms takeover, false (or null) when they cancel.
+  ///
+  /// 2026-05-17 v2 — redesigned from a flat AlertDialog into a card
+  /// with an amber-tinted "warning" header (icon in a soft circle +
+  /// title), a roomy body, and two equal-weight action buttons. All
+  /// colours theme-aware:
+  ///   • Light: white card, amber-50 header tint, slate body text,
+  ///     bordered Cancel button, blue-gradient confirm.
+  ///   • Dark:  near-black card, amber@10% header tint, lighter body
+  ///     text, white@8% Cancel surface, same blue confirm.
+  Future<bool?> _showTakeoverWarningDialog(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
+    final textColor = ThemeHelper.textColor(context);
+    final cardColor = isDark ? const Color(0xFF1A1F2E) : Colors.white;
+    final lineSoft = isDark
+        ? Colors.white.withOpacity(0.08)
+        : const Color(0xFFE5E8EE);
+
+    // Amber palette for the warning band — Tailwind amber-ish, tuned
+    // for both surfaces.
+    const amberIcon = Color(0xFFFFB020);
+    final amberTint = isDark
+        ? amberIcon.withOpacity(0.12)
+        : const Color(0xFFFFF4DC);
+    final amberIconBg = isDark
+        ? amberIcon.withOpacity(0.18)
+        : const Color(0xFFFFE6B0);
+
+    return showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withOpacity(isDark ? 0.65 : 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: lineSoft),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.50 : 0.18),
+                blurRadius: 30,
+                offset: const Offset(0, 16),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Warning header band ──────────────────────────────
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                decoration: BoxDecoration(
+                  color: amberTint,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: amberIconBg,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: amberIcon,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'Take over from Smart Assist?',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 17,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Body ─────────────────────────────────────────────
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(20, 18, 20, 4),
+                child: Text(
+                  "Smart Assist is currently negotiating with this buyer "
+                  "on your behalf. Sending this message will pause it — "
+                  "you'll handle the conversation yourself from here.",
+                  style: TextStyle(
+                    color: textColor.withOpacity(isDark ? 0.78 : 0.72),
+                    fontSize: 13.5,
+                    height: 1.55,
+                  ),
+                ),
+              ),
+
+              // ── Actions ──────────────────────────────────────────
+              Padding(
+                padding:
+                    const EdgeInsets.fromLTRB(16, 18, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 46,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: textColor,
+                            backgroundColor: isDark
+                                ? Colors.white.withOpacity(0.04)
+                                : Colors.transparent,
+                            side: BorderSide(color: lineSoft),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 46,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1677FF),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ).copyWith(
+                            shadowColor: WidgetStateProperty.all(
+                              const Color(0xFF1677FF).withOpacity(0.32),
+                            ),
+                            elevation: WidgetStateProperty.all(2),
+                          ),
+                          child: const Text(
+                            'Send & take over',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── SWA pill rail ──────────────────────────────────────────────────────
@@ -1543,6 +2034,965 @@ class _ChatScreenState extends State<ChatScreen> {
   // AND the seller's mode allows pills (pills_only or ai_chat). It stays
   // hidden on pure-P2P threads and on p2p mode ("Direct Messages"), so
   // the existing ChatScreen experience is unchanged there.
+  // ── P2P quick-reply pill rail ─────────────────────────────────────
+  //
+  // Renders a horizontally-scrolling chip strip above the composer for
+  // non-SWA chats. Buyer always sees the same set; seller sees pills
+  // contextual to the most-recent buyer message's `intent`, falling
+  // back to seller-initiator chips when there's no useful context.
+  //
+  // Pills are accelerators only — the composer (text input) stays
+  // available next to the rail. Tapping a pill calls
+  // `PrivateChatCubit.sendMessage(text, intent: pill.id)` and the
+  // optimistic local message appears immediately in the chat list.
+  //
+  // SWA paths never reach this method — the early `!convData.isSwa`
+  // branch in [_buildPillRail] routes here only for plain P2P threads.
+  Widget _buildP2PPillRail(BuildContext context, Data convData) {
+    final viewerIsSeller = convData.viewerIsSeller;
+
+    // Buyer view: two rows (six chips each) with coupled scroll.
+    // Top row sweeps the openers + asks; bottom row carries logistics
+    // + closure. Drag the top right → bottom slides left (and vice
+    // versa) so a single gesture exposes new chips on both rows.
+    if (!viewerIsSeller) {
+      return _buildBuyerTwoRowRail(context);
+    }
+
+    // Seller view: single row, contextual. Watching PrivateChatCubit
+    // so the strip re-renders the moment a new buyer pill lands.
+    return BlocBuilder<PrivateChatCubit, PrivateChatState>(
+      builder: (context, live) {
+        // Merge history + live, walk newest-first, find the most
+        // recent non-self message. If it has an intent → contextual
+        // answers; otherwise (free text / image) → seller-initiator
+        // fallback.
+        final all = <Messages>[];
+        all.addAll(convData.messages ?? const <Messages>[]);
+        all.addAll(live.messages);
+        all.sort((a, b) => b.createdAtDate.compareTo(a.createdAtDate));
+
+        String? lastBuyerIntent;
+        for (final m in all) {
+          if (m.senderId == widget.currentUserId) continue;
+          if (m.intent != null && m.intent!.isNotEmpty) {
+            lastBuyerIntent = m.intent;
+          }
+          break;
+        }
+
+        // Pending-offer detection: when the most recent buyer-vs-seller
+        // exchange ends with a buyer offer the seller hasn't answered,
+        // render the yellow incoming-offer hero card and the
+        // accept/counter/decline response row. Walks the same merged
+        // timeline newest-first so it stays in sync with the pill
+        // strip's intent resolution above.
+        final pendingOffer = _findPendingBuyerOffer(all);
+        if (pendingOffer != null) {
+          final amount = _parseOfferAmount(pendingOffer.message);
+          if (amount != null && amount > 0) {
+            return _buildSellerIncomingOfferStack(context, amount);
+          }
+        }
+
+        return _renderP2PPillStripSingle(
+          context,
+          P2PPillCatalog.sellerAnswersFor(lastBuyerIntent),
+        );
+      },
+    );
+  }
+
+  /// Seller-side stack rendered when a buyer offer is pending —
+  /// IncomingOfferCard (hero) on top of a single-row response strip
+  /// (Accept · Counter ₹X · Decline). Replaces the default seller
+  /// pill rail for the duration of the pending state.
+  Widget _buildSellerIncomingOfferStack(BuildContext context, int buyerOffer) {
+    final listingPrice = _currentListingPrice(context);
+    final suggestedCounter =
+        _suggestedSellerCounter(buyerOffer, listingPrice, _offerRec);
+    final isDark = ThemeHelper.isDarkMode(context);
+    final surface =
+        isDark ? const Color(0xFF131826) : const Color(0xFFFFFFFF);
+    final lineSoft = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFF1F5F9);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(top: BorderSide(color: lineSoft)),
+      ),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IncomingOfferCard(
+            buyerOffer: buyerOffer,
+            listedPrice: listingPrice,
+            aiSuggestedCounter: suggestedCounter,
+          ),
+          const SizedBox(height: 10),
+          _buildSellerOfferResponseRow(context, buyerOffer, suggestedCounter),
+        ],
+      ),
+    );
+  }
+
+  /// Three-button row that replaces the seller's contextual pill rail
+  /// when a buyer offer is pending. Mapped to the existing offer-
+  /// response intents — `offer_accept`, `counter_offer`,
+  /// `offer_decline` — so the message wire contract stays unchanged.
+  ///
+  /// Dark-mode treatment:
+  ///   • Accept stays solid green — works on both backgrounds.
+  ///   • Counter switches to the theme card surface so it doesn't
+  ///     light up white on a dark sheet; foreground is theme text.
+  ///   • Decline foreground brightens to a lighter red and the
+  ///     border drops to a translucent red so the outline still
+  ///     reads on the dark surface.
+  Widget _buildSellerOfferResponseRow(
+      BuildContext context, int buyerOffer, int suggestedCounter) {
+    final isDark = ThemeHelper.isDarkMode(context);
+    final declineFg =
+        isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+    final declineBorder = isDark
+        ? const Color(0xFFFCA5A5).withOpacity(0.30)
+        : const Color(0xFFFECACA);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildSellerActionPill(
+              context,
+              label: 'Accept',
+              icon: Icons.check_rounded,
+              color: const Color(0xFF2E7D32),
+              foreground: Colors.white,
+              onTap: () {
+                try {
+                  context.read<PrivateChatCubit>().sendMessage(
+                        'Accepted — ₹${_formatInr(buyerOffer)}',
+                        intent: 'offer_accept',
+                      );
+                } catch (e) {
+                  debugPrint('offer_accept error: $e');
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: _buildSellerActionPill(
+              context,
+              label: 'Counter ₹${_formatInr(suggestedCounter)}',
+              icon: Icons.swap_horiz_rounded,
+              color: ThemeHelper.cardColor(context),
+              foreground: ThemeHelper.textColor(context),
+              bordered: true,
+              onTap: () => _openSellerCounterSheet(context, buyerOffer),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildSellerActionPill(
+            context,
+            label: '',
+            icon: Icons.close_rounded,
+            color: Colors.transparent,
+            foreground: declineFg,
+            bordered: true,
+            borderColor: declineBorder,
+            iconOnly: true,
+            onTap: () {
+              try {
+                context.read<PrivateChatCubit>().sendMessage(
+                      "Sorry, that's too low",
+                      intent: 'offer_decline',
+                    );
+              } catch (e) {
+                debugPrint('offer_decline error: $e');
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSellerActionPill(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required Color color,
+    required Color foreground,
+    required VoidCallback onTap,
+    bool bordered = false,
+    bool iconOnly = false,
+    Color? borderColor,
+  }) {
+    final lineColor = borderColor ??
+        (ThemeHelper.isDarkMode(context)
+            ? Colors.white.withOpacity(0.10)
+            : const Color(0xFFE5E8EE));
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 14 : 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: bordered ? Border.all(color: lineColor, width: 1.4) : null,
+          ),
+          alignment: Alignment.center,
+          child: iconOnly
+              ? Icon(icon, size: 18, color: foreground)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: foreground),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// Compact listing context strip rendered between the AppBar and
+  /// the chat thread. Shows a placeholder thumbnail (we don't fetch
+  /// the listing image in ChatListingSummary to keep the message
+  /// fetch lean) + the title + a small status meta line + the listed
+  /// price. Tap routes to the listing detail screen so either party
+  /// can re-check the spec mid-conversation. Designed to stay alive
+  /// even when the seller is the viewer — they want their own
+  /// listing anchor too.
+  Widget _buildListingStrip(
+    BuildContext context, {
+    required ChatListingSummary listing,
+    required bool viewerIsSeller,
+  }) {
+    final isDark = ThemeHelper.isDarkMode(context);
+    final textColor = ThemeHelper.textColor(context);
+    final surface = isDark
+        ? const Color(0xFF131826)
+        : const Color(0xFFF8FBFF);
+    final lineSoft = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE7EFFA);
+    final thumbBg = isDark
+        ? const Color(0xFF1B2233)
+        : const Color(0xFFE3ECF7);
+    final thumbIconColor = isDark
+        ? Colors.white.withOpacity(0.55)
+        : const Color(0xFF5F7390);
+
+    final priceLabel = listing.sold == true ? 'SOLD' : 'LISTED';
+    final priceText = '₹${_formatInr(listing.price ?? 0)}';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 0, 0, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(bottom: BorderSide(color: lineSoft)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 42,
+              height: 42,
+              child: (listing.image ?? '').isNotEmpty
+                  // Real listing image when the backend provides one.
+                  // errorBuilder falls back to the placeholder so a
+                  // 404 / broken URL never leaves a grey hole.
+                  ? Image.network(
+                      listing.image!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: thumbBg,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.local_offer_outlined,
+                          size: 20,
+                          color: thumbIconColor,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: thumbBg,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.local_offer_outlined,
+                        size: 20,
+                        color: thumbIconColor,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  (listing.title ?? '').trim().isEmpty
+                      ? widget.listingTitle
+                      : listing.title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                    letterSpacing: -0.1,
+                  ),
+                ),
+                if (viewerIsSeller) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Your listing',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: textColor.withOpacity(0.55),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                priceLabel,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: textColor.withOpacity(0.55),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                priceText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1677FF),
+                  letterSpacing: -0.2,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Parses an integer rupee amount out of a P2P offer/counter
+  /// message body. Both flows send the offer as plain text — e.g.
+  /// "My offer: ₹1,34,850" or "My counter: ₹1,40,000" — so the
+  /// seller-side render needs to read the number back out. Returns
+  /// null when no rupee amount is found (defensive — if the text is
+  /// malformed for any reason the card simply doesn't render).
+  int? _parseOfferAmount(String? text) {
+    if (text == null || text.isEmpty) return null;
+    final m = RegExp(r'₹\s*([\d,]+)').firstMatch(text);
+    if (m == null) return null;
+    final digits = (m.group(1) ?? '').replaceAll(',', '');
+    return int.tryParse(digits);
+  }
+
+  /// Walks the message timeline newest-first and returns the most
+  /// recent buyer offer that the seller hasn't responded to yet.
+  /// "Hasn't responded" = there's no seller message AFTER the offer
+  /// in the timeline. Returns null when no pending offer exists.
+  ///
+  /// Used to decide whether the seller-side incoming-offer hero card
+  /// should render above the pill rail. As soon as the seller sends
+  /// anything (accept/counter/decline pill or free text) the card
+  /// disappears on the next rebuild.
+  Messages? _findPendingBuyerOffer(List<Messages> messages) {
+    // Sort newest-first; we walk that way.
+    final sorted = [...messages]
+      ..sort((a, b) => b.createdAtDate.compareTo(a.createdAtDate));
+    for (final m in sorted) {
+      // Any seller message AFTER an offer means the seller has
+      // already responded — short-circuit, nothing pending.
+      if (m.senderId == widget.currentUserId) return null;
+      if (m.intent == 'make_offer') return m;
+    }
+    return null;
+  }
+
+  /// Heuristic for the seller's "AI suggested counter" — pre-fills
+  /// the counter sheet and labels the Counter pill in the response
+  /// row. Invariants:
+  ///
+  ///   • The counter NEVER exceeds the listed price. A seller asking
+  ///     more than what they themselves advertised is nonsensical and
+  ///     would surface as a UX bug ("AI suggests ₹26,300 on a ₹25,000
+  ///     listing"). Hard-capped at the end of this function.
+  ///   • The counter is strictly greater than the buyer's offer —
+  ///     otherwise there's nothing to counter. If the buyer offered
+  ///     at-or-above list we just return the listed price (the seller
+  ///     should accept; we cap to keep the sheet usable either way).
+  ///
+  /// Candidate selection (in order of preference):
+  ///   1. The server recommendation if it lives between buyerOffer
+  ///      and listed — that's "where this listing typically closes".
+  ///   2. Midpoint between buyer's offer and listed.
+  ///   3. +5% over the buyer's offer (legacy fallback, only fires
+  ///      when listed is missing).
+  int _suggestedSellerCounter(int buyerOffer, int? listed, OfferRecommendation? rec) {
+    // Edge case: buyer already at-or-above list — return listed so
+    // the Counter button still renders a coherent number even though
+    // the seller's real move here is Accept.
+    if (listed != null && listed > 0 && buyerOffer >= listed) {
+      return listed;
+    }
+
+    int candidate;
+    if (rec != null &&
+        rec.recommended > buyerOffer &&
+        (listed == null || listed <= 0 || rec.recommended <= listed)) {
+      candidate = rec.recommended;
+    } else if (listed != null && listed > 0 && listed > buyerOffer) {
+      // Round midpoint to nearest 100 for visual cleanliness.
+      final mid = ((buyerOffer + listed) / 2).round();
+      candidate = ((mid / 100).round()) * 100;
+    } else {
+      candidate = ((buyerOffer * 1.05) / 100).round() * 100;
+    }
+
+    // Hard cap at listed price — the invariant from the doc-comment.
+    if (listed != null && listed > 0 && candidate > listed) {
+      return listed;
+    }
+    return candidate;
+  }
+
+  /// Background fetch of the AI offer recommendation for this
+  /// listing. Best-effort — failures are swallowed; the UI falls
+  /// back to local heuristics. Mutates [_offerRec] + [_offerRecLoaded]
+  /// once and triggers a rebuild so the hero pill can replace its
+  /// loading state with the recommended number.
+  Future<void> _prefetchOfferRecommendation() async {
+    if (_offerRecLoaded) return;
+    try {
+      final rec = await RemoteDataSourceImpl()
+          .getOfferRecommendation(widget.listingId);
+      if (!mounted) return;
+      setState(() {
+        _offerRec = rec?.data;
+        _offerRecLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _offerRecLoaded = true);
+    }
+  }
+
+  /// Listed price for the current chat, pulled from ChatMessagesCubit
+  /// state. Used by the hero pill, the offer sheet, and the
+  /// incoming-offer card. Returns null when the messages fetch
+  /// hasn't completed (or the listing has no price set).
+  int? _currentListingPrice(BuildContext context) {
+    final state = context.read<ChatMessagesCubit>().state;
+    if (state is ChatMessagesLoaded) {
+      return state.chatMessages.data?.listing?.price;
+    }
+    if (state is ChatMessagesLoadingMore) {
+      return state.chatMessages.data?.listing?.price;
+    }
+    return null;
+  }
+
+  /// Hero "Make an Offer" pill — the buyer-side persistent CTA shown
+  /// above the two-row pill rail. Always full-width, brand-blue
+  /// gradient, with the AI's suggested offer surfaced on the right
+  /// side so the value-add is visible before the buyer taps.
+  ///
+  /// Tapping the pill opens [P2POfferSheet] in buyer-offer mode with
+  /// the cached recommendation. The sheet handles its own submit and
+  /// dispatches via [PrivateChatCubit.sendP2POffer].
+  Widget _buildMakeOfferHeroPill(BuildContext context) {
+    final listingPrice = _currentListingPrice(context);
+    if (listingPrice == null || listingPrice <= 0) {
+      // Without a price we can't render a useful recommendation. Hide
+      // the hero pill rather than show a half-broken one — the rail
+      // below still gives the buyer plenty of ways to engage.
+      return const SizedBox.shrink();
+    }
+
+    // Build the "AI suggests" trailing chip. While the rec is still
+    // loading we show a soft "AI suggestion loading" so the buyer
+    // doesn't see a blank space and wonder if the pill is broken.
+    final rec = _offerRec;
+    Widget trailing;
+    if (rec != null && rec.recommended > 0) {
+      trailing = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.16),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFD600),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Color(0xFFFFD600), blurRadius: 6),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'AI suggests ₹${_formatInr(rec.recommended)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (!_offerRecLoaded) {
+      trailing = const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(
+          strokeWidth: 1.6,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+        ),
+      );
+    } else {
+      // Rec fetch finished without data — keep the pill, drop the chip.
+      trailing = const SizedBox.shrink();
+    }
+
+    // Static contents of the pill (icon + label + trailing chip).
+    // Passed as `child:` to the AnimatedBuilder so the row isn't
+    // rebuilt on every animation tick — only the gradient transform
+    // recomputes per frame.
+    final pillRow = Row(
+      children: [
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.18),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.currency_rupee_rounded,
+            color: Colors.white,
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          'Make an Offer',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const Spacer(),
+        trailing,
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Material(
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openP2POfferSheet(context),
+          // ─── Continuous gradient-flow animation (Variant 2) ───
+          // AnimatedBuilder scope is JUST this Container — the chat
+          // list, pill rails, and message stream don't rebuild per
+          // frame. The trick:
+          //
+          //   • The gradient is 2× the visible box wide, with a 9-stop
+          //     colour list that REPEATS the 5-colour pattern twice
+          //     (A-B-C-B-A-B-C-B-A). The first half and second half
+          //     look identical.
+          //   • We slide begin/end leftward by one box-width over the
+          //     controller's 0 → 1 cycle. Because the visible window
+          //     of the gradient at value=0 and value=1 lands on
+          //     identical halves of the pattern, the loop is seamless
+          //     — no visual jump when the controller resets.
+          //   • Perceived motion direction: the gradient slides left,
+          //     so colours that were "to the right" enter each
+          //     position over time = L → R flow.
+          child: AnimatedBuilder(
+            animation: _heroPillFlowCtrl,
+            builder: (context, child) {
+              final shift = 2.0 * _heroPillFlowCtrl.value;
+              return Container(
+                height: 48,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment(-1.0 - shift, 0),
+                    end: Alignment(3.0 - shift, 0),
+                    colors: const [
+                      Color(0xFF0F5FCE),
+                      Color(0xFF1677FF),
+                      Color(0xFF5A8CFF),
+                      Color(0xFF1677FF),
+                      Color(0xFF0F5FCE),
+                      Color(0xFF1677FF),
+                      Color(0xFF5A8CFF),
+                      Color(0xFF1677FF),
+                      Color(0xFF0F5FCE),
+                    ],
+                    stops: const [
+                      0.0, 0.125, 0.25, 0.375, 0.5,
+                      0.625, 0.75, 0.875, 1.0,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1677FF).withOpacity(.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: child,
+              );
+            },
+            child: pillRow,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Opens the P2P offer sheet in seller-counter mode, pre-filled
+  /// with the AI-suggested counter computed from the buyer's offer
+  /// + the listing's price + the AI rec. Submit dispatches via
+  /// [PrivateChatCubit.sendP2PCounter] (intent: 'counter_offer').
+  void _openSellerCounterSheet(BuildContext context, int buyerOffer) {
+    final listingPrice = _currentListingPrice(context);
+    final suggested = _suggestedSellerCounter(buyerOffer, listingPrice, _offerRec);
+    // We feed an "AI-counter" recommendation into the sheet so the
+    // AI card surfaces the seller-side number rather than the
+    // buyer-side one. The reasonShort is regenerated in the sheet's
+    // fallback path; we override here to be seller-specific.
+    final sellerRec = OfferRecommendation(
+      recommended: suggested,
+      lowBound: buyerOffer,
+      highBound: listingPrice ?? suggested,
+      listedPrice: listingPrice ?? 0,
+      discountPct: _offerRec?.discountPct ?? 0,
+      categoryName: _offerRec?.categoryName ?? 'this category',
+      reasonShort:
+          'Sellers usually close around ₹${_formatInr(suggested)} when the buyer opens near ₹${_formatInr(buyerOffer)}.',
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => P2POfferSheet(
+        mode: OfferSheetMode.sellerCounter,
+        listingPrice: listingPrice,
+        buyerOffer: buyerOffer,
+        recommendation: sellerRec,
+        onSubmit: (amount) {
+          try {
+            context.read<PrivateChatCubit>().sendP2PCounter(amount);
+          } catch (e) {
+            debugPrint('P2P counter submit error: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  /// Opens the P2P offer sheet in buyer-offer mode, seeded with the
+  /// cached AI recommendation and the listing's price. On submit,
+  /// dispatches via [PrivateChatCubit.sendP2POffer] which sends a
+  /// `type: 'text'` message stamped with `intent: 'make_offer'` —
+  /// that's the marker the seller-side incoming-offer card looks for.
+  void _openP2POfferSheet(BuildContext context) {
+    final listingPrice = _currentListingPrice(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => P2POfferSheet(
+        mode: OfferSheetMode.buyerOffer,
+        listingPrice: listingPrice,
+        recommendation: _offerRec,
+        onSubmit: (amount) {
+          try {
+            context.read<PrivateChatCubit>().sendP2POffer(amount);
+          } catch (e) {
+            debugPrint('P2P offer submit error: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  /// Two-row coupled-scroll buyer rail.
+  Widget _buildBuyerTwoRowRail(BuildContext context) {
+    // Lazily build the scroll controllers and wire the coupling.
+    // Each controller's listener mirrors the offset onto the other —
+    // `_railLock` short-circuits the reverse callback so we don't
+    // loop. Same logic as the HTML mockup; the math is identical.
+    _p2pTopRailCtrl ??= ScrollController();
+    _p2pBotRailCtrl ??= ScrollController();
+    _ensureRailCouplingAttached();
+
+    final isDark = ThemeHelper.isDarkMode(context);
+    final surface =
+        isDark ? const Color(0xFF131826) : const Color(0xFFFFFFFF);
+    final lineSoft = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFF1F5F9);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(top: BorderSide(color: lineSoft)),
+      ),
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Hero "Make an Offer" pill — sits above both rail rows so
+          // the highest-intent buyer action is always one tap away.
+          // Renders nothing when the listing has no price set.
+          _buildMakeOfferHeroPill(context),
+          const SizedBox(height: 8),
+          _renderP2PPillRow(
+            context,
+            P2PPillCatalog.buyerPillsTop,
+            controller: _p2pTopRailCtrl!,
+          ),
+          const SizedBox(height: 8),
+          _renderP2PPillRow(
+            context,
+            P2PPillCatalog.buyerPillsBottom,
+            controller: _p2pBotRailCtrl!,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Wire the two rail controllers so each one's scroll is mirrored on
+  /// the other. Idempotent — safe to call on every rebuild because
+  /// addListener with the same closure is fine (we keep references in
+  /// the controllers themselves).
+  void _ensureRailCouplingAttached() {
+    final top = _p2pTopRailCtrl!;
+    final bot = _p2pBotRailCtrl!;
+
+    void mirror(ScrollController src, ScrollController dst) {
+      if (_railLock) return;
+      if (!src.hasClients || !dst.hasClients) return;
+      final srcMax = src.position.maxScrollExtent;
+      final dstMax = dst.position.maxScrollExtent;
+      if (srcMax <= 0 || dstMax <= 0) return;
+      final ratio = (src.offset / srcMax).clamp(0.0, 1.0);
+      final target = dstMax * (1 - ratio);
+      _railLock = true;
+      // jumpTo is synchronous; the dst's listener will fire and short-
+      // circuit on _railLock=true.
+      dst.jumpTo(target);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _railLock = false);
+    }
+
+    // Listeners are added at most once per controller — guard with a
+    // hasListeners check would be ideal but Flutter doesn't expose
+    // that. Instead we rely on the lazy `??=` above so the controllers
+    // are created exactly once, and addListener is called exactly once
+    // when we first attach below.
+    if (!_railCouplingAttached) {
+      top.addListener(() => mirror(top, bot));
+      bot.addListener(() => mirror(bot, top));
+      // First frame: pre-scroll the bottom row to its rightmost end so
+      // the parallax is immediately visible on first drag.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (bot.hasClients) {
+          final max = bot.position.maxScrollExtent;
+          if (max > 0) bot.jumpTo(max);
+        }
+      });
+      _railCouplingAttached = true;
+    }
+  }
+
+  /// One pill row with a specific controller.
+  Widget _renderP2PPillRow(
+    BuildContext context,
+    List<P2PPill> pills, {
+    required ScrollController controller,
+  }) {
+    if (pills.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        controller: controller,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        itemCount: pills.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) => _renderP2PChip(context, pills[i]),
+      ),
+    );
+  }
+
+  /// Single-row pill strip (seller side, fewer chips).
+  Widget _renderP2PPillStripSingle(
+      BuildContext context, List<P2PPill> pills) {
+    if (pills.isEmpty) return const SizedBox.shrink();
+    final isDark = ThemeHelper.isDarkMode(context);
+    final surface =
+        isDark ? const Color(0xFF131826) : const Color(0xFFFFFFFF);
+    final lineSoft = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFF1F5F9);
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        border: Border(top: BorderSide(color: lineSoft)),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          itemCount: pills.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) => _renderP2PChip(context, pills[i]),
+        ),
+      ),
+    );
+  }
+
+  /// Pill chip with three visual treatments. Neutral chips are
+  /// quiet (the default for asks/questions). Primary fills with the
+  /// brand colour and reads as "the forward action" — used sparingly
+  /// (Deal, Accept). Danger outlines red — used for terminal/
+  /// negative actions so the consequence is visible before the tap.
+  Widget _renderP2PChip(BuildContext context, P2PPill pill) {
+    final isDark = ThemeHelper.isDarkMode(context);
+
+    Color bg, fg, border;
+    FontWeight weight;
+    switch (pill.style) {
+      case PillStyle.primary:
+        bg = const Color(0xFF1554B7); // IND blue
+        fg = Colors.white;
+        border = Colors.transparent;
+        weight = FontWeight.w600;
+        break;
+      case PillStyle.danger:
+        bg = Colors.transparent;
+        fg = isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626);
+        border = isDark
+            ? const Color(0xFFFCA5A5).withOpacity(0.30)
+            : const Color(0xFFFECACA);
+        weight = FontWeight.w500;
+        break;
+      case PillStyle.neutral:
+        bg = isDark ? const Color(0xFF1B2233) : const Color(0xFFF1F5F9);
+        fg = isDark ? const Color(0xFFE5E7EB) : const Color(0xFF0F172A);
+        border = isDark
+            ? Colors.white.withOpacity(0.08)
+            : const Color(0xFFE2E8F0);
+        weight = FontWeight.w500;
+        break;
+    }
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => _onP2PPillTap(context, pill),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: border),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            pill.label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 12.5,
+              fontWeight: weight,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tap handler for P2P pills. Sends the pill's prepared text as a
+  /// regular `sendMessage` over the WebSocket, with the pill's intent
+  /// id riding along so the receiver-side rail can re-compute.
+  void _onP2PPillTap(BuildContext context, P2PPill pill) {
+    try {
+      context
+          .read<PrivateChatCubit>()
+          .sendMessage(pill.text, intent: pill.id);
+    } catch (e) {
+      // Cubit not available shouldn't happen in this code path (chat
+      // screen always provides it) but defensively swallow rather
+      // than crash the rail.
+      debugPrint('P2P pill tap error: $e');
+    }
+  }
+
   Widget _buildPillRail(BuildContext context) {
     return BlocBuilder<ChatMessagesCubit, ChatMessagesStates>(
       builder: (context, historyState) {
@@ -1554,8 +3004,51 @@ class _ChatScreenState extends State<ChatScreen> {
           convData = historyState.chatMessages.data;
         }
 
+        // ── P2P (non-SWA) branch ───────────────────────────────────
+        // 2026-05-15: pure-P2P chats now show a quick-reply pill rail
+        // on BOTH sides (buyer always, seller contextual). This is a
+        // completely separate code path from the SWA logic below — it
+        // uses `widgets/P2PPillCatalog.dart` and `PrivateChatCubit`'s
+        // generic `sendMessage` (with the optional `intent` arg). SWA
+        // paths are untouched.
+        //
+        // 2026-05-20 — categories on the SWA blocklist (Community,
+        // Events, Films, Find Investor) get plain text P2P only. The
+        // pill rail's openers ("Make an offer", "Is it available?",
+        // "What's the condition?") are nonsensical for community
+        // posts or event listings; surface a clean composer instead.
+        // The same `swa_category_eligible` flag that gates SWA
+        // activation server-side now suppresses the P2P rail too —
+        // single source of truth.
+        if (convData != null && !convData.isSwa) {
+          if (!convData.swaCategoryEligible) return const SizedBox.shrink();
+          return _buildP2PPillRail(context, convData);
+        }
+
         // Pure-P2P thread → rail stays hidden. No SWA chrome at all.
         if (convData == null || !convData.isSwa) {
+          return const SizedBox.shrink();
+        }
+
+        // Seller's view — pills are buyer-only. The seller manages the
+        // conversation through the SWA Dashboard (Accept / Counter /
+        // Decline / Message buttons) or, if they open this thread from
+        // their regular chat list, through the plain text composer
+        // (which triggers implicit seller_takeover on the next message).
+        if (convData.viewerIsSeller) {
+          return const SizedBox.shrink();
+        }
+
+        // Post-takeover view — once the seller has typed even one
+        // message on this conversation, the gateway flips it to
+        // `seller_takeover` and AI auto-replies stop forever for this
+        // thread. From the buyer's POV the rail no longer makes sense:
+        // any pill they tap would NOT get an AI response (the AI is
+        // silent in seller_takeover), and we want them in plain P2P
+        // chat to finalize the deal. Hiding the rail + showing the
+        // composer (see _buildComposerArea) gives them the 1:1 chat
+        // they earned by getting the seller to engage.
+        if (convData.isSellerTakeover) {
           return const SizedBox.shrink();
         }
 
@@ -1573,6 +3066,27 @@ class _ChatScreenState extends State<ChatScreen> {
         //     (seller reads)
         if (convData.isTerminal) return const SizedBox.shrink();
         if (convData.isAccepted) return const SizedBox.shrink();
+        // Phase 2 spam-lowball cooldown — hide the rail while the
+        // 48h pause is in effect. The "Chat paused" banner already
+        // replaces the composer; showing pills on top would be a
+        // confusing dead end (taps would 429 with cooldown error).
+        // Once the cooldown elapses, the rail comes back and the
+        // first tap implicitly resets the conversation server-side.
+        if (convData.isSpamLowballCooldown) return const SizedBox.shrink();
+        // Phase 2 post-deal guard — when the AI just auto-accepted an
+        // offer, the conversation is in a 15-min cooling-off window
+        // before the seller confirms / auto-promotes. Re-tapping
+        // pills here makes no sense (the deal IS the deal); the
+        // backend would 409 every offer attempt. Composer stays open
+        // so buyer can text seller about pickup. Conversation auto-
+        // resets to `active` if the seller cancels the pending deal,
+        // so the rail comes back automatically in that case.
+        if (convData.isPendingAcceptance) return const SizedBox.shrink();
+        // Generic 'closed' guard — covers buyer_rejected and any
+        // other future expiry_reason that isn't spam_lowball.
+        // spam_lowball is already caught above with its bespoke
+        // banner; this is the catch-all for the rest.
+        if (convData.conversationStatus == 'closed') return const SizedBox.shrink();
 
         final isHumanMode =
             convData.isP2PMode || convData.isSellerTakeover;
@@ -1588,7 +3102,32 @@ class _ChatScreenState extends State<ChatScreen> {
         // PrivateChatCubit state is no longer needed here — the rail
         // doesn't change per message. Kept as BlocBuilder so the
         // `_isPillSending` lock still re-renders the dimmed chips.
-        return BlocBuilder<PrivateChatCubit, PrivateChatState>(
+        return BlocConsumer<PrivateChatCubit, PrivateChatState>(
+          // Re-enable the pill rail the instant the AI's response
+          // arrives via WebSocket — don't wait for the defensive
+          // timeout. Two filters on listenWhen:
+          //   1) messages grew (skip typing-indicator no-op churn)
+          //   2) the NEWEST message is NOT from the buyer themselves
+          //
+          // Filter (2) is critical. PrivateChatCubit.sendPillTap()
+          // optimistically adds the buyer's own message to state
+          // BEFORE the WS round-trip completes, so without this guard
+          // the listener would fire on the local echo and re-enable
+          // the rail ~instantly — defeating the whole double-tap
+          // safeguard. We want the rail to stay locked until the AI's
+          // response actually arrives (sender != 'buyer').
+          listenWhen: (prev, curr) {
+            if (curr.messages.length <= prev.messages.length) return false;
+            final newest = curr.messages.isNotEmpty
+                ? curr.messages.last
+                : null;
+            return newest != null && newest.sender != 'buyer';
+          },
+          listener: (context, _) {
+            if (_isPillSending && mounted) {
+              setState(() => _isPillSending = false);
+            }
+          },
           builder: (context, liveState) {
             var pills = convData!.initialPills;
             if (pills != null) {
@@ -1635,10 +3174,18 @@ class _ChatScreenState extends State<ChatScreen> {
             if (pills == null || pills.isEmpty) {
               return const SizedBox.shrink();
             }
+            // 2026-05-17 — wire onMakeOffer so the rewritten
+            // SwaPillRail surfaces a hero "Make an Offer" pill above
+            // the two rail rows whenever the backend includes
+            // `make_offer` in `follow_up_pills`. Tap routes through
+            // the existing _openOfferSheet (mode-aware: AI-structured
+            // offer in pills_only / keyword_chat, plain-text "My
+            // offer: ₹X" in P2P / seller-takeover modes).
             return SwaPillRail(
               pillIds: pills,
               enabled: !_isPillSending,
               onTap: (pillId) => _onPillTap(context, pillId),
+              onMakeOffer: () => _openOfferSheet(context),
             );
           },
         );
@@ -1646,11 +3193,21 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Opens the SWA offer sheet. Reads the listed price from current
-  /// chat state so the sheet can render "Listed at ₹X" as a reference
-  /// (optional — sheet works without it). On submit, dispatches to
-  /// PrivateChatCubit.sendOffer which fires the WS + emits an optimistic
-  /// offer bubble.
+  /// Opens the buyer-side offer sheet for an SWA conversation.
+  ///
+  /// 2026-05-17 — upgraded from the basic [SwaOfferSheet] (single
+  /// numeric input) to the full [P2POfferSheet]: AI-recommendation
+  /// card (one-tap "Use AI suggestion"), three quick-pick price
+  /// chips, custom-amount input, and the sliding-sheen pill CTA. Same
+  /// AI recommendation source as the P2P flow — `_offerRec`, pre-
+  /// fetched on chat open from `/app/get-offer-recommendation/:id`.
+  ///
+  /// Submit handler stays MODE-AWARE:
+  ///   • AI-backed modes (pills_only / keyword_chat) → structured
+  ///     `sendOffer(amount)` WS message the SWA pipeline scores
+  ///     against the seller's floor + expected price.
+  ///   • Human modes (p2p / seller_takeover) → plain-text "My offer:
+  ///     ₹X" message the seller negotiates in their own words.
   void _openOfferSheet(BuildContext context) {
     int? listingPrice;
     final state = context.read<ChatMessagesCubit>().state;
@@ -1664,15 +3221,31 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => SwaOfferSheet(
+      builder: (_) => P2POfferSheet(
+        mode: OfferSheetMode.buyerOffer,
         listingPrice: listingPrice,
-        // Mode-aware submit. In AI-backed modes (pills_only,
-        // keyword_chat) the offer fires as a structured WS message
-        // that the AI scores against the seller's floor + expected
-        // price. In human-facing modes (p2p chat, seller takeover)
-        // the seller has explicitly opted out of AI handling — we
-        // honour that by sending the offer as a readable text
-        // message the seller negotiates in their own words.
+        recommendation: _offerRec,
+        // The UI is the new P2POfferSheet (AI recommendation card +
+        // chips + custom input), but the on-submit dispatch is the
+        // SAME as the legacy SWA make_offer pill — mode-aware:
+        //
+        //   • AI-backed modes (pills_only / keyword_chat) → call
+        //     `sendOffer(amount)`. This emits a structured
+        //     `type:'offer'` WS message that handleSWAMessage routes
+        //     into the SWA pipeline (ladder scoring → accept /
+        //     counter / decline, deal notifications, etc.). DO NOT
+        //     replace this with `sendP2POffer` — that would emit
+        //     `type:'text'` which the SWA gateway rejects in
+        //     pills_only mode ("Seller is responding only via quick
+        //     replies…").
+        //
+        //   • Human modes (p2p / seller_takeover) → send as plain
+        //     text "My offer: ₹X" via `sendMessage`. Seller has opted
+        //     out of AI handling; we honour that by letting them
+        //     negotiate manually.
+        //
+        // Think of this widget as "the legacy make_offer pill, with
+        // AI-recommendation UI bolted on" — wire contract unchanged.
         onSubmit: (amount) {
           try {
             final isHumanMode = _isHumanChatModeForRail(context);
@@ -1733,9 +3306,21 @@ class _ChatScreenState extends State<ChatScreen> {
       }
       setState(() => _isPillSending = true);
 
-      // Defensive timeout: clears the lock after 10s so a stuck tap
-      // doesn't permanently disable the rail. Arrives of a new message
-      // from the peer normally reset the UI faster via BlocBuilder.
+      // Defensive fallback: 10 sec. The BlocConsumer's listener on
+      // PrivateChatCubit clears the lock the instant the AI's
+      // response actually arrives (filtered to ignore the buyer's
+      // own local echo), so on warm requests the buyer sees the
+      // rail re-enable in ~200ms. This timeout is the safety net
+      // for the path where the WS response never arrives at all
+      // (network drop, server crash, etc.) — long enough that we
+      // never unlock prematurely on a slow Atlas / cold-start
+      // round-trip, short enough that a truly stuck rail eventually
+      // recovers without an app restart.
+      // History: 10s (initial) → 800ms → 3000ms → 10s. The earlier
+      // shrinks tried to compensate for the listener firing on the
+      // buyer's local echo (since fixed); with the proper sender
+      // filter the listener handles the happy path and 10s is the
+      // appropriate ceiling.
       Future.delayed(const Duration(seconds: 10), () {
         if (mounted && _isPillSending) {
           setState(() => _isPillSending = false);
@@ -1841,10 +3426,18 @@ class _SwaStatusBanner extends StatefulWidget {
   /// to without scrolling back to the agreement bubble.
   final int? agreedPrice;
 
+  /// Drives viewer-aware copy. The seller_takeover + pending_acceptance
+  /// banners read differently depending on who's looking — sellers see
+  /// "buyer-side" framings (e.g. "Buyer's offer is pending your
+  /// confirmation") while buyers see "seller-side" framings ("Waiting
+  /// for the seller to confirm…"). Defaults to false (buyer view).
+  final bool viewerIsSeller;
+
   const _SwaStatusBanner({
     required this.status,
     this.expiresAt,
     this.agreedPrice,
+    this.viewerIsSeller = false,
   });
 
   @override
@@ -1896,6 +3489,7 @@ class _SwaStatusBannerState extends State<_SwaStatusBanner> {
       widget.status,
       expiresAt: widget.expiresAt,
       agreedPrice: widget.agreedPrice,
+      viewerIsSeller: widget.viewerIsSeller,
     );
     if (copy == null) return const SizedBox.shrink();
 
@@ -1946,27 +3540,44 @@ class _SwaStatusBannerState extends State<_SwaStatusBanner> {
   /// Build the banner copy for a given status. Side-data fields
   /// (expiresAt, agreedPrice) are optional — when present they enrich
   /// the subtitle with live countdowns and amounts.
+  ///
+  /// 2026-05-17 — `viewerIsSeller` swaps the framing for the two
+  /// statuses that read awkwardly when the wrong side sees buyer-
+  /// authored copy: `seller_takeover` (seller doesn't need to be
+  /// told "the seller is handling this") and `pending_acceptance`
+  /// (seller never made "their offer" — buyer did).
   static _BannerCopy? _copyFor(
     String? s, {
     DateTime? expiresAt,
     int? agreedPrice,
+    bool viewerIsSeller = false,
   }) {
     switch (s) {
       case 'seller_takeover':
         return _BannerCopy(
-          title: 'Seller is handling this conversation',
-          subtitle:
-              'Smart Assist has paused — messages go directly to the seller.',
+          title: viewerIsSeller
+              ? "You're handling this conversation"
+              : 'Seller is handling this conversation',
+          subtitle: viewerIsSeller
+              ? 'Smart Assist has paused for this buyer.'
+              : 'Smart Assist has paused — messages go directly to the seller.',
           icon: Icons.pause_circle_outline_rounded,
           tone: _BannerTone.info,
         );
-      case 'pending_acceptance':
-        return _BannerCopy(
-          title: 'Your offer is in',
-          subtitle: _pendingSubtitle(expiresAt),
-          icon: Icons.hourglass_top_rounded,
-          tone: _BannerTone.pending,
-        );
+      // SIMPLIFIED FLOW (2026-05-19): the AI no longer moves a
+      // conversation into `pending_acceptance`. Backend never emits
+      // this status anymore for new flows, so the banner case is
+      // disabled. Kept here (commented) so the change can be reverted
+      // cleanly if we re-enable cooling-off later.
+      // case 'pending_acceptance':
+      //   return _BannerCopy(
+      //     title: viewerIsSeller
+      //         ? "Buyer's offer is pending your confirmation"
+      //         : 'Your offer is in',
+      //     subtitle: _pendingSubtitle(expiresAt, viewerIsSeller: viewerIsSeller),
+      //     icon: Icons.hourglass_top_rounded,
+      //     tone: _BannerTone.pending,
+      //   );
       case 'accepted':
         return _BannerCopy(
           title: 'Deal confirmed',
@@ -2008,26 +3619,34 @@ class _SwaStatusBannerState extends State<_SwaStatusBanner> {
     }
   }
 
-  /// Live countdown for the seller-confirmation window. Rounds to
-  /// whole minutes; "moments" for the last 60 seconds so the banner
-  /// never shows "0 min left" and feels alive.
-  static String _pendingSubtitle(DateTime? expiresAt) {
+  /// Live countdown for the pending-acceptance window. Subtitle copy
+  /// swaps based on viewer: buyer sees "waiting for the seller…",
+  /// seller sees "confirm within X min to lock the deal".
+  static String _pendingSubtitle(
+    DateTime? expiresAt, {
+    bool viewerIsSeller = false,
+  }) {
     if (expiresAt == null) {
-      return 'Waiting for the seller to confirm.';
+      return viewerIsSeller
+          ? 'Confirm to lock the deal.'
+          : 'Waiting for the seller to confirm.';
     }
     final now = DateTime.now();
     final diff = expiresAt.difference(now);
     if (diff.inSeconds <= 0) {
-      // Expiry clock ran out client-side; server's cron auto-promotes
-      // within the next minute. Keep the user informed instead of
-      // flipping to a blank subtitle.
-      return 'Finalising with the seller...';
+      return viewerIsSeller
+          ? 'Cooling-off ended — finalising the deal…'
+          : 'Finalising with the seller...';
     }
     if (diff.inSeconds < 60) {
-      return 'Waiting for the seller to confirm — any moment now.';
+      return viewerIsSeller
+          ? 'Confirm now — cooling-off ends in seconds.'
+          : 'Waiting for the seller to confirm — any moment now.';
     }
     final mins = diff.inMinutes + (diff.inSeconds % 60 >= 30 ? 1 : 0);
-    return 'Waiting for the seller to confirm — $mins min left.';
+    return viewerIsSeller
+        ? 'Confirm within $mins min to lock the deal.'
+        : 'Waiting for the seller to confirm — $mins min left.';
   }
 
   static String _acceptedSubtitle(int? agreedPrice) {

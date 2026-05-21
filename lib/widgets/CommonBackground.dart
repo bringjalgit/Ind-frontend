@@ -44,27 +44,31 @@ class Background1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Center(
-          child: Opacity(
-            opacity: 0.05,
-            child: Transform.rotate(
-              angle: -45 * 3.1415926535 / 180, // -45° diagonal
-              child: Image.asset(
-                bgImagePath ?? "assets/images/logo.png",
-                width: 382.8654593415135,
-                height: 202.9186919251232,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-        ),
-
-        // Foreground child UI
-        child,
-      ],
-    );
+    // Diagonal IND CLASSIFIEDS logo watermark commented out 2026-05-12
+    // — felt too heavy on the Select Sub-Category screen during the
+    // post-ad flow. Restore by uncommenting the Stack below.
+    return child;
+    // return Stack(
+    //   fit: StackFit.expand,
+    //   children: [
+    //     Center(
+    //       child: Opacity(
+    //         opacity: 0.05,
+    //         child: Transform.rotate(
+    //           angle: -45 * 3.1415926535 / 180, // -45° diagonal
+    //           child: Image.asset(
+    //             bgImagePath ?? "assets/images/logo.png",
+    //             width: 382.8654593415135,
+    //             height: 202.9186919251232,
+    //             fit: BoxFit.contain,
+    //           ),
+    //         ),
+    //       ),
+    //     ),
+    //
+    //     // Foreground child UI
+    //     child,
+    //   ],
+    // );
   }
 }

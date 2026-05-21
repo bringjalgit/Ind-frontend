@@ -237,7 +237,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: AppTextStyles.headlineSmall(textColor),
                               ),
                             ),
-                            if (user_data?.is_verified == true) ...[
+                            // Blue tick by the name uses the same
+                            // Aadhaar source as the "Verify Your Identity"
+                            // tile — otherwise the tile says "Not
+                            // Verified" while a tick still sits on the
+                            // name (mismatch flagged 2026-05-10).
+                            if (user_data?.aadhaar_status == 'approved') ...[
                               const SizedBox(width: 6),
                               const VerifiedBadge(size: 20),
                             ],
@@ -300,7 +305,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ],
                         _PulsingGlow(
-                          active: user_data?.is_verified != true,
+                          // Pulse only when Aadhaar specifically isn't
+                          // approved — `is_verified` is a generic flag
+                          // that flips on for email/mobile verification
+                          // too, and would mute the pulse before the
+                          // user has actually done Aadhaar KYC.
+                          active: user_data?.aadhaar_status != 'approved',
                           child: _settingsTile(
                             Icons.verified_user_outlined,
                             Colors.blue.shade100,
@@ -310,7 +320,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             trailing: Icons.arrow_forward_ios,
                             trailingWidget: _StatusBadge(
                               aadhaarStatus: user_data?.aadhaar_status,
-                              isVerified: user_data?.is_verified,
                             ),
                             onTap: () async {
                               await context.push('/aadhaar_verification');
@@ -350,7 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _settingsTile(
                           Icons.dark_mode_outlined,
                           Colors.blue.shade100,
-                          'Dark Mode',
+                          'App Theme',
                           isDark,
                           textColor,
                           trailing: Icons.arrow_forward_ios,
@@ -903,14 +912,20 @@ class ProfileShimmer extends StatelessWidget {
 
 /// Colored pill badge for Aadhaar verification status. Used as the trailing
 /// widget on the "Verify Your Identity" settings tile. Four states:
-///   - Verified  (green, check icon)     ← `is_verified == true` OR status=approved
-///   - Under Review (amber, hourglass)   ← status=pending
-///   - Action Needed (red, error icon)   ← status=rejected
-///   - Not Verified (amber, shield)      ← status=none (or unknown)
+///   - Verified  (green, check icon)     ← aadhaarStatus == 'approved'
+///   - Under Review (amber, hourglass)   ← aadhaarStatus == 'pending'
+///   - Action Needed (red, error icon)   ← aadhaarStatus == 'rejected'
+///   - Not Verified (amber, shield)      ← aadhaarStatus == 'none' (or null)
+///
+/// Only Aadhaar status drives the badge. The previous version also
+/// promoted to "Verified" when the generic `is_verified` flag was true
+/// (which flips on for email/mobile verification too), so users with
+/// only email/mobile verified saw "Verified" → tapped → Aadhaar screen
+/// asked them to upload front+back photos → confusion. Aadhaar status
+/// is the only source of truth for this tile.
 class _StatusBadge extends StatelessWidget {
   final String? aadhaarStatus;
-  final bool? isVerified;
-  const _StatusBadge({this.aadhaarStatus, this.isVerified});
+  const _StatusBadge({this.aadhaarStatus});
 
   @override
   Widget build(BuildContext context) {
@@ -942,10 +957,7 @@ class _StatusBadge extends StatelessWidget {
   }
 
   _BadgeSpec _resolve() {
-    // Once is_verified is true, always show Verified regardless of
-    // aadhaar_status (one-way approval: a later rejected submission
-    // doesn't take the badge away).
-    if (isVerified == true || aadhaarStatus == 'approved') {
+    if (aadhaarStatus == 'approved') {
       return const _BadgeSpec(
         label: 'Verified',
         bg: Color(0xFF10B981), // emerald-500

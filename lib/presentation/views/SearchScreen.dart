@@ -18,6 +18,8 @@ import '../../data/cubit/Categories/categories_cubit.dart';
 import '../../data/cubit/Categories/categories_states.dart';
 import '../../data/cubit/City/city_cubit.dart';
 import '../../data/cubit/City/city_state.dart';
+import '../../data/cubit/Location/location_cubit.dart';
+import '../../data/cubit/Location/location_state.dart';
 import '../../data/cubit/Products/Product_cubit2.dart';
 import '../../data/cubit/Products/products_cubit.dart';
 import '../../data/cubit/Products/products_state2.dart';
@@ -30,6 +32,7 @@ import '../../utils/constants.dart';
 import '../../utils/place_picker_bottomsheet.dart';
 import '../../widgets/CommonLoader.dart';
 import '../../widgets/CommonTextField.dart';
+import '../../widgets/LocationFallbackBanner.dart';
 import '../../widgets/ProductCard.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
@@ -92,14 +95,49 @@ class _SearchScreenState extends State<SearchScreen> {
     context.read<CategoriesCubit>().getCategories();
     context.read<SelectStatesCubit>().getSelectStates("");
 
-    context.read<ProductsCubit2>().getProducts(search: widget.search_text);
     searchController.text = widget.search_text;
     searchController.addListener(() {
       _onSearchChanged(searchController.text);
     });
+
+    // Pre-fill the location field from the global LocationCubit so the
+    // user's home-screen choice (e.g. "Bangalore") flows into search by
+    // default. Without this hydrate, the field is empty on screen-open
+    // and the initial fetch goes out with no location_key — the user
+    // sees featured-first nationwide listings instead of nearby ones.
+    _hydrateLocationFromGlobalCubit();
+
+    if (_selectedLat != null && _selectedLng != null) {
+      _applyFiltersAndFetch();
+    } else {
+      context.read<ProductsCubit2>().getProducts(search: widget.search_text);
+    }
+
     _speech = stt.SpeechToText();
     _loadSound();
     _initGuest();
+  }
+
+  void _hydrateLocationFromGlobalCubit() {
+    final locState = context.read<LocationCubit>().state;
+    String? latlng;
+    String? locName;
+    if (locState is LocationLoaded) {
+      latlng = locState.latlng;
+      locName = locState.locationName;
+    } else if (locState is LocationSavedAvailable) {
+      latlng = locState.latlng;
+      locName = locState.locationName;
+    }
+    if (latlng == null || latlng.isEmpty) return;
+    final parts = latlng.split(',');
+    if (parts.length != 2) return;
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null) return;
+    _selectedLat = lat;
+    _selectedLng = lng;
+    locationController.text = locName ?? latlng;
   }
 
   Future<void> _initGuest() async {
@@ -396,6 +434,12 @@ class _SearchScreenState extends State<SearchScreen> {
                             Expanded(
                               child: CustomScrollView(
                                 slivers: [
+                                  SliverToBoxAdapter(
+                                    child: LocationFallbackBanner(
+                                      locationMeta: productsModel.locationMeta,
+                                      searchTerm: searchController.text,
+                                    ),
+                                  ),
                                   SliverPadding(
                                     padding: const EdgeInsets.all(16),
                                     sliver: _isGridView
@@ -414,6 +458,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                               final product = products[index];
                                               return SimilarProductCard(
                                                 title: product.title ?? "—",
+                                                planTier: product.planTier,
                                                 price: "₹${product.price ?? 0}",
                                                 location: product.location ?? "",
                                                 imageUrl: product.image,

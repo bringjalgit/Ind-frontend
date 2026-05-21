@@ -50,6 +50,7 @@ class _DashboardState extends State<Dashboard> {
   late PageController pageController;
   int _selectedIndex = 0;
   bool isLocationSheetShown = false;
+  DateTime? _lastBackPressAt;
 
   StreamSubscription<Uri>? _linkSubscription;
 
@@ -72,8 +73,14 @@ class _DashboardState extends State<Dashboard> {
     initDeepLinks(); // start deep link handling
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final toChat = NotificationIntent.consumePendingChat();
-      if (toChat != null && toChat.isNotEmpty && mounted) {
-        context.push('/chat?receiverId=$toChat');
+      if (toChat != null && mounted) {
+        final query = StringBuffer(
+          '/chat?receiverId=${toChat.receiverId}&listingId=${toChat.listingId}',
+        );
+        if (toChat.listingTitle != null && toChat.listingTitle!.isNotEmpty) {
+          query.write('&listingTitle=${Uri.encodeComponent(toChat.listingTitle!)}');
+        }
+        context.push(query.toString());
       }
     });
   }
@@ -156,9 +163,14 @@ class _DashboardState extends State<Dashboard> {
           .read<UserActivePlanCubit>()
           .getUserActivePlansData();
       if (plan != null) {
-        AuthService.setPlanStatus(plan.goToPlansPage.toString() ?? "");
-        AuthService.setFreePlanStatus(plan.isFree.toString() ?? "");
-        AuthService.setSubscribeStatus(
+        // Serialize secure-storage writes. EncryptedSharedPreferences
+        // (Android backing store) corrupts when concurrent writes
+        // interleave — entries can silently drop, including unrelated
+        // keys like access_token / refresh_token, forcing a logout
+        // mid-session. await each write so they happen one at a time.
+        await AuthService.setPlanStatus(plan.goToPlansPage.toString() ?? "");
+        await AuthService.setFreePlanStatus(plan.isFree.toString() ?? "");
+        await AuthService.setSubscribeStatus(
           plan.plans?.length != 0 ? "true" : "false" ?? "",
         );
       }
@@ -188,8 +200,33 @@ class _DashboardState extends State<Dashboard> {
         final cardColor = ThemeHelper.cardColor(context);
         return WillPopScope(
           onWillPop: () async {
-            SystemNavigator.pop();
-            return false;
+            // Back from My Ads / Chat / Profile → switch to Home tab
+            // instead of exiting. Matches standard bottom-nav UX (Play
+            // Store, Instagram, etc.) — back acts as "go to root tab"
+            // first, app-exit only from root.
+            if (_selectedIndex != 0) {
+              pageController.jumpToPage(0);
+              setState(() => _selectedIndex = 0);
+              return false;
+            }
+
+            // On Home tab: require two back-presses within 2 seconds to
+            // exit. Prevents the accidental single-tap exit that users
+            // hit when reaching for the back gesture from the edge of
+            // the screen.
+            final now = DateTime.now();
+            if (_lastBackPressAt == null ||
+                now.difference(_lastBackPressAt!) > const Duration(seconds: 2)) {
+              _lastBackPressAt = now;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Press back again to exit'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              return false;
+            }
+            return true;
           },
           child: Scaffold(
             resizeToAvoidBottomInset: false,

@@ -27,6 +27,7 @@ import '../../theme/ThemeHelper.dart';
 import '../../utils/media_query_helper.dart';
 import '../../utils/spinkittsLoader.dart';
 import '../../widgets/CommonLoader.dart';
+import '../../widgets/LocationFallbackBanner.dart';
 import '../../widgets/LocationSelectionSheet.dart';
 import '../../widgets/SimilarProductCard.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -213,14 +214,12 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
         title: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Left: logo (fixed width)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.asset(
-                'assets/images/holi_logo.png',
-                width: SizeConfig.screenWidth * 0.2,
-                fit: BoxFit.cover,
-              ),
+            // Left: logo (fixed width). Use the transparent-bg variant
+            // so no white frame shows behind the brand mark.
+            Image.asset(
+              'assets/images/applogonew.png',
+              width: SizeConfig.screenWidth * 0.2,
+              fit: BoxFit.contain,
             ),
             SizedBox(width: SizeConfig.screenWidth * 0.15),
             Expanded(
@@ -629,16 +628,7 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
                                         borderRadius: BorderRadius.circular(4),
                                         color: isDarkMode
                                             ? Color(0xff111111)
-                                            : Color(
-                                                0xffF8FAFE,
-                                              ), // placeholder color
-                                        image: const DecorationImage(
-                                          image: AssetImage(
-                                            "assets/images/holi_category_bg.png",
-                                          ),
-                                          fit: BoxFit
-                                              .cover, // 🔥 fills completely
-                                        ),
+                                            : Color(0xffF8FAFE),
                                       ),
                                       padding: EdgeInsets.symmetric(
                                         vertical: 2,
@@ -714,6 +704,9 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
 
                           return Column(
                             children: [
+                              LocationFallbackBanner(
+                                locationMeta: productsModel.locationMeta,
+                              ),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -797,6 +790,7 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
                                                   asyncSnapshot.data ?? false;
                                               return SimilarProductCard(
                                                 title: p.title ?? "—",
+                                                planTier: p.planTier,
                                                 isFeatured:
                                                     p.featured_status ?? false,
                                                 price:

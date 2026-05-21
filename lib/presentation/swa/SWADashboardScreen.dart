@@ -1,11 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/theme/ThemeHelper.dart';
 import 'package:classifieds/theme/app_colors.dart';
 import 'package:classifieds/Components/CutomAppBar.dart';
 import 'package:classifieds/services/ApiClient.dart';
 import 'package:classifieds/services/api_endpoint_urls.dart';
+import 'package:classifieds/data/cubit/MyAds/my_ads_cubit.dart';
 
 /// S5 — Seller Dashboard for a single SWA-enabled listing.
 ///
@@ -34,8 +36,12 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
   Map<String, dynamic> _summary = {};
   List<dynamic> _conversations = [];
 
-  // Tab state
-  int _selectedTab = 1; // 0=All, 1=Active, 2=Needs Attention, 3=Deals
+  // Tab state.
+  // 2026-05-17 — default flipped from Active (1) to All (0) so the
+  // first frame shows every conversation, not the Active subset which
+  // often reads empty when there are closed/declined/expired threads
+  // the seller still wants to scan.
+  int _selectedTab = 0; // 0=All, 1=Active, 2=Needs Attention, 3=Deals
   final List<String> _tabLabels = ['All', 'Active', 'Needs\nAttention', 'Deals'];
 
   @override
@@ -88,16 +94,25 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: ThemeHelper.isDarkMode(ctx) ? const Color(0xFF1E1E1E) : Colors.white,
-        title: Text('Pause Smart Assist?', style: TextStyle(color: ThemeHelper.textColor(ctx))),
+        title: Text(
+          'Deactivate Smart Assist?',
+          style: TextStyle(color: ThemeHelper.textColor(ctx)),
+        ),
         content: Text(
-          'AI will stop handling buyer queries for this listing. You can re-enable it anytime.',
+          'AI will stop handling buyer queries for this listing. You can re-activate it anytime.',
           style: TextStyle(color: ThemeHelper.textColor(ctx).withOpacity(0.7)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Pause', style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Deactivate',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -108,12 +123,30 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
       final url = APIEndpointUrls.swaDeactivate(widget.listingId);
       final response = await ApiClient.post(url);
       if (response.statusCode == 200 && mounted) {
+        // Tell the My Ads list to refresh BEFORE we pop back to it.
+        // Otherwise the seller lands on a stale list where their
+        // listing's card still shows "Smart Assist active" (the
+        // strip + dashboard-shortcut), even though SWA is now off
+        // server-side. Refetch fires the approved-status feed which
+        // is what AdsScreen renders for the SWA-eligible strip.
+        try {
+          context.read<MyAdsCubit>().getMyAds('approved');
+        } catch (_) {
+          // Cubit not in scope (rare — SWA Dashboard is normally
+          // pushed from AdsScreen so the provider is up the tree).
+          // Falling through still pops; the user will see the stale
+          // card until they pull-to-refresh.
+        }
         context.pop();
       }
     } on DioException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.response?.data?['message']?.toString() ?? 'Failed to pause')),
+        SnackBar(
+          content: Text(
+            e.response?.data?['message']?.toString() ?? 'Failed to deactivate',
+          ),
+        ),
       );
     }
   }
@@ -134,6 +167,42 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
         SnackBar(content: Text(e.response?.data?['message']?.toString() ?? 'Failed to confirm')),
       );
     }
+  }
+
+  /// Push the standard ChatScreen route for an SWA dashboard card.
+  ///
+  /// Pulls the buyer ObjectId + name + image off `conv['buyer']` (the
+  /// populated buyer document the dashboard endpoint returns), and
+  /// pairs them with the dashboard's own listingId + title. The
+  /// ChatScreen route reads these from query params (see
+  /// app_routes/router.dart `/chat`) and the unified
+  /// `getChatMessages` endpoint then returns the full SWA + P2P
+  /// timeline for that (buyer, seller, listing) pair.
+  ///
+  /// Once the seller types their first message in ChatScreen, the
+  /// gateway in handler/chat/messaging.js sees `sender_is_seller` on
+  /// an SWA-active listing and flips the conversation to
+  /// `seller_takeover` — AI auto-replies stop, buyer's app switches
+  /// from pills-only to a text composer. No backend changes needed
+  /// for any of this; the takeover machinery already exists.
+  void _openChatWithBuyer(Map<String, dynamic> conv) {
+    final buyer = conv['buyer'] as Map<String, dynamic>? ?? {};
+    final receiverId = buyer['_id']?.toString() ?? '';
+    if (receiverId.isEmpty) return;
+    final receiverName = buyer['name']?.toString() ?? '';
+    final receiverImage = buyer['image']?.toString() ?? '';
+    final listingTitle = _listing['title']?.toString() ?? '';
+    final qp = <String>[
+      'receiverId=${Uri.encodeComponent(receiverId)}',
+      'listingId=${Uri.encodeComponent(widget.listingId)}',
+      if (listingTitle.isNotEmpty)
+        'listingTitle=${Uri.encodeComponent(listingTitle)}',
+      if (receiverName.isNotEmpty)
+        'receiverName=${Uri.encodeComponent(receiverName)}',
+      if (receiverImage.isNotEmpty)
+        'receiverImage=${Uri.encodeComponent(receiverImage)}',
+    ].join('&');
+    context.push('/chat?$qp');
   }
 
   List<dynamic> get _filteredConversations {
@@ -178,9 +247,18 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
             icon: Icon(Icons.settings_outlined, color: textColor, size: 22),
             onPressed: () {
               final config = _listing['config'] as Map<String, dynamic>? ?? {};
+              // Forward both expiry timestamps so the settings screen can
+              // compute plan-total validity (expires - created) and cap the
+              // availability_window picker by that. Using (expires - now)
+              // would lose the matching chip within an hour of creation.
+              final extra = <String, dynamic>{
+                ...config,
+                'listing_expires_at': _listing['listing_expires_at'],
+                'listing_created_at': _listing['listing_created_at'],
+              };
               context.push(
                 '/swa-settings/${widget.listingId}',
-                extra: config,
+                extra: extra,
               ).then((result) {
                 if (result == true) _fetchDashboard();
               });
@@ -321,7 +399,7 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isActive ? 'Active \u2022 ${daysLeft}d left' : 'Paused',
+                      isActive ? 'Active \u2022 ${daysLeft}d left' : 'Deactivated',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -333,19 +411,30 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
               ],
             ),
           ),
-          // Pause button
+          // Deactivate button (only when SWA is active). 2026-05-17 —
+          // renamed from "Pause" to "Deactivate" for clearer user
+          // language. Same backend call (swaDeactivate endpoint).
           if (isActive)
             GestureDetector(
               onTap: _deactivateSWA,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: isDark ? const Color(0xFF666666) : const Color(0xFFD1D5DB)),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF666666)
+                        : const Color(0xFFD1D5DB),
+                  ),
                 ),
                 child: Text(
-                  'Pause',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: secondaryText),
+                  'Deactivate',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: secondaryText,
+                  ),
                 ),
               ),
             ),
@@ -524,10 +613,13 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GestureDetector(
-        onTap: () {
-          final convId = conv['_id']?.toString() ?? '';
-          if (convId.isNotEmpty) context.push('/swa-conversation/$convId');
-        },
+        // 2026-05-17 — dashboard cards now route to the standard
+        // ChatScreen (`/chat`) instead of the SWA-specific
+        // conversation page. Once SWA has surfaced a real buyer to
+        // the seller, the goal is just to get them talking; the
+        // seller's first typed message triggers implicit takeover
+        // server-side and the buyer's app flips to a text composer.
+        onTap: () => _openChatWithBuyer(conv),
         child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -700,10 +792,10 @@ class _SWADashboardScreenState extends State<SWADashboardScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GestureDetector(
-        onTap: () {
-          final convId = conv['_id']?.toString() ?? '';
-          if (convId.isNotEmpty) context.push('/swa-conversation/$convId');
-        },
+        // See note above — both card variants share the same
+        // tap-target rule: open the regular ChatScreen, let implicit
+        // seller takeover do the rest.
+        onTap: () => _openChatWithBuyer(conv),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(

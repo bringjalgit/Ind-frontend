@@ -84,6 +84,17 @@ class Listing {
   String? state_name;
   bool? sold;
   bool? swaIsActive;
+  // Category-level SWA gate. False for Find Investor / Events / Films /
+  // Community. ProductDetailsScreen hides the SWAEnableCard +
+  // SWADashboardLink for these categories so the owner never sees an
+  // SWA entry point on a non-tradable listing. Defaults true on older
+  // responses to preserve behaviour on existing sale listings.
+  bool swaCategoryEligible = true;
+  /// Plan tier code of the seller's active subscription stamped on
+  /// this listing (`"essential"` / `"power"` / `"pro"`). Null on
+  /// free posts. Drives the small tier chip in the listing detail
+  /// header next to the seller name.
+  String? planTier;
   int? stateId;
   int? cityId;
   String? createdAt;
@@ -137,6 +148,8 @@ class Listing {
     status = json['status'];
     sold = json['sold'];
     swaIsActive = json['sell_with_ai_config']?['is_active'] == true;
+    swaCategoryEligible = json['swa_category_eligible'] != false;
+    planTier = json['plan_tier']?.toString();
     stateId = json['state_id'];
     cityId = json['city_id'];
     createdAt = json['created_at'];
@@ -298,11 +311,12 @@ class PostedBy {
   String? email;
   String? image;
   String? postedAt;
+  String? memberSince;
   int? activeListings;
   int? soldListings;
   String? mobile;
 
-  PostedBy({this.id, this.name, this.email, this.image, this.postedAt, this.activeListings, this.soldListings, this.mobile});
+  PostedBy({this.id, this.name, this.email, this.image, this.postedAt, this.memberSince, this.activeListings, this.soldListings, this.mobile});
 
   PostedBy.fromJson(Map<String, dynamic> json) {
     id = (json['id'] ?? json['_id'])?.toString();
@@ -310,6 +324,7 @@ class PostedBy {
     email = json['email'];
     image = json['image'];
     postedAt = json['posted_at'];
+    memberSince = json['member_since'];
     activeListings = json['active_listings'];
     soldListings = json['sold_listings'];
     mobile = json['mobile'];
@@ -322,6 +337,7 @@ class PostedBy {
     data['email'] = this.email;
     data['image'] = this.image;
     data['posted_at'] = this.postedAt;
+    data['member_since'] = this.memberSince;
     data['active_listings'] = this.activeListings;
     data['sold_listings'] = this.soldListings;
     data['mobile'] = this.mobile;

@@ -547,10 +547,12 @@ class _EducationalAdState extends State<EducationalAd> {
                                   .read<UserActivePlanCubit>()
                                   .getUserActivePlansData();
                               if (plan != null) {
-                                AuthService.setPlanStatus(
+                                // Serialize: see dashboard.dart getData()
+                                // for the EncryptedSharedPreferences race.
+                                await AuthService.setPlanStatus(
                                   plan.goToPlansPage.toString() ?? "",
                                 );
-                                AuthService.setFreePlanStatus(
+                                await AuthService.setFreePlanStatus(
                                   plan.isFree.toString() ?? "",
                                 );
                               }

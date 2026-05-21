@@ -61,6 +61,7 @@ class APIEndpointUrls {
   static String get get_my_profile_details => '${BackendResolver.currentBaseUrl}get-my-profile-details';
   static String get update_user_details_by_user => '${BackendResolver.currentBaseUrl}update-user-details-by-user';
   static String get get_profile_image_upload_url => '${BackendResolver.currentBaseUrl}get-profile-image-upload-url';
+  static String get get_seller_public_profile => '${BackendResolver.currentBaseUrl}get-seller-public-profile';
 
   // ── Aadhaar KYC (main stack) ─────────────────────────────────────────────
   static String get get_aadhaar_upload_url => '${BackendResolver.currentBaseUrl}get-aadhaar-image-upload-url';
@@ -114,6 +115,11 @@ class APIEndpointUrls {
   static String get get_listings_by_category => '${BackendResolver.currentBaseUrl}get-listings-by-categories';
   static String get get_listings_by_sub_category => '${BackendResolver.currentBaseUrl}get-listings-by-sub-category';
   static String get get_single_listing_details => '${BackendResolver.currentBaseUrl}get-single-listing-details';
+  // AI offer recommendation for the P2P "Make an Offer" sheet.
+  // GET /app/get-offer-recommendation/{listing_id} — returns
+  // {recommended, lowBound, highBound, listedPrice, discountPct,
+  // reasonShort, categoryName}. See handler/listing/offer.js.
+  static String get get_offer_recommendation => '${BackendResolver.currentBaseUrl}get-offer-recommendation';
 
   // ── F: My Listings (main stack) ──────────────────────────────────────────
   static String get get_my_listings_list => '${BackendResolver.currentBaseUrl}get-my-listings-list';

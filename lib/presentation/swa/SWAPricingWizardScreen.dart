@@ -16,12 +16,20 @@ class SWAPricingWizardScreen extends StatefulWidget {
   final String listingId;
   final int listedPrice;
   final String listingTitle;
+  // ISO timestamps for the listing's plan window. Forwarded to the next
+  // step so it can compute plan-total validity (expires - created) and
+  // cap the day picker by that. Both nullable for entry points that
+  // don't supply them.
+  final String? expiresListDate;
+  final String? createdAt;
 
   const SWAPricingWizardScreen({
     super.key,
     required this.listingId,
     required this.listedPrice,
     required this.listingTitle,
+    this.expiresListDate,
+    this.createdAt,
   });
 
   @override
@@ -89,6 +97,8 @@ class _SWAPricingWizardScreenState extends State<SWAPricingWizardScreen> {
         'listedPrice': widget.listedPrice,
         'expectedPrice': _expectedPrice,
         'floorPrice': _floorPrice,
+        'expiresListDate': widget.expiresListDate,
+        'createdAt': widget.createdAt,
       },
     );
   }
@@ -375,12 +385,30 @@ class _SWAPricingWizardScreenState extends State<SWAPricingWizardScreen> {
 
   /// Horizontal range bar: grey baseline + filled segment from MIN→LISTED,
   /// three handles (lime = minimum, cyan = target, hollow = listed).
+  ///
+  /// 2026-05-17 fix — the bar's tick labels span 70%-100% of listed
+  /// (see [_buildRangeTicks]: ticks at 0.7, 0.8, 0.9, 1.0 of base).
+  /// The previous position math used `price / listed` which placed
+  /// the lime handle at 70% of the bar width when the floor was at
+  /// 70% of listed — visually wrong because the bar's left edge
+  /// represents 70%, not 0%. Now we remap prices into the
+  /// [0.7×listed, listed] window so the handles align with the
+  /// tick labels exactly.
   Widget _buildRangeBar(WizardTokens t) {
     final listed = widget.listedPrice.toDouble();
     final expected = _expectedPrice.toDouble();
     final floor = _floorPrice.toDouble();
-    final minPos = listed > 0 ? (floor / listed).clamp(0.0, 1.0) : 0.0;
-    final targetPos = listed > 0 ? (expected / listed).clamp(0.0, 1.0) : 0.0;
+
+    const double barStart = 0.7; // bar left edge = 70% of listed
+    const double barSpan = 1.0 - barStart; // 0.3
+    double mapToBar(double price) {
+      if (listed <= 0) return 0.0;
+      final ratio = price / listed;
+      return ((ratio - barStart) / barSpan).clamp(0.0, 1.0);
+    }
+
+    final minPos = mapToBar(floor);
+    final targetPos = mapToBar(expected);
 
     return LayoutBuilder(
       builder: (context, constraints) {
