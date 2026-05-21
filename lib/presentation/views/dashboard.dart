@@ -72,6 +72,17 @@ class _DashboardState extends State<Dashboard> {
     context.read<LocationCubit>().checkLocationPermission();
     initDeepLinks(); // start deep link handling
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Cold-start notification that targets a dashboard tab (e.g.
+      // listing approved/rejected → My Ads). Consume + apply.
+      final pendingTab = NotificationIntent.consumePendingTab();
+      if (pendingTab != null && mounted) {
+        _selectedIndex = pendingTab;
+        if (pageController.hasClients) {
+          pageController.jumpToPage(pendingTab);
+        }
+        setState(() {});
+      }
+
       final toChat = NotificationIntent.consumePendingChat();
       if (toChat != null && mounted) {
         final query = StringBuffer(
@@ -83,6 +94,25 @@ class _DashboardState extends State<Dashboard> {
         context.push(query.toString());
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant Dashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // GoRouter reuses the already-alive Dashboard when navigating to
+    // /dashboard with a different `?tab=` query (e.g. the post-listing
+    // SuccessRecap screen's "View My Ads" → context.go('/dashboard?tab=1')).
+    // Because the State is reused, initState does NOT re-run, so the new
+    // initialTab was being ignored and the user stayed on Home (tab 0).
+    // Honor the updated tab here: switch the index + jump the pager.
+    if (widget.initialTab != oldWidget.initialTab &&
+        widget.initialTab != _selectedIndex) {
+      _selectedIndex = widget.initialTab;
+      if (pageController.hasClients) {
+        pageController.jumpToPage(widget.initialTab);
+      }
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _checkForOptionalUpdate() async {

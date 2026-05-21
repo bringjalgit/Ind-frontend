@@ -20,7 +20,6 @@ import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
 import '../utils/constants.dart';
 import 'ActionButton.dart';
-import 'PlanTierBadge.dart';
 
 class AdCardDynamic extends StatelessWidget {
   final Data ad;
@@ -67,6 +66,21 @@ class AdCardDynamic extends StatelessWidget {
 
   String _postedText(String? postedAt) =>
       (postedAt == null || postedAt.isEmpty) ? '' : postedAt;
+
+  static const List<String> _monthAbbr = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  // Listing expiry as a date, e.g. "Expires 17 Jun 2026". Empty when
+  // the listing has no expiry set (some pending/rejected states).
+  String _expiryText(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return '';
+    final local = d.toLocal();
+    return 'Expires ${local.day} ${_monthAbbr[local.month - 1]} ${local.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,19 +167,6 @@ class AdCardDynamic extends StatelessWidget {
                         ),
                       ),
                     ),
-                  // Top-left corner ribbon — same widget the public
-                  // browse cards use. PlanTierBadge picks at most one
-                  // ribbon (Power Seller → Pro → Featured → none).
-                  // The seller's "My Ads" view shows the same badge
-                  // their listings show to buyers.
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: PlanTierBadge(
-                      tier: ad.planTier,
-                      isFeatured: ad.featuredStatus == true,
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -214,8 +215,19 @@ class AdCardDynamic extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Expiry date on the left, opposite the posted-ago line.
+              // Hidden for sold listings — a sold item's expiry is
+              // meaningless.
+              Expanded(
+                child: Text(
+                  ad.sold == true ? '' : _expiryText(ad.expiresListDate),
+                  style: AppTextStyles.labelSmall(Colors.grey.shade600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(
                 _postedText(ad.postedAt),
                 style: AppTextStyles.labelSmall(Colors.grey.shade600),

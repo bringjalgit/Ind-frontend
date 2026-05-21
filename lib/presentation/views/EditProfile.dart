@@ -504,17 +504,40 @@ class _EditProfileState extends State<EditProfile> {
                         showDialog<void>(
                           context: context,
                           builder: (ctx) => AlertDialog(
-                            title: const Text('Phone number locked'),
-                            content: const Text(
+                            backgroundColor: ThemeHelper.cardColor(context),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: Text(
+                              'Phone number locked',
+                              style: TextStyle(
+                                color: ThemeHelper.textColor(context),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            content: Text(
                               'Your phone number is your login identity '
                               'and cannot be changed from this screen.\n\n'
                               'To change your number, please contact '
                               'support@indclassifieds.in.',
+                              style: TextStyle(
+                                color: ThemeHelper.isDarkMode(context)
+                                    ? Colors.grey[300]
+                                    : Colors.black54,
+                              ),
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.of(ctx).pop(),
-                                child: const Text('OK'),
+                                child: Text(
+                                  'OK',
+                                  style: TextStyle(
+                                    color: ThemeHelper.isDarkMode(context)
+                                        ? const Color(0xFF8B5CF6)
+                                        : const Color(0xFF1677FF),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
                             ],
                           ),

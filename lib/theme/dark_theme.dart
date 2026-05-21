@@ -45,12 +45,23 @@ final ThemeData darkTheme = ThemeData(
       color: Colors.red,
     ),
   ),
-  dialogTheme: const DialogThemeData(
-    shadowColor: Colors.white,
-    surfaceTintColor: Colors.white,
-    backgroundColor: Colors.white,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(5.0)),
+  // Dark dialogs. Previously backgroundColor: white + white surfaceTint —
+  // in dark mode that made every plain AlertDialog a white box, and
+  // Material 3 colours the title/content from onSurface (white in
+  // ColorScheme.dark) → white text on a white box = invisible. Now a dark
+  // surface + explicit light title/content text so all theme-driven
+  // dialogs are readable. Dialogs that set their own backgroundColor
+  // (EditProfile, AdCardDynamic, the email "not registered" dialog)
+  // override this and stay as-is.
+  dialogTheme: DialogThemeData(
+    shadowColor: Colors.black54,
+    surfaceTintColor: const Color(0xFF1E1E1E),
+    backgroundColor: const Color(0xFF1E1E1E),
+    titleTextStyle: AppTextStyles.titleLarge(Colors.white)
+        .copyWith(fontWeight: FontWeight.bold),
+    contentTextStyle: AppTextStyles.bodyMedium(const Color(0xFFD6D6D6)),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(12.0)),
     ),
   ),
   popupMenuTheme: const PopupMenuThemeData(
