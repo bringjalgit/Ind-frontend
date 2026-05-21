@@ -90,6 +90,11 @@ class Listing {
   // SWA entry point on a non-tradable listing. Defaults true on older
   // responses to preserve behaviour on existing sale listings.
   bool swaCategoryEligible = true;
+  /// Plan tier code of the seller's active subscription stamped on
+  /// this listing (`"essential"` / `"power"` / `"pro"`). Null on
+  /// free posts. Drives the small tier chip in the listing detail
+  /// header next to the seller name.
+  String? planTier;
   int? stateId;
   int? cityId;
   String? createdAt;
@@ -144,6 +149,7 @@ class Listing {
     sold = json['sold'];
     swaIsActive = json['sell_with_ai_config']?['is_active'] == true;
     swaCategoryEligible = json['swa_category_eligible'] != false;
+    planTier = json['plan_tier']?.toString();
     stateId = json['state_id'];
     cityId = json['city_id'];
     createdAt = json['created_at'];

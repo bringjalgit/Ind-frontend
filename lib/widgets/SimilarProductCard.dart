@@ -4,6 +4,7 @@ import 'package:classifieds/theme/app_colors.dart';
 
 import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
+import 'PlanTierBadge.dart';
 
 class SimilarProductCard extends StatelessWidget {
   final String title;
@@ -15,6 +16,10 @@ class SimilarProductCard extends StatelessWidget {
   final VoidCallback onLikeToggle;
   final VoidCallback onTap;
   final Color borderColor;
+  /// Plan tier of the seller's active subscription stamped on this
+  /// listing (`"essential"` / `"power"` / `"pro"`). Null on free posts.
+  /// Renders [PlanTierBadge] over the image's bottom-left corner.
+  final String? planTier;
 
   const SimilarProductCard({
     super.key,
@@ -27,6 +32,7 @@ class SimilarProductCard extends StatelessWidget {
     required this.onLikeToggle,
     required this.onTap,
     required this.borderColor,
+    this.planTier,
   });
 
   @override
@@ -84,31 +90,18 @@ class SimilarProductCard extends StatelessWidget {
                           ),
                         ),
                 ),
-                // Tagline for featured product
-                if (isFeatured)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.only(
-                          bottomRight: Radius.circular(8),
-                          topLeft: Radius.circular(8),
-                        ),
-                      ),
-                      child: Text(
-                        "Featured",
-                        style: AppTextStyles.bodySmall(
-                          Colors.white,
-                        ).copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                // Top-left corner ribbon. PlanTierBadge picks the
+                // single tag based on priority: Power Seller → Pro →
+                // Featured → none. Power Seller suppresses Featured
+                // so the card shows the gold tag only.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: PlanTierBadge(
+                    tier: planTier,
+                    isFeatured: isFeatured,
                   ),
+                ),
                 Positioned(
                   top: 8,
                   right: 8,

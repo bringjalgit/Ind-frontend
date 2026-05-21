@@ -82,6 +82,10 @@ class Data {
   // cap the availability_window picker — offering 60 / 90 days on a
   // 30-day listing is pointless because SWA can't outlive its listing.
   String? expiresListDate;
+  /// Plan tier code stamped on this listing's purchase
+  /// (`"essential"` / `"power"` / `"pro"`), or null on free posts.
+  /// Drives the listing card's tier badge in the corner.
+  String? planTier;
 
   bool get swaEligible =>
       (status ?? '').toLowerCase() == 'approved' &&
@@ -144,6 +148,7 @@ class Data {
     // for the four blocked categories.
     swaCategoryEligible = json['swa_category_eligible'] != false;
     expiresListDate = json['expires_list_date']?.toString();
+    planTier = json['plan_tier']?.toString();
   }
 
   Map<String, dynamic> toJson() {

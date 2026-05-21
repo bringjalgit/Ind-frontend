@@ -65,6 +65,7 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
             completedAt: res.data?.completedAt,
             initialPills: res.data?.initialPills,
             viewerIsSeller: res.data?.viewerIsSeller ?? false,
+            swaCategoryEligible: res.data?.swaCategoryEligible ?? true,
           ),
           settings: res.settings,
         );
@@ -149,6 +150,9 @@ class ChatMessagesCubit extends Cubit<ChatMessagesStates> {
             viewerIsSeller: newData.data?.viewerIsSeller ??
                 chatMessagesModel.data?.viewerIsSeller ??
                 false,
+            swaCategoryEligible: newData.data?.swaCategoryEligible ??
+                chatMessagesModel.data?.swaCategoryEligible ??
+                true,
           ),
           settings: newData.settings,
         );

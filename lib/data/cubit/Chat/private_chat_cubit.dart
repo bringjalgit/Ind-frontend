@@ -312,6 +312,35 @@ class PrivateChatCubit extends Cubit<PrivateChatState> {
         });
       }
 
+      // Self-heal for stale "buyer's app didn't get the SWA reactivate
+      // push" state (2026-05-20). When the seller reactivates SWA the
+      // backend fires a `conversationUpdated` WS push, but if it doesn't
+      // arrive — buyer's app was backgrounded, WebSocket reconnect was
+      // in flight, etc — Flutter still thinks the conversation is in
+      // `seller_takeover` and renders the free-text composer. Buyer
+      // types, backend's pills-only guard fires, and this canned reply
+      // comes back: "This seller is responding only via quick replies.
+      // Please tap one of the buttons above to continue." Without
+      // self-heal the buttons aren't visible (we're still in P2P mode)
+      // → dead-end.
+      //
+      // The reply itself is definitive proof from the server that
+      // we're in pills-only mode, so we fire a chat refetch off the
+      // back of receiving it. The same `_conversationUpdates` stream
+      // that drives the takeover refresh re-uses cleanly here. After
+      // refetch the conversation status comes back as `active` and the
+      // pill rail re-appears — the buyer sees the buttons their next
+      // tap was meant for.
+      final pillId = (map['pill_id'] ?? map['pillId'])?.toString();
+      final swaType = (map['swaType'] ?? map['swa_type'])?.toString();
+      if (pillId == 'pills_only_reminder' ||
+          swaType == 'pills_only_reject') {
+        _conversationUpdates.add({
+          'listing_id': listingId,
+          'event_type': 'self_heal_pills_only',
+        });
+      }
+
       // Auto-mark as read
       markAsRead();
     } catch (e) {

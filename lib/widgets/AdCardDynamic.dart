@@ -20,6 +20,7 @@ import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
 import '../utils/constants.dart';
 import 'ActionButton.dart';
+import 'PlanTierBadge.dart';
 
 class AdCardDynamic extends StatelessWidget {
   final Data ad;
@@ -152,6 +153,19 @@ class AdCardDynamic extends StatelessWidget {
                         ),
                       ),
                     ),
+                  // Top-left corner ribbon — same widget the public
+                  // browse cards use. PlanTierBadge picks at most one
+                  // ribbon (Power Seller → Pro → Featured → none).
+                  // The seller's "My Ads" view shows the same badge
+                  // their listings show to buyers.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: PlanTierBadge(
+                      tier: ad.planTier,
+                      isFeatured: ad.featuredStatus == true,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(width: 12),

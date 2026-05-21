@@ -458,6 +458,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                               final product = products[index];
                                               return SimilarProductCard(
                                                 title: product.title ?? "—",
+                                                planTier: product.planTier,
                                                 price: "₹${product.price ?? 0}",
                                                 location: product.location ?? "",
                                                 imageUrl: product.image,

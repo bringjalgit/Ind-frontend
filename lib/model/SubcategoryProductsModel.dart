@@ -106,6 +106,10 @@ class Products {
   SubCategory? city;
   String? postedAt;
   bool? isFavorited;
+  /// Plan tier of the seller's active subscription stamped on this
+  /// listing (`"essential"` / `"power"` / `"pro"`). Null on free posts.
+  /// Drives the small tier badge on the listing card.
+  String? planTier;
 
   Products({
     this.id,
@@ -130,6 +134,7 @@ class Products {
     this.city,
     this.postedAt,
     this.isFavorited,
+    this.planTier,
   });
 
   Products copyWith({
@@ -212,6 +217,7 @@ class Products {
     city = cityName != null ? SubCategory(name: cityName.toString()) : null;
     postedAt = json['posted_at'];
     isFavorited = json['is_favorited'];
+    planTier = json['plan_tier']?.toString();
   }
 
   Map<String, dynamic> toJson() {

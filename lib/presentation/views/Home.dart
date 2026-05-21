@@ -790,6 +790,7 @@ class _HomeScreenState extends State<HomeScreen> with AutomaticKeepAliveClientMi
                                           },
                                           child: SimilarProductCard(
                                             title: p.title ?? "—",
+                                            planTier: p.planTier,
                                             isFeatured:
                                                 p.featured_status ?? false,
                                             price: "₹${_formatINR(p.price)}",

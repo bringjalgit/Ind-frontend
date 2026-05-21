@@ -80,6 +80,15 @@ class Data {
   /// message walk comes up empty. Empty/null on pure-P2P threads.
   List<String>? initialPills;
 
+  /// True when the listing's category supports SWA-style chat (offers,
+  /// pills, AI-managed flow). False for the four blocklist categories
+  /// (Community, Events, Films, Find Investor) where chat must be
+  /// plain text P2P only. ChatScreen reads this to hide the P2P
+  /// pill rail / hero "Make an offer" pill so buyers don't see
+  /// nonsensical openers on a community post. Defaults to true so
+  /// older API responses don't accidentally suppress pills.
+  bool swaCategoryEligible = true;
+
   Data({
     this.friend,
     this.listing,
@@ -95,6 +104,7 @@ class Data {
     this.completedAt,
     this.initialPills,
     this.viewerIsSeller = false,
+    this.swaCategoryEligible = true,
   });
 
   Data.fromJson(Map<String, dynamic> json) {
@@ -121,6 +131,10 @@ class Data {
     expiryReason = json['expiry_reason']?.toString();
     completedAt = json['completed_at']?.toString();
     viewerIsSeller = json['viewer_is_seller'] == true;
+    // Default true when the field is absent — keeps older / cached
+    // responses behaving exactly as before. Only an explicit `false`
+    // from the backend suppresses pills.
+    swaCategoryEligible = json['swa_category_eligible'] != false;
 
     final rawOpener = json['initial_pills'];
     if (rawOpener is List) {

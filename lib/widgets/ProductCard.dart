@@ -10,6 +10,7 @@ import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
 import '../theme/app_colors.dart';
 import '../utils/spinkittsLoader.dart';
+import 'PlanTierBadge.dart';
 
 class ProductCard extends StatelessWidget {
   final Products products;
@@ -75,31 +76,20 @@ class ProductCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Featured Tag (Top Right)
-                  if (products.featured_status ?? false)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.only(
-                            bottomRight: Radius.circular(12),
-                            topLeft: Radius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          "Featured",
-                          style: AppTextStyles.bodySmall(
-                            Colors.white,
-                          ).copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                  // Top-left corner ribbon. PlanTierBadge picks the
+                  // right tag based on priority: Power Seller → Pro →
+                  // Featured (₹50 Boost) → none. Power Seller listings
+                  // suppress the Featured ribbon even though they're
+                  // auto-boosted server-side, so the card shows the
+                  // gold tag only.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    child: PlanTierBadge(
+                      tier: products.planTier,
+                      isFeatured: products.featured_status ?? false,
                     ),
+                  ),
                   // Wishlist Icon (Top Right)
                   Positioned(
                     top: 8,

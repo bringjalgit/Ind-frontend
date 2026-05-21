@@ -3011,7 +3011,17 @@ class _ChatScreenState extends State<ChatScreen>
         // uses `widgets/P2PPillCatalog.dart` and `PrivateChatCubit`'s
         // generic `sendMessage` (with the optional `intent` arg). SWA
         // paths are untouched.
+        //
+        // 2026-05-20 — categories on the SWA blocklist (Community,
+        // Events, Films, Find Investor) get plain text P2P only. The
+        // pill rail's openers ("Make an offer", "Is it available?",
+        // "What's the condition?") are nonsensical for community
+        // posts or event listings; surface a clean composer instead.
+        // The same `swa_category_eligible` flag that gates SWA
+        // activation server-side now suppresses the P2P rail too —
+        // single source of truth.
         if (convData != null && !convData.isSwa) {
+          if (!convData.swaCategoryEligible) return const SizedBox.shrink();
           return _buildP2PPillRail(context, convData);
         }
 

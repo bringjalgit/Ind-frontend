@@ -790,6 +790,7 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
                                                   asyncSnapshot.data ?? false;
                                               return SimilarProductCard(
                                                 title: p.title ?? "—",
+                                                planTier: p.planTier,
                                                 isFeatured:
                                                     p.featured_status ?? false,
                                                 price:
