@@ -15,6 +15,23 @@ class NotificationIntent {
   static String? _pendingListingId;
   static String? _pendingListingTitle;
 
+  // Deferred dashboard-tab intent across cold start. Used when a
+  // non-chat notification (e.g. listing approved/rejected → My Ads)
+  // is tapped before the UI is ready. Dashboard.initState consumes it.
+  static int? _pendingTab;
+
+  /// Save a target dashboard tab (0=Home, 1=My Ads, ...) until UI is ready.
+  static void setPendingTab(int tab) {
+    _pendingTab = tab;
+  }
+
+  /// Read once and clear the pending tab.
+  static int? consumePendingTab() {
+    final t = _pendingTab;
+    _pendingTab = null;
+    return t;
+  }
+
   /// Save the chat target until UI is ready (e.g., Dashboard shown).
   static void setPendingChat({
     required String receiverId,

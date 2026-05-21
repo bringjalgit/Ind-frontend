@@ -1582,6 +1582,14 @@ class _ChatScreenState extends State<ChatScreen>
           convData = historyState.chatMessages.data;
         }
 
+        // Sold listing → the deal is done. Lock the chat to read-only:
+        // no composer, no pills (the pill rail also short-circuits on
+        // sold), just the history + a "sold" banner. Nothing left to
+        // negotiate or coordinate via this thread.
+        if (convData?.listing?.sold == true) {
+          return _buildSoldBanner(context);
+        }
+
         // Phase 2 spam-lowball cooldown (2026-04-26) — when the chat
         // was closed by the engine for joke offers AND the 48h
         // cooldown is still active, replace the composer with the
@@ -1738,6 +1746,40 @@ class _ChatScreenState extends State<ChatScreen>
             Flexible(
               child: Text(
                 'Tap a quick reply above to continue',
+                style: AppTextStyles.bodySmall(hintColor),
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Read-only footer shown when the listing has been sold. Replaces
+  /// the composer + pills entirely — the chat history stays visible but
+  /// there's nothing more to negotiate, so we don't offer text or
+  /// quick-reply input.
+  Widget _buildSoldBanner(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = ThemeHelper.backgroundColor(context);
+    final hintColor = isDark
+        ? Colors.white.withOpacity(0.55)
+        : Colors.black.withOpacity(0.55);
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        color: bg,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.sell_outlined, size: 16, color: Colors.green.shade600),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'This listing has been sold — chat is read-only',
                 style: AppTextStyles.bodySmall(hintColor),
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
@@ -3002,6 +3044,12 @@ class _ChatScreenState extends State<ChatScreen>
           convData = historyState.chatMessages.data;
         } else if (historyState is ChatMessagesLoadingMore) {
           convData = historyState.chatMessages.data;
+        }
+
+        // Sold listing → no pills at all (the composer is also locked to
+        // a read-only banner). The deal is closed; only history remains.
+        if (convData?.listing?.sold == true) {
+          return const SizedBox.shrink();
         }
 
         // ── P2P (non-SWA) branch ───────────────────────────────────

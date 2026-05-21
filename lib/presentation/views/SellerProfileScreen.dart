@@ -149,7 +149,9 @@ class _SellerProfileScreenState extends State<SellerProfileScreen> {
                         crossAxisCount: 2,
                         mainAxisSpacing: 12,
                         crossAxisSpacing: 12,
-                        childAspectRatio: 0.78,
+                        // Slightly taller cells so the flexed image stays
+                        // near-square after the price + 2-line title block.
+                        childAspectRatio: 0.72,
                       ),
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
@@ -347,7 +349,9 @@ class _ListingCard extends StatelessWidget {
     final cardColor = ThemeHelper.cardColor(context);
     final borderColor =
         ThemeHelper.isDarkMode(context) ? Colors.white12 : Colors.black12;
-    final blur = listing.isExpired;
+    // Both expired AND sold listings are visually demoted (blur + dim)
+    // so the active ones stand out. Each keeps its own corner badge.
+    final blur = listing.isExpired || listing.sold;
 
     Widget image() {
       Widget img;
@@ -370,9 +374,15 @@ class _ListingCard extends StatelessWidget {
           ),
         );
       }
-      // Expired listings get a subtle blur + dim so they're visually
-      // demoted but still tappable for archive viewing.
+      // Expired and sold listings get a subtle blur + dim so they're
+      // visually demoted but still tappable for archive viewing. Each
+      // shows its own corner badge: EXPIRED (black) or SOLD (green).
       if (blur) {
+        final isExpiredState = listing.isExpired;
+        final label = isExpiredState ? 'EXPIRED' : 'SOLD';
+        final badgeColor = isExpiredState
+            ? Colors.black.withOpacity(0.65)
+            : Colors.green.shade700;
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -387,35 +397,11 @@ class _ListingCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65),
+                  color: badgeColor,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'EXPIRED',
-                  style: AppTextStyles.bodySmall(Colors.white)
-                      .copyWith(fontSize: 10, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        );
-      }
-      if (listing.sold) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            img,
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade700,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  'SOLD',
+                  label,
                   style: AppTextStyles.bodySmall(Colors.white)
                       .copyWith(fontSize: 10, fontWeight: FontWeight.w700),
                 ),
@@ -441,8 +427,12 @@ class _ListingCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AspectRatio(
-                aspectRatio: 1,
+              // Image flexes to absorb whatever vertical space is left
+              // after the text block, so the card never overflows the
+              // grid cell regardless of screen width or text scaling.
+              // (Previously a fixed square AspectRatio made the column
+              // taller than the cell, pushing the title out of the card.)
+              Expanded(
                 child: ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                   child: image(),
@@ -451,10 +441,13 @@ class _ListingCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '₹${listing.price?.toStringAsFixed(0) ?? '—'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodyLarge(textColor)
                           .copyWith(fontWeight: FontWeight.w800),
                     ),

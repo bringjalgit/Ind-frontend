@@ -256,6 +256,26 @@ class NotificationService {
   // -------------------- NAVIGATION --------------------
 
   void _navigateFromPushData(Map<String, dynamic> data) {
+    // Listing moderation result (approved / rejected) — backend sends
+    // `type: 'listing_status'` with a listing_id but NO receiverId, so
+    // it must route to My Ads (dashboard tab 1), not chat. Without this
+    // branch the chat-routing below bails out early (no receiverId) and
+    // the app just opens to Home.
+    final pushType = (data['type'] ?? data['fcmType'])?.toString();
+    if (pushType == 'listing_status') {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        // go() (not push()) so it lands on the dashboard's My Ads tab;
+        // Dashboard.didUpdateWidget honors the new ?tab= even when the
+        // dashboard is already alive.
+        GoRouter.of(ctx).go('/dashboard?tab=1');
+      } else {
+        // Cold start — stash; Dashboard.initState consumes it.
+        NotificationIntent.setPendingTab(1);
+      }
+      return;
+    }
+
     // The notification's "other party" is the senderId (whoever sent
     // the chat message). From the receiver-of-the-notification's POV
     // that user is the chat's `receiverId` — match the keys the

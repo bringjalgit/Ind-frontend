@@ -321,15 +321,29 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
   }
 
   void showNotRegisteredDialog(BuildContext context, String error) {
+    // Resolve theme colours from the SCREEN context (which definitely
+    // has ThemeCubit + Theme in scope) BEFORE opening the dialog. The
+    // dialog renders in the root overlay, whose context can resolve the
+    // ThemeCubit differently — that left the box white with invisible
+    // text in dark mode. Capturing here makes it bullet-proof.
+    // Use the ACTUAL rendered theme brightness (darkTheme sets
+    // brightness: Brightness.dark) — the most authoritative source.
+    // ThemeCubit-based ThemeHelper resolved wrong from this listener's
+    // context, leaving the box plain white in dark mode.
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color dialogBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final Color titleColor = isDark ? Colors.white : Colors.black;
+    final Color bodyColor = isDark ? Colors.grey[300]! : Colors.grey[700]!;
+
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) {
+      builder: (ctx) {
         return Dialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          backgroundColor: Colors.white,
+          backgroundColor: dialogBg,
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -344,7 +358,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
                 Text(
                   error,
                   style: AppTextStyles.titleLarge(
-                    Colors.black,
+                    titleColor,
                   ).copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -352,7 +366,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
                   "We couldn’t find an account with this email or not verified yet.\n"
                   "But don’t worry! You can log in easily using your mobile number.",
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.bodyMedium(Colors.grey[700]!),
+                  style: AppTextStyles.bodyMedium(bodyColor),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
