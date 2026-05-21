@@ -73,6 +73,8 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>NSAppleMusicUsageDescription</key>
     <string>This app uses your Apple account to enable secure in-app purchases.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
@@ -114,7 +116,9 @@
 
     <key>NSUserTrackingUsageDescription</key>
     <string>This app uses your device ID to deliver personalized ads and improve your experience.</string>
-
+	
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>
 
