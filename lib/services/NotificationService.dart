@@ -32,6 +32,7 @@ class NotificationService {
   Future<void> initialize() async {
     await _requestPermissions();
     await _initializeLocalNotifications();
+    await _handleColdStartLaunch();
     await _configureForegroundPresentation();
     _setupFirebaseListeners();
     // Subscribe to OS-initiated FCM token rotation. Without this, a
@@ -105,6 +106,37 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(_channel);
+  }
+
+  // -------------------- COLD-START LAUNCH --------------------
+
+  /// Handle the case where tapping a notification launched the app from a
+  /// fully-closed state.
+  ///
+  /// Our pushes are data-only and rendered as LOCAL notifications, so a
+  /// cold-start tap is delivered neither by
+  /// `onDidReceiveNotificationResponse` (only fires while the isolate is
+  /// already alive) nor by `FirebaseMessaging.getInitialMessage` (only
+  /// covers FCM-DISPLAYED notification messages). It lives in the plugin's
+  /// launch details. Without reading it here, a closed-app notification
+  /// tap dropped the user on Home instead of the chat — the "sometimes
+  /// chat, sometimes home" bug.
+  ///
+  /// There's no UI yet at this point, so `_navigateFromPushData` stashes a
+  /// pending intent (NotificationIntent) that Dashboard.initState consumes
+  /// once the router is up.
+  Future<void> _handleColdStartLaunch() async {
+    try {
+      final details =
+          await _localNotifications.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp != true) return;
+      final payload = details!.notificationResponse?.payload;
+      if (payload == null || payload.isEmpty) return;
+      final data = jsonDecode(payload) as Map<String, dynamic>;
+      _navigateFromPushData(data);
+    } catch (_) {
+      // Best-effort — never block startup on a malformed payload.
+    }
   }
 
   // -------------------- FIREBASE LISTENERS --------------------
@@ -261,8 +293,23 @@ class NotificationService {
     // it must route to My Ads (dashboard tab 1), not chat. Without this
     // branch the chat-routing below bails out early (no receiverId) and
     // the app just opens to Home.
+    // Detect a listing-moderation result robustly. The backend *should*
+    // send type:'listing_status', but we also accept a moderation `status`
+    // (approved/rejected/pending/expired) or an approval/rejection title,
+    // so an approval push can never fall through to the chat-routing below
+    // (which was sending these to ChatScreen on some builds).
     final pushType = (data['type'] ?? data['fcmType'])?.toString();
-    if (pushType == 'listing_status') {
+    final modStatus =
+        (data['status'] ?? data['listing_status'])?.toString().toLowerCase();
+    final titleLc = (data['title'] ?? '').toString().toLowerCase();
+    final isListingResult = pushType == 'listing_status' ||
+        (modStatus != null &&
+            const ['approved', 'rejected', 'pending', 'expired']
+                .contains(modStatus)) ||
+        titleLc.contains('listing approved') ||
+        titleLc.contains('listing rejected') ||
+        titleLc.contains('under review');
+    if (isListingResult) {
       final ctx = navigatorKey.currentContext;
       if (ctx != null) {
         // go() (not push()) so it lands on the dashboard's My Ads tab;

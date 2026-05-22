@@ -55,18 +55,6 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
     }
   }
 
-  Future<void> _launchWhatsApp(String phone) async {
-    final Uri whatsappUri = Uri(
-      scheme: 'https',
-      host: 'wa.me',
-      path: '/$phone',
-      query: 'text=Hello, I need support with IND Classifieds',
-    );
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final textColor = ThemeHelper.textColor(context);
@@ -111,7 +99,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Reach out to us via Email, Phone, or WhatsApp. Our team responds within 24 hours.',
+                        'Reach out to us via Email or Phone. Our team responds within 24 hours.',
                         style: AppTextStyles.bodyMedium(textColor),
                         textAlign: TextAlign.center,
                       ),

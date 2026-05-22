@@ -15,8 +15,8 @@ import '../../../theme/ThemeHelper.dart';
 ///
 /// Validation:
 ///   • non-empty, positive integer
-///   • soft cap at 10× listed price to catch fat-finger typos before
-///     the server has to reject them
+///   • must be at or below the listed price — an offer above the asking
+///     price is invalid (the server enforces the same rule)
 ///
 /// Keyboard-aware via AnimatedPadding + MediaQuery.viewInsets so the
 /// sheet slides up above the on-screen numeric keypad on both iOS and
@@ -54,13 +54,13 @@ class _SwaOfferSheetState extends State<SwaOfferSheet> {
       return;
     }
 
-    // 10× listed is a generous fat-finger guardrail. The actual
-    // server-side floor is never revealed here — the server will still
-    // counter / decline per the pricing ladder. This only catches the
-    // accidental extra-zero case client-side.
+    // Offers above the asking price are invalid — you can't offer to pay
+    // more than the seller is asking (almost always a fat-finger typo).
+    // Hard cap at the listed price; the server enforces the same rule.
     final priceRef = widget.listingPrice;
-    if (priceRef != null && priceRef > 0 && amt > priceRef * 10) {
-      setState(() => _error = 'That amount looks unusually high');
+    if (priceRef != null && priceRef > 0 && amt > priceRef) {
+      setState(() =>
+          _error = "Offer can't be more than the listed price (₹${_formatInr(priceRef)})");
       return;
     }
 

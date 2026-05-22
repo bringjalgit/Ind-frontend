@@ -30,12 +30,11 @@ enum OfferSheetMode { buyerOffer, sellerCounter }
 ///      chips + custom input.
 ///   2. Three quick-pick chips around the recommended band so the
 ///      buyer can pick a number without typing.
-///   3. Custom-amount input retained as the escape hatch with the same
-///      ≤10× listed price guardrail SwaOfferSheet has.
+///   3. Custom-amount input retained as the escape hatch, capped at the
+///      listed price (an offer/counter above the asking price is invalid).
 ///
-/// Validation matches the legacy sheet — positive integer, soft 10×
-/// cap to catch fat-finger typos client-side. Server still has the
-/// final word on whether the number lands.
+/// Validation — positive integer, must be at or below the listed price.
+/// Server enforces the same rule.
 class P2POfferSheet extends StatefulWidget {
   /// Listed price reference, used for the chip band when [recommendation]
   /// is null (fallback heuristic) and for the 10× soft cap.
@@ -214,9 +213,15 @@ class _P2POfferSheetState extends State<P2POfferSheet> {
       setState(() => _error = 'Enter a valid amount');
       return;
     }
+    // An offer (or counter) can't exceed the asking price — you can't
+    // offer to pay more than the seller is asking. Hard cap at the listed
+    // price; the server enforces the same rule.
     final priceRef = widget.listingPrice;
-    if (priceRef != null && priceRef > 0 && amt > priceRef * 10) {
-      setState(() => _error = 'That amount looks unusually high');
+    if (priceRef != null && priceRef > 0 && amt > priceRef) {
+      final label =
+          widget.mode == OfferSheetMode.sellerCounter ? 'Counter' : 'Offer';
+      setState(() =>
+          _error = "$label can't be more than the listed price (₹${_formatInr(priceRef)})");
       return;
     }
 
