@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IndClassifieds — Play Store Screenshot Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  :root {
+    --brand: #1677FF;
+    --brand-deep: #0B4FB8;
+    --accent: #FFD600;
+    --ink: #0B1220;
+    --preview-scale: 0.34;        /* on-screen shrink; export is always full 1080x1920 */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #11151c;
+    color: #fff;
+    padding: 28px;
+  }
+  .toolbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    background: #161b24; border: 1px solid #232a36; border-radius: 14px;
+    padding: 14px 18px; margin-bottom: 26px;
+  }
+  .toolbar h1 { font-size: 16px; font-weight: 700; margin-right: auto; }
+  .toolbar small { color: #8b97a8; font-weight: 400; display: block; font-size: 12px; }
+  button {
+    font-family: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
+    border: none; border-radius: 10px; padding: 11px 18px; color: #fff;
+    background: var(--brand);
+  }
+  button.ghost { background: #232a36; }
+  button:active { transform: translateY(1px); }
+  .hint { color: #8b97a8; font-size: 13px; line-height: 1.6; max-width: 880px; margin-bottom: 26px; }
+  .hint code { background: #232a36; padding: 2px 6px; border-radius: 5px; color: #cdd6e3; }
+
+  .gallery { display: flex; flex-wrap: wrap; gap: 26px; }
+
+  /* preview wrapper shrinks the full-size slide for the screen only */
+  .preview {
+    width: calc(1080px * var(--preview-scale));
+    height: calc(1920px * var(--preview-scale));
+    overflow: hidden; border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  }
+  .preview .slide { transform: scale(var(--preview-scale)); transform-origin: top left; }
+
+  /* ---- THE ACTUAL EXPORTED ARTBOARD: 1080 x 1920 ---- */
+  .slide {
+    width: 1080px; height: 1920px; position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .slide .bg { position: absolute; inset: 0; z-index: 0; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(8px); opacity: .35; }
+
+  .brandrow {
+    position: relative; z-index: 3; display: flex; align-items: center; gap: 16px;
+    margin-top: 70px;
+  }
+  .brandrow img { width: 64px; height: 64px; border-radius: 16px; background: #fff; padding: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.25); object-fit: contain; }
+  .brandrow .wm { font-weight: 700; font-size: 34px; letter-spacing: .3px; }
+
+  .caption { position: relative; z-index: 3; text-align: center; padding: 0 90px; margin-top: 54px; }
+  .kicker {
+    display: inline-block; font-size: 26px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; padding: 10px 22px; border-radius: 999px; margin-bottom: 26px;
+  }
+  .title { font-size: 74px; font-weight: 800; line-height: 1.04; white-space: pre-line; }
+  .sub { font-size: 36px; font-weight: 400; line-height: 1.42; margin-top: 26px; opacity: .92; }
+
+  /* phone device frame */
+  .phone {
+    position: relative; z-index: 3; margin-top: 50px;
+    width: 624px; height: 1316px;
+    background: #0a0d12; border-radius: 64px; padding: 16px;
+    box-shadow: 0 40px 90px rgba(0,0,0,.45), inset 0 0 0 2px rgba(255,255,255,.06);
+  }
+  .phone .notch {
+    position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+    width: 180px; height: 30px; background: #0a0d12; border-radius: 999px; z-index: 4;
+  }
+  .phone .screen {
+    width: 100%; height: 100%; border-radius: 50px; overflow: hidden; background: #000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .phone .screen img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; }
+  .phone .screen .missing {
+    width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #9aa6b6; background: repeating-linear-gradient(45deg,#f3f5f8,#f3f5f8 24px,#e9edf2 24px,#e9edf2 48px);
+    font-size: 30px; font-weight: 600; text-align: center; padding: 0 40px;
+  }
+
+  /* themes */
+  .t-blue   .title, .t-blue   .sub, .t-blue   .wm { color: #fff; }
+  .t-blue   .kicker { background: var(--accent); color: var(--ink); }
+  .t-dark   .title, .t-dark   .sub, .t-dark   .wm { color: #fff; }
+  .t-dark   .kicker { background: var(--brand); color: #fff; }
+  .t-accent .title, .t-accent .sub, .t-accent .wm { color: var(--ink); }
+  .t-accent .kicker { background: var(--ink); color: var(--accent); }
+  .t-light  .title { color: var(--ink); } .t-light .sub { color: #2b3340; }
+  .t-light  .wm { color: var(--ink); } .t-light .kicker { background: var(--brand); color:#fff; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>IndClassifieds — Store Screenshots
+      <small>1080×1920 · drop PNGs in <code>shots/</code> · edit captions in this file's SLIDES list</small>
+    </h1>
+    <button class="ghost" onclick="document.documentElement.style.setProperty('--preview-scale', '0.5')">Bigger preview</button>
+    <button class="ghost" onclick="document.documentElement.style.setProperty('--preview-scale', '0.34')">Reset preview</button>
+    <button onclick="downloadAll()">⬇ Download all PNGs</button>
+  </div>
+
+  <div class="hint">
+    <b>How to use:</b> 1) Capture each screen from the 1.3.1 app at 1080-wide (clean demo data).
+    2) Save them into the <code>shots/</code> folder using the filenames in the SLIDES list below.
+    3) <b>Serve this folder over http</b> so images can export — from
+    <code>indiclassifiedsNew/indiclassifiedsNew</code> run <code>npx serve .</code> (or <code>python -m http.server</code>)
+    and open <code>/aso/screenshots.html</code>. Opening as a <code>file://</code> path will let you preview but the PNG export will be blank (browser security).
+    4) Tweak captions/themes, then click <b>Download all PNGs</b>. Upload 2–8 to Play Console → Main store listing.
+  </div>
+
+  <div class="gallery" id="gallery"></div>
+
+<script>
+  // ---- EDIT THIS LIST: one entry per Play Store screenshot ----
+  // theme: 'blue' | 'dark' | 'accent' | 'light'
+  // img:   filename inside shots/  (capture from the 1.3.1 app)
+  const SLIDES = [
+    { theme:'blue',   kicker:'Sell with AI',   title:'Let AI Close\nYour Deals',          sub:'Smart Assist replies, qualifies buyers and negotiates 24/7 — free.',      img:'shots/swa_activate.jpg' },
+    { theme:'dark',   kicker:'You’re in Control', title:'Set Your\nPrice Range',      sub:'AI negotiates within it and auto-accepts the right offer.',               img:'shots/swa_price.jpg' },
+    { theme:'accent', kicker:'Your Ads',       title:'Manage Every\nListing',             sub:'Track your ads while Smart Assist negotiates each one for you.',          img:'shots/myads.jpg' },
+    { theme:'dark',   kicker:'Discover',       title:'Buy & Sell\nAnything Local',        sub:'Thousands of listings across 20+ categories near you.',                  img:'shots/browse_light.jpg' },
+    { theme:'light',  kicker:'Boost',          title:'Get Seen.\nSell Faster.',           sub:'Power Seller & Pro plans push your ads to the top of the list.',          img:'shots/listings.jpg' },
+    { theme:'blue',   kicker:'Redesigned',     title:'Sign In,\nSimplified',              sub:'Quick, secure onboarding with Google or email.',                         img:'shots/register_light.jpg' },
+    { theme:'accent', kicker:'Trust & Safety', title:'Verified &\nSecure',                sub:'Verify your identity and manage your plan with ease.',                   img:'shots/profile_light.jpg' },
+    { theme:'blue',   kicker:'Sell with AI',   title:'An AI Dealmaker\nfor Every Listing', sub:'Buy • Sell • Marketplace — now powered by AI.',                          img:'shots/splash.jpg' },
+  ];
+
+  const LOGO = '../assets/images/applogonew.png';
+
+  function bgFor(theme){
+    if(theme==='blue')   return `<div class="bg" style="background:linear-gradient(160deg,#1677FF 0%,#0B4FB8 60%,#072e6e 100%)"></div>
+      <div class="blob" style="width:520px;height:520px;background:#ffd600;top:-120px;right:-120px"></div>
+      <div class="blob" style="width:420px;height:420px;background:#5aa0ff;bottom:120px;left:-140px;opacity:.5"></div>`;
+    if(theme==='dark')   return `<div class="bg" style="background:linear-gradient(160deg,#0b1220 0%,#161f33 60%,#0b1220 100%)"></div>
+      <div class="blob" style="width:480px;height:480px;background:#1677FF;top:-100px;left:-120px"></div>
+      <div class="blob" style="width:360px;height:360px;background:#ffd600;bottom:180px;right:-120px;opacity:.28"></div>`;
+    if(theme==='accent') return `<div class="bg" style="background:linear-gradient(160deg,#FFE34D 0%,#FFD600 55%,#F4B400 100%)"></div>
+      <div class="blob" style="width:500px;height:500px;background:#1677FF;top:-130px;right:-130px;opacity:.22"></div>`;
+    return `<div class="bg" style="background:linear-gradient(160deg,#ffffff 0%,#eef3fb 60%,#dbe7fb 100%)"></div>
+      <div class="blob" style="width:520px;height:520px;background:#1677FF;top:-150px;right:-150px;opacity:.18"></div>
+      <div class="blob" style="width:380px;height:380px;background:#ffd600;bottom:140px;left:-120px;opacity:.25"></div>`;
+  }
+
+  function slideHTML(s){
+    return `
+      <div class="slide t-${s.theme}" data-name="${(s.img.split('/').pop()||'slide').replace(/\.\w+$/,'')}">
+        ${bgFor(s.theme)}
+        <div class="brandrow"><img src="${LOGO}" alt="logo"><div class="wm">IndClassifieds</div></div>
+        <div class="caption">
+          <span class="kicker">${s.kicker}</span>
+          <div class="title">${s.title}</div>
+          <div class="sub">${s.sub}</div>
+        </div>
+        <div class="phone">
+          <div class="notch"></div>
+          <div class="screen">
+            <img src="${s.img}" alt="" onerror="this.outerHTML='<div class=&quot;missing&quot;>Drop <b>${s.img}</b><br>into the shots/ folder</div>'">
+          </div>
+        </div>
+      </div>`;
+  }
+
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = SLIDES.map(s => `<div class="preview">${slideHTML(s)}</div>`).join('');
+
+  async function downloadAll(){
+    const root = document.documentElement;
+    const prev = getComputedStyle(root).getPropertyValue('--preview-scale');
+    root.style.setProperty('--preview-scale','1');   // export at full resolution
+    const slides = document.querySelectorAll('.slide');
+    for(let i=0;i<slides.length;i++){
+      const node = slides[i];
+      const canvas = await html2canvas(node, { width:1080, height:1920, scale:1, useCORS:true, backgroundColor:null, logging:false });
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = String(i+1).padStart(2,'0') + '-' + (node.dataset.name || 'slide') + '.png';
+      a.click();
+      await new Promise(r=>setTimeout(r,300));
+    }
+    root.style.setProperty('--preview-scale', prev || '0.34');
+  }
+</script>
+</body>
+</html>

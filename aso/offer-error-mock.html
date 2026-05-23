@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Offer-too-high error — visual mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{ --blue:#1677FF; --err:#D32F2F; --ai:#7C5CFF; --ok:#2E7D32; --ink:#0B1220; }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Roboto',system-ui,sans-serif;}
+  body{background:#0e1116;color:#fff;padding:30px;}
+  h1{font-size:18px;font-weight:700;margin-bottom:4px;font-family:'Poppins';}
+  p.note{color:#8b97a8;font-size:13px;margin-bottom:26px;}
+  .row{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;}
+  .col{display:flex;flex-direction:column;align-items:center;gap:12px;}
+  .cap{color:#9aa6b6;font-size:13px;font-weight:600;}
+
+  /* phone */
+  .phone{width:380px;height:760px;background:#0a0d12;border-radius:44px;padding:12px;box-shadow:0 30px 70px rgba(0,0,0,.5);}
+  .screen{width:100%;height:100%;border-radius:34px;overflow:hidden;position:relative;background:#eef1f5;}
+  .screen.dark{background:#0c0c0c;}
+
+  /* dimmed chat behind sheet */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);}
+  .chatpeek{position:absolute;inset:0;padding:16px;opacity:.5;}
+  .bubble{max-width:74%;padding:10px 14px;border-radius:16px;font-size:13px;margin-bottom:8px;}
+  .bubble.ai{background:#e9eef6;color:#222;border-bottom-left-radius:4px;}
+  .bubble.me{background:#cfe0ff;color:#0b3e8e;margin-left:auto;border-bottom-right-radius:4px;text-align:right;}
+
+  /* bottom sheet */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;padding:14px 20px 22px;}
+  .sheet.dark{background:#1b1b1b;color:#fff;}
+  .grab{width:38px;height:5px;border-radius:3px;background:rgba(0,0,0,.18);margin:2px auto 16px;}
+  .sheet.dark .grab{background:rgba(255,255,255,.25);}
+  .title{font-size:20px;font-weight:800;font-family:'Poppins';}
+  .sub{font-size:12px;color:#6b7686;margin-top:3px;}
+  .sheet.dark .sub{color:#aab3c0;}
+
+  /* Material text field — error state */
+  .field{margin-top:18px;position:relative;}
+  .tf{display:flex;align-items:center;height:58px;border:2px solid var(--err);border-radius:10px;padding:0 14px;background:transparent;}
+  .tf .rs{font-size:22px;font-weight:800;color:inherit;margin-right:8px;}
+  .tf .val{font-size:22px;font-weight:800;color:inherit;}
+  .tf .caret{width:2px;height:26px;background:var(--blue);margin-left:2px;animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0;}}
+  .errline{display:flex;align-items:center;gap:6px;color:var(--err);font-size:12.5px;font-weight:500;margin:7px 4px 0;}
+  .errline svg{width:15px;height:15px;flex:none;}
+
+  /* buttons */
+  .btn{margin-top:18px;height:50px;border-radius:12px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;font-weight:700;}
+  .btn.dim{opacity:.55;}    /* visually communicates "can't submit" */
+  .btn svg{width:18px;height:18px;}
+
+  /* P2P extras */
+  .refcard{margin-top:14px;background:#f6f8fc;border:1px solid #e5e8ee;border-radius:14px;padding:12px;}
+  .refcard .lbl{font-size:10px;font-weight:800;letter-spacing:1.4px;color:#8893a3;}
+  .refcard .amt{font-size:18px;font-weight:800;color:var(--blue);margin-top:2px;}
+  .aicard{margin-top:14px;border:1px solid #e2d8ff;border-radius:16px;padding:14px;background:linear-gradient(180deg,#f5f1ff,#faf7ff);}
+  .aitop{display:flex;align-items:center;justify-content:space-between;}
+  .aipill{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #e2d8ff;border-radius:999px;padding:4px 10px;font-size:9.5px;font-weight:800;letter-spacing:1.2px;color:var(--ai);}
+  .landpill{background:rgba(46,125,50,.12);color:var(--ok);font-size:8.5px;font-weight:800;letter-spacing:1px;padding:4px 8px;border-radius:6px;}
+  .aiamt{font-size:26px;font-weight:800;color:var(--ink);margin-top:8px;}
+  .aibtn{margin-top:10px;height:38px;border-radius:11px;background:var(--ai);color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;font-weight:800;}
+  .seclbl{font-size:11px;font-weight:800;color:#0B1220;margin-top:14px;}
+</style>
+</head>
+<body>
+  <h1>“Offer above listed price” — error state</h1>
+  <p class="note">Exactly how the rejection renders when a buyer types more than the asking price (₹40,000 here). Material text-field flips to the red error border + red helper text; submit can't go through.</p>
+
+  <div class="row">
+
+    <!-- 1) SWA sheet, light -->
+    <div class="col">
+      <div class="phone"><div class="screen">
+        <div class="chatpeek">
+          <div class="bubble ai">⚡ Hi! Yes, this is available. Make an offer, or ask anything specific.</div>
+          <div class="bubble me">condition_inquiry</div>
+          <div class="bubble ai">⚡ good shape 👍 Drop an offer and the seller will fill you in.</div>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="title">Make an Offer</div>
+          <div class="sub">Listed at ₹40,000</div>
+          <div class="field">
+            <div class="tf"><span class="rs">₹</span><span class="val">3,80,000</span><span class="caret"></span></div>
+            <div class="errline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
+              Offer can't be more than the listed price (₹40,000)
+            </div>
+          </div>
+          <div class="btn dim">Submit offer</div>
+        </div>
+      </div></div>
+      <div class="cap">SWA offer sheet · light</div>
+    </div>
+
+    <!-- 2) SWA sheet, dark -->
+    <div class="col">
+      <div class="phone"><div class="screen dark">
+        <div class="scrim"></div>
+        <div class="sheet dark">
+          <div class="grab"></div>
+          <div class="title">Make an Offer</div>
+          <div class="sub">Listed at ₹40,000</div>
+          <div class="field">
+            <div class="tf"><span class="rs">₹</span><span class="val">3,80,000</span><span class="caret"></span></div>
+            <div class="errline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
+              Offer can't be more than the listed price (₹40,000)
+            </div>
+          </div>
+          <div class="btn dim">Submit offer</div>
+        </div>
+      </div></div>
+      <div class="cap">SWA offer sheet · dark</div>
+    </div>
+
+    <!-- 3) P2P sheet, light -->
+    <div class="col">
+      <div class="phone"><div class="screen">
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="title">Make an Offer</div>
+          <div class="sub">Tap the AI suggestion, pick a quick price, or enter your own.</div>
+          <div class="refcard"><div class="lbl">LISTED AT</div><div class="amt">₹40,000</div></div>
+          <div class="aicard">
+            <div class="aitop">
+              <span class="aipill">✦ AI RECOMMENDS</span>
+              <span class="landpill">MOST LIKELY TO LAND</span>
+            </div>
+            <div class="aiamt">₹38,000 <span style="font-size:12px;color:var(--ok);font-weight:800;background:rgba(46,125,50,.12);padding:3px 7px;border-radius:6px;">−5% off list</span></div>
+            <div class="aibtn">✓ Use AI suggestion</div>
+          </div>
+          <div class="seclbl">Or enter a custom amount</div>
+          <div class="field">
+            <div class="tf"><span class="rs">₹</span><span class="val">3,80,000</span><span class="caret"></span></div>
+            <div class="errline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.01"/></svg>
+              Offer can't be more than the listed price (₹40,000)
+            </div>
+          </div>
+          <div class="btn dim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send Offer · ₹3,80,000</div>
+        </div>
+      </div></div>
+      <div class="cap">P2P offer sheet · light (seller counter shows “Counter can't be more…”)</div>
+    </div>
+
+  </div>
+</body>
+</html>

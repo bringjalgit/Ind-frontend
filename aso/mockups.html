@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>IndClassifieds — ASO Mockups (fake data, new UI)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  :root{ --brand:#1677FF; --brand-deep:#0B4FB8; --accent:#FFD600; --ink:#0B1220; --teal:#0e9aa7;
+         --preview-scale:0.34; --dev:0.53; }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Poppins',system-ui,sans-serif;}
+  body{background:#11151c;color:#fff;padding:26px;}
+  .toolbar{position:sticky;top:0;z-index:50;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    background:#161b24;border:1px solid #232a36;border-radius:14px;padding:14px 18px;margin-bottom:24px;}
+  .toolbar h1{font-size:16px;font-weight:700;margin-right:auto;}
+  .toolbar small{color:#8b97a8;font-weight:400;display:block;font-size:12px;}
+  button{font-family:inherit;font-weight:600;font-size:14px;cursor:pointer;border:none;border-radius:10px;padding:11px 18px;color:#fff;background:var(--brand);}
+  button.ghost{background:#232a36;}
+  .gallery{display:flex;flex-wrap:wrap;gap:26px;}
+
+  .preview{width:calc(1080px*var(--preview-scale));height:calc(1920px*var(--preview-scale));overflow:hidden;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45);}
+  .preview .slide{transform:scale(var(--preview-scale));transform-origin:top left;}
+
+  /* ---------- ASO SLIDE (exported at 1080x1920) ---------- */
+  .slide{width:1080px;height:1920px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;}
+  .slide .bg{position:absolute;inset:0;z-index:0;}
+  .blob{position:absolute;border-radius:50%;filter:blur(8px);opacity:.35;}
+  .brandrow{position:relative;z-index:3;display:flex;align-items:center;gap:16px;margin-top:64px;}
+  .brandrow .lg{width:72px;height:72px;border-radius:16px;background:#fff;padding:9px;object-fit:contain;display:block;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+  .brandrow .wm{font-weight:700;font-size:34px;}
+  .caption{position:relative;z-index:3;text-align:center;padding:0 90px;margin-top:40px;}
+  .kicker{display:inline-block;font-size:25px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:10px 22px;border-radius:999px;margin-bottom:22px;}
+  .title{font-size:72px;font-weight:800;line-height:1.04;white-space:pre-line;}
+  .sub{font-size:34px;font-weight:400;line-height:1.4;margin-top:22px;opacity:.94;}
+
+  .phone{position:relative;z-index:3;margin-top:40px;width:calc(1080px*var(--dev) + 32px);height:calc(2400px*var(--dev) + 32px);
+    background:#ffffff;border-radius:62px;padding:14px;box-shadow:0 40px 90px rgba(0,0,0,.35),inset 0 0 0 2px rgba(0,0,0,.05);}
+  .screen{width:100%;height:100%;border-radius:48px;overflow:hidden;position:relative;background:#fff;border:1px solid #e9ecf0;}
+  .device{width:1080px;height:2400px;transform:scale(var(--dev));transform-origin:top left;position:absolute;top:0;left:0;}
+  .shot{width:1080px;height:2400px;object-fit:cover;display:block;}
+  .shotfill{flex:1;width:100%;min-height:0;object-fit:cover;object-position:top;display:block;}
+
+  /* themes */
+  .t-blue .title,.t-blue .sub,.t-blue .wm{color:#fff;} .t-blue .kicker{background:var(--accent);color:var(--ink);}
+  .t-dark .title,.t-dark .sub,.t-dark .wm{color:#fff;} .t-dark .kicker{background:var(--brand);color:#fff;}
+  .t-accent .title,.t-accent .sub,.t-accent .wm{color:var(--ink);} .t-accent .kicker{background:var(--ink);color:var(--accent);}
+
+  /* ====================== APP UI (designed @1080px) ====================== */
+  .app{width:1080px;height:2400px;background:#fff;color:#0B1220;position:relative;display:flex;flex-direction:column;overflow:hidden;}
+  .sb{height:74px;display:flex;align-items:center;justify-content:space-between;padding:0 46px;font-size:30px;font-weight:600;flex:none;}
+  .sb .r{display:flex;gap:16px;align-items:center;font-size:26px;}
+  .bat{width:42px;height:22px;border:3px solid #0B1220;border-radius:5px;position:relative;}
+  .bat::after{content:'';position:absolute;right:-7px;top:6px;width:4px;height:8px;background:#0B1220;border-radius:2px;}
+  .bat i{position:absolute;inset:2px;background:#0B1220;border-radius:2px;}
+  .pad{padding:0 46px;}
+  .h-screen{font-size:58px;font-weight:700;}
+  .bnav{position:absolute;bottom:0;left:0;right:0;height:148px;background:#fff;border-top:1px solid #eef1f5;display:flex;align-items:center;justify-content:space-around;padding-bottom:16px;}
+  .bnav .item{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:25px;color:#9aa6b6;font-weight:500;}
+  .bnav .item.on{color:var(--brand);}
+  .bnav .item svg{width:46px;height:46px;}
+  .bnav .sell{width:104px;height:104px;border-radius:28px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:60px;font-weight:300;margin-top:-44px;box-shadow:0 14px 30px rgba(22,119,255,.45);}
+  .chev{color:#c2c9d3;font-size:42px;}
+
+  /* listings + myads cards */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 46px 0;}
+  .brandmini{display:flex;align-items:center;gap:14px;}
+  .brandmini .logo{width:62px;height:62px;border-radius:14px;background:linear-gradient(135deg,#ff7a18,#1677FF);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:24px;}
+  .brandmini .bt{font-weight:800;font-size:28px;color:var(--brand);line-height:1.05;}
+  .brandmini .bs{font-size:18px;color:#7a8699;font-weight:600;}
+  .loc{display:flex;align-items:center;gap:10px;font-size:25px;color:#3a4452;font-weight:600;max-width:430px;}
+  .loc .dot{width:42px;height:42px;border-radius:50%;background:var(--brand);flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;}
+  .row-tt{display:flex;align-items:baseline;justify-content:space-between;padding:28px 46px 20px;}
+  .row-tt .t{font-size:54px;font-weight:800;} .row-tt .a{font-size:30px;color:var(--brand);font-weight:600;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;padding:0 46px;}
+  .pcard{border-radius:26px;overflow:hidden;background:#fff;box-shadow:0 8px 24px rgba(16,24,40,.10);border:1px solid #eef1f5;}
+  .pimg{height:286px;position:relative;background:#f3f5f8;overflow:hidden;}
+  .pimg img{width:100%;height:100%;object-fit:cover;display:block;}
+  .ribbon{position:absolute;top:0;left:0;padding:11px 26px 11px 20px;font-size:23px;font-weight:800;color:#fff;border-bottom-right-radius:20px;letter-spacing:.3px;z-index:2;}
+  .rb-pro{background:linear-gradient(135deg,#7b3cff,#4f1fd6);}
+  .rb-power{background:linear-gradient(135deg,#ff9d2f,#f47a00);}
+  .rb-feat{background:linear-gradient(135deg,#1f8bff,#0b62d6);}
+  .heart{position:absolute;top:16px;right:16px;width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center;font-size:30px;color:#9aa6b6;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:2;}
+  .pbody{padding:18px 22px 24px;}
+  .ptitle{font-size:32px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .pprice{font-size:37px;font-weight:800;color:var(--brand);margin-top:6px;}
+  .ploc{display:flex;align-items:center;gap:8px;font-size:23px;color:#8a93a3;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* search + banner + categories (home) */
+  .search{margin:22px 46px 0;height:96px;border:1px solid #e3e7ee;border-radius:22px;display:flex;align-items:center;gap:20px;padding:0 30px;color:#9aa6b6;font-size:30px;}
+  .search .mag{font-size:36px;}
+  .banner{margin:26px 46px 0;border-radius:26px;overflow:hidden;box-shadow:0 8px 24px rgba(16,24,40,.12);}
+  .banner img{width:100%;display:block;}
+  .dots{display:flex;gap:10px;justify-content:center;margin-top:18px;}
+  .dots i{width:16px;height:16px;border-radius:50%;background:#cfd6e0;} .dots i.on{background:var(--brand);width:40px;border-radius:8px;}
+  .sec-h{font-size:46px;font-weight:800;padding:34px 46px 18px;}
+  .wn{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:0 46px;}
+  .wn .c img{width:100%;height:120px;object-fit:cover;border-radius:18px;display:block;}
+  .wn .c div{font-size:24px;text-align:center;margin-top:10px;font-weight:600;}
+  .cats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px 18px;padding:0 46px;}
+  .cats .c .ph{height:150px;border-radius:20px;background:#f3f5f8;overflow:hidden;}
+  .cats .c img{width:100%;height:100%;object-fit:cover;display:block;}
+  .cats .c div{font-size:24px;text-align:center;margin-top:10px;font-weight:600;}
+
+  /* my ads card */
+  .ad{margin:0 46px 30px;border:1px solid #e9edf3;border-radius:28px;padding:28px;}
+  .ad .top{display:flex;gap:24px;}
+  .ad .th{width:150px;height:150px;border-radius:20px;overflow:hidden;background:#f3f5f8;flex:none;}
+  .ad .th img{width:100%;height:100%;object-fit:cover;}
+  .ad .ti{font-size:36px;font-weight:700;}
+  .ad .lo{font-size:25px;color:#9aa6b6;margin-top:6px;}
+  .ad .pr{font-size:38px;font-weight:800;color:var(--brand);margin-top:10px;}
+  .ad .badge{margin-left:auto;align-self:flex-start;background:#dcfce7;color:#16a34a;font-size:24px;font-weight:700;padding:8px 22px;border-radius:30px;}
+  .ad .meta{display:flex;justify-content:space-between;color:#9aa6b6;font-size:24px;margin-top:22px;border-bottom:1px solid #eef1f5;padding-bottom:22px;}
+  .ad .acts{display:flex;justify-content:space-between;padding:22px 6px 0;color:var(--brand);font-size:28px;font-weight:600;}
+  .saban{margin-top:22px;border-radius:20px;padding:24px 26px;display:flex;align-items:center;gap:20px;font-size:28px;}
+  .saban.on{background:#eaf2ff;border:1px solid #cfe0ff;}
+  .saban.try{background:#f6f8fb;border:1px solid #eef1f5;}
+  .saban .z{width:60px;height:60px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;flex:none;}
+  .saban.try .z{background:#dbe9ff;color:var(--brand);}
+  .saban b{font-weight:700;} .saban small{display:block;color:#7a8699;font-size:23px;font-weight:500;}
+
+  /* profile */
+  .prof{display:flex;flex-direction:column;align-items:center;padding-top:16px;}
+  .ava2{width:300px;height:300px;border-radius:50%;background:linear-gradient(160deg,#8a63ff,#6a3df0);display:flex;align-items:center;justify-content:center;color:#fff;font-size:170px;font-weight:300;margin-top:20px;box-shadow:0 16px 44px rgba(106,61,240,.4);}
+  .subpill{margin-top:-34px;background:linear-gradient(135deg,#ff4d8d,#ff9d2f);color:#fff;font-size:25px;font-weight:700;padding:12px 32px;border-radius:40px;}
+  .pname{font-size:52px;font-weight:800;margin-top:28px;display:flex;align-items:center;gap:14px;}
+  .verck{width:48px;height:48px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;}
+  .pmail,.pphone{font-size:29px;color:#5b6675;margin-top:8px;}
+  .editbtn{margin-top:28px;background:var(--brand);color:#fff;font-size:33px;font-weight:700;padding:22px 70px;border-radius:50px;box-shadow:0 12px 26px rgba(22,119,255,.4);}
+  .menu{width:100%;padding:44px 46px 0;display:flex;flex-direction:column;gap:24px;}
+  .mrow{display:flex;align-items:center;gap:26px;background:#f6f8fb;border:1px solid #eef1f5;border-radius:24px;padding:30px;}
+  .mrow .mic{width:74px;height:74px;border-radius:50%;background:#dbe9ff;display:flex;align-items:center;justify-content:center;font-size:36px;flex:none;}
+  .mrow .ml{font-size:35px;font-weight:600;flex:1;} .tag-ver{background:#16a34a;color:#fff;font-size:25px;font-weight:700;padding:10px 24px;border-radius:30px;}
+
+  /* SWA onboarding (activate / price) */
+  .appbar{display:flex;align-items:center;justify-content:center;position:relative;height:104px;font-size:40px;font-weight:700;}
+  .appbar .back{position:absolute;left:46px;font-size:48px;font-weight:400;}
+  .prog{display:flex;gap:18px;align-items:center;padding:24px 46px 0;}
+  .prog .b{height:12px;border-radius:8px;background:#e6eaf0;flex:1;} .prog .b.on{background:linear-gradient(90deg,#1677FF,#7b3cff);}
+  .prog .n{font-size:26px;color:#9aa6b6;font-weight:600;}
+  .step{font-size:28px;font-weight:800;color:var(--teal);letter-spacing:1px;padding:34px 46px 6px;}
+  .big{font-size:62px;font-weight:800;line-height:1.05;padding:0 46px;}
+  .lead{font-size:30px;color:#6b7686;padding:18px 46px 0;}
+  .sacard{margin:40px 46px 0;border:3px solid var(--teal);background:linear-gradient(180deg,#e8fbfd,#ffffff);border-radius:34px;padding:38px;position:relative;}
+  .sacard .hd{display:flex;align-items:center;gap:24px;}
+  .sacard .ai{width:108px;height:108px;border-radius:26px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:60px;color:#fff;}
+  .sacard .ttl{font-size:46px;font-weight:800;} .sacard .swl{font-size:30px;color:var(--teal);font-weight:700;}
+  .sacard .radio{position:absolute;top:38px;right:38px;width:54px;height:54px;border-radius:50%;border:6px solid var(--teal);background:#fff;}
+  .sacard .radio::after{content:'';position:absolute;inset:8px;border-radius:50%;background:var(--teal);}
+  .badges{display:flex;gap:16px;margin-top:18px;}
+  .bdg{font-size:26px;font-weight:800;padding:8px 22px;border-radius:12px;}
+  .bdg.pick{background:#16a34a;color:#fff;} .bdg.free{background:#ffe7c2;color:#b4690e;}
+  .sadesc{font-size:31px;color:#3a4452;line-height:1.45;margin-top:24px;}
+  .chips{display:flex;gap:16px;margin-top:26px;flex-wrap:wrap;}
+  .chip{background:#fff;border:1px solid #d9eef0;color:#0B1220;font-size:26px;font-weight:600;padding:14px 26px;border-radius:16px;}
+  .lockn{display:flex;align-items:center;gap:14px;color:#9aa6b6;font-size:27px;padding:34px 46px 0;}
+  .agree{display:flex;align-items:flex-start;gap:18px;padding:26px 46px 0;font-size:28px;color:#3a4452;line-height:1.4;}
+  .agree .ck{width:46px;height:46px;border-radius:10px;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;flex:none;}
+  .agree b{color:var(--teal);}
+  .cta{position:absolute;left:46px;right:46px;bottom:54px;height:118px;border-radius:60px;display:flex;align-items:center;justify-content:center;gap:18px;font-size:40px;font-weight:800;color:#fff;}
+  .cta.green{background:#16a34a;box-shadow:0 16px 34px rgba(22,163,74,.4);}
+  .cta.teal{background:var(--teal);box-shadow:0 16px 34px rgba(14,154,167,.4);}
+
+  /* price range card */
+  .prcard{margin:40px 46px 0;border:1px solid #e9edf3;border-radius:30px;padding:40px;box-shadow:0 10px 30px rgba(16,24,40,.06);}
+  .prrow{display:flex;align-items:center;justify-content:space-between;}
+  .prlabel{display:flex;align-items:center;gap:16px;font-size:30px;font-weight:700;color:#3a4452;}
+  .prlabel .d{width:24px;height:24px;border-radius:50%;} .prlabel .small{font-size:24px;color:#9aa6b6;font-weight:500;}
+  .prval{font-size:78px;font-weight:800;letter-spacing:-1px;}
+  .prval .rs{font-size:40px;color:#9aa6b6;font-weight:700;margin-right:10px;}
+  .prnote{font-size:26px;color:#9aa6b6;}
+  .hr{height:1px;background:#eef1f5;margin:30px 0;}
+  .slider{margin-top:40px;height:18px;border-radius:10px;background:linear-gradient(90deg,#16a34a,#0e9aa7 60%,#e6eaf0 60%);position:relative;}
+  .slider .k{position:absolute;top:50%;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:50%;background:#fff;border:8px solid var(--teal);box-shadow:0 4px 12px rgba(0,0,0,.18);}
+  .slider .k.g{border-color:#16a34a;left:0;} .slider .k.t{left:60%;}
+  .scale{display:flex;justify-content:space-between;color:#9aa6b6;font-size:24px;margin-top:18px;}
+  .tip{margin:40px 46px 0;background:#e8fbfd;border:1px solid #bfeaef;border-radius:22px;padding:30px;font-size:29px;color:#2a5a60;line-height:1.45;display:flex;gap:16px;}
+
+  /* register */
+  .rcard{margin:44px 46px 0;background:#f6f8fb;border:1px solid #eef1f5;border-radius:34px;padding:40px;}
+  .gbtn{height:108px;border:1px solid #e0e5ee;border-radius:22px;background:#fff;display:flex;align-items:center;justify-content:center;gap:20px;font-size:34px;font-weight:700;}
+  .gbtn .g{width:48px;height:48px;border-radius:50%;background:#fff;border:1px solid #eee;display:flex;align-items:center;justify-content:center;font-weight:800;color:#4285F4;font-size:30px;}
+  .ghint{font-size:25px;color:#9aa6b6;text-align:center;margin-top:18px;}
+  .ordiv{display:flex;align-items:center;gap:20px;color:#9aa6b6;font-size:25px;font-weight:600;margin:30px 0;}
+  .ordiv::before,.ordiv::after{content:'';height:1px;background:#e3e7ee;flex:1;}
+  .flabel{font-size:26px;color:#7a8699;font-weight:700;letter-spacing:1px;margin-top:22px;}
+  .field{height:104px;border:1px solid #e3e7ee;border-radius:20px;background:#fff;display:flex;align-items:center;gap:18px;padding:0 28px;font-size:30px;color:#9aa6b6;margin-top:14px;}
+  .pill-blue{display:inline-flex;align-items:center;gap:12px;background:#e8f1ff;color:var(--brand);font-size:27px;font-weight:800;letter-spacing:1px;padding:12px 28px;border-radius:40px;}
+  .pill-blue .d{width:18px;height:18px;border-radius:50%;background:var(--brand);}
+
+  /* splash */
+  .splash{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,#f3f6fb,#eaf0fa);position:relative;overflow:hidden;}
+  .splash .ic{position:absolute;opacity:.10;font-size:120px;}
+  .splash .ring{width:760px;height:760px;border-radius:50%;border:3px dashed #b9cdf0;position:absolute;}
+  .splash .logo{width:300px;height:300px;border-radius:60px;background:linear-gradient(135deg,#ff7a18,#1677FF);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:120px;box-shadow:0 30px 70px rgba(22,119,255,.4);}
+  .splash .nm{font-size:78px;font-weight:800;color:var(--brand);margin-top:50px;letter-spacing:1px;}
+  .splash .tg{font-size:34px;color:#5b6675;font-weight:600;margin-top:10px;}
+  .splash .swa{margin-top:46px;background:linear-gradient(135deg,#1677FF,#7b3cff);color:#fff;font-size:42px;font-weight:800;letter-spacing:3px;padding:26px 60px;border-radius:60px;box-shadow:0 18px 40px rgba(123,60,255,.4);}
+  .splash .dl{font-size:32px;color:#7a8699;margin-top:40px;}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>IndClassifieds — ASO Mockups <small>1080×1920 · HTML mockups w/ fake data + new UI · real cropped photos</small></h1>
+    <button class="ghost" onclick="document.documentElement.style.setProperty('--preview-scale','0.5')">Bigger</button>
+    <button class="ghost" onclick="document.documentElement.style.setProperty('--preview-scale','0.34')">Reset</button>
+    <button onclick="downloadAll()">⬇ Download all PNGs</button>
+  </div>
+  <div class="gallery" id="gallery"></div>
+
+<script>
+  const NAV = (active) => {
+    const ic = {
+      home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
+      ads:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12l4 4 4-4"/></svg>',
+      chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H8l-4 4z"/></svg>',
+      user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>',
+    };
+    const it=(k,l)=>`<div class="item ${active===k?'on':''}">${ic[k]}${l}</div>`;
+    return `<div class="bnav">${it('home','Home')}${it('ads','My Ads')}<div class="sell">+</div>${it('chat','Chat')}${it('user','Profile')}</div>`;
+  };
+  const SB = `<div class="sb"><span>9:41</span><span class="r">5G&nbsp;&nbsp;<span class="bat"><i></i></span></span></div>`;
+  const img = (n) => `cardimg/${n}.png`;
+
+  // ---------------- 8 app-screen mockups ----------------
+  const SCREENS = [];
+
+  // 1 — SWA Activate (Chat Mode)
+  SCREENS[0] = `<div class="app">${SB}
+    <div class="appbar"><span class="back">‹</span>Chat Mode</div>
+    <div class="prog"><div class="b on"></div><div class="b on"></div><div class="b on"></div><span class="n">3 / 3</span></div>
+    <div class="step">03 · REPLIES</div>
+    <div class="big">How should<br>buyers reach you?</div>
+    <div class="sacard">
+      <div class="radio"></div>
+      <div class="hd"><div class="ai">✨</div><div><div class="ttl">Smart Assist</div><div class="swl">Sell with AI</div></div></div>
+      <div class="badges"><span class="bdg pick">PICK</span><span class="bdg free">FREE</span></div>
+      <div class="sadesc">AI replies on your behalf — qualifies buyers, negotiates within your price range, and only pings you when a real deal is on the table.</div>
+      <div class="chips"><span class="chip">AI-powered</span><span class="chip">24/7</span><span class="chip">Negotiates</span></div>
+    </div>
+    <div class="lockn">🔒 Your number stays hidden until you accept.</div>
+    <div class="agree"><span class="ck">✓</span><div>I agree to <b>Smart Assist Terms</b>. AI may negotiate within my price range.</div></div>
+    <div class="cta green">Activate Smart Assist ⚡</div>
+    </div>`;
+
+  // 2 — SWA Price Range
+  SCREENS[1] = `<div class="app">${SB}
+    <div class="appbar"><span class="back">‹</span>Price Range</div>
+    <div class="prog"><div class="b on"></div><div class="b"></div><div class="b"></div><span class="n">1 / 3</span></div>
+    <div class="step">01 · PRICING</div>
+    <div class="big">What's your<br>walk-away price?</div>
+    <div class="lead">Smart Assist negotiates within this window.</div>
+    <div class="prcard">
+      <div class="prrow"><span class="prnote">LISTED</span><span class="prnote">🔒 locked</span></div>
+      <div class="prval"><span class="rs">₹</span>65,000</div>
+      <div class="hr"></div>
+      <div class="prrow"><span class="prlabel"><span class="d" style="background:#0e9aa7"></span>TARGET <span class="small">ideal</span></span><span class="prnote" style="color:#0e9aa7;font-weight:700">90% of listed</span></div>
+      <div class="prval"><span class="rs">₹</span>58,500</div>
+      <div class="hr"></div>
+      <div class="prrow"><span class="prlabel"><span class="d" style="background:#16a34a"></span>MINIMUM <span class="small">hidden</span></span><span class="prnote">👁 private</span></div>
+      <div class="prval"><span class="rs">₹</span>52,000</div>
+      <div class="slider"><span class="k g"></span><span class="k t"></span></div>
+      <div class="scale"><span>52k</span><span>56k</span><span>58k</span><span>65k</span></div>
+    </div>
+    <div class="tip">💡 Offers at or above <b>&nbsp;₹58,500&nbsp;</b> auto-accept. Below your minimum? We never reply.</div>
+    <div class="cta teal">Continue →</div>
+    </div>`;
+
+  // 3 — My Ads
+  const adCard = (im2,ti,lo,pr,sa) => `<div class="ad">
+    <div class="top"><div class="th"><img src="${img(im2)}"></div>
+      <div style="flex:1"><div class="ti">${ti}</div><div class="lo">${lo}</div><div class="pr">${pr}</div></div>
+      <span class="badge">Approved</span></div>
+    <div class="meta"><span>Expires 21 Jun 2026</span><span>2 days ago</span></div>
+    <div class="acts"><span>✎ Edit</span><span>🚀 Boost</span><span>🏷 Mark Sold</span></div>
+    ${sa==='on'
+      ? `<div class="saban on"><div class="z">⚡</div><div><b>Smart Assist is active</b><small>AI is negotiating for you · Tap to manage</small></div></div>`
+      : `<div class="saban try"><div class="z">⚡</div><div><b>Try Smart Assist</b><small>Let AI negotiate offers 24/7 — free</small></div></div>`}
+    </div>`;
+  SCREENS[2] = `<div class="app">${SB}
+    <div class="pad"><div class="h-screen">My Ads</div></div>
+    <div style="display:flex;gap:18px;padding:26px 46px 30px;">
+      <span style="background:#1677FF;color:#fff;font-size:28px;font-weight:700;padding:14px 36px;border-radius:40px;">APPROVED</span>
+      <span style="background:#f0f2f6;color:#6b7686;font-size:28px;font-weight:600;padding:14px 32px;border-radius:40px;">PENDING</span>
+      <span style="background:#f0f2f6;color:#6b7686;font-size:28px;font-weight:600;padding:14px 32px;border-radius:40px;">EXPIRED</span>
+    </div>
+    ${adCard('car','Mercedes-Benz GLC','Jubilee Hills, Hyderabad','₹42,50,000','on')}
+    ${adCard('bike','Royal Enfield 350','Banjara Hills, Hyderabad','₹1,95,000','try')}
+    ${NAV('ads')}</div>`;
+
+  // 4 — Home / Browse (real screenshot, clean 9:41 status bar)
+  SCREENS[3] = `<div class="app">${SB}<img class="shotfill" src="shots/home_nb.jpg"></div>`;
+
+  // 5 — "What are you posting?" category picker (real screenshot, clean status bar)
+  SCREENS[4] = `<div class="app">${SB}<img class="shotfill" src="shots/whatposting.jpg"></div>`;
+
+  // 6 — Register (real screenshot, clean 9:41 status bar)
+  SCREENS[5] = `<div class="app">${SB}<img class="shotfill" src="shots/register_real.jpg"></div>`;
+
+  // 7 — Profile
+  SCREENS[6] = `<div class="app">${SB}
+    <div class="pad"><div class="h-screen">Profile</div></div>
+    <div class="prof"><div class="ava2">R</div>
+      <div class="subpill">Subscribed User</div>
+      <div class="pname">Rahul Verma <span class="verck">✓</span></div>
+      <div class="pmail">rahul.verma@gmail.com</div><div class="pphone">+91 98480 12345</div>
+      <div class="editbtn">Edit Profile</div></div>
+    <div class="menu">
+      <div class="mrow"><div class="mic">✉️</div><div class="ml">Subscription</div><div class="chev">›</div></div>
+      <div class="mrow"><div class="mic">📺</div><div class="ml">Active Subscription Plans</div><div class="chev">›</div></div>
+      <div class="mrow"><div class="mic">🛡️</div><div class="ml">Verify Your Identity</div><div class="tag-ver">✓ Verified</div><div class="chev">›</div></div>
+      <div class="mrow"><div class="mic">❤️</div><div class="ml">Wishlist</div><div class="chev">›</div></div>
+      <div class="mrow"><div class="mic">🧾</div><div class="ml">Transaction History</div><div class="chev">›</div></div>
+      <div class="mrow"><div class="mic">🌙</div><div class="ml">App Theme</div><div class="chev">›</div></div>
+    </div>
+    ${NAV('user')}</div>`;
+
+  // 8 — Splash (real screenshot, grey status bar cropped off)
+  SCREENS[7] = `<img class="shot" src="shots/splash_clean.jpg">`;
+
+  // ---------------- ASO slide meta ----------------
+  const SLIDES = [
+    {theme:'blue',  kicker:'Sell with AI',    title:'Let AI Close\nYour Deals',          sub:'Smart Assist replies, qualifies buyers and negotiates 24/7 — free.'},
+    {theme:'dark',  kicker:'You’re in Control',title:'Set Your\nPrice Range',            sub:'AI negotiates within it and auto-accepts the right offer.'},
+    {theme:'accent',kicker:'Your Ads',        title:'Manage Every\nListing',             sub:'Track your ads while Smart Assist negotiates each one for you.'},
+    {theme:'dark',  kicker:'Discover',        title:'Buy & Sell\nAnything Local',        sub:'Thousands of listings across 20+ categories near you.'},
+    {theme:'blue',  kicker:'Boost',           title:'Get Seen.\nSell Faster.',           sub:'Power Seller & Pro plans push your ads to the top of the list.'},
+    {theme:'dark',  kicker:'Redesigned',      title:'Sign In,\nSimplified',              sub:'Quick, secure onboarding with Google or email.'},
+    {theme:'accent',kicker:'Trust & Safety',  title:'Verified &\nSecure',                sub:'Verify your identity and manage your plan with ease.'},
+    {theme:'blue',  kicker:'Sell with AI',    title:'An AI Dealmaker\nfor Every Listing', sub:'Buy • Sell • Marketplace — now powered by AI.'},
+  ];
+
+  function bgFor(t){
+    if(t==='blue')   return `<div class="bg" style="background:linear-gradient(160deg,#1677FF,#0B4FB8 60%,#072e6e)"></div><div class="blob" style="width:520px;height:520px;background:#ffd600;top:-120px;right:-120px"></div><div class="blob" style="width:420px;height:420px;background:#5aa0ff;bottom:120px;left:-140px;opacity:.5"></div>`;
+    if(t==='dark')   return `<div class="bg" style="background:linear-gradient(160deg,#0b1220,#161f33 60%,#0b1220)"></div><div class="blob" style="width:480px;height:480px;background:#1677FF;top:-100px;left:-120px"></div><div class="blob" style="width:360px;height:360px;background:#ffd600;bottom:180px;right:-120px;opacity:.28"></div>`;
+    return `<div class="bg" style="background:linear-gradient(160deg,#FFE34D,#FFD600 55%,#F4B400)"></div><div class="blob" style="width:500px;height:500px;background:#1677FF;top:-130px;right:-130px;opacity:.22"></div>`;
+  }
+
+  const NAMES=['swa-activate','price-range','my-ads','browse','listings','register','profile','splash'];
+  document.getElementById('gallery').innerHTML = SLIDES.map((s,i)=>`
+    <div class="preview"><div class="slide t-${s.theme}" data-name="${NAMES[i]}">
+      ${bgFor(s.theme)}
+      <div class="brandrow"><img class="lg" src="cardimg/applogo_mark.png"><div class="wm">IndClassifieds</div></div>
+      <div class="caption"><span class="kicker">${s.kicker}</span><div class="title">${s.title}</div><div class="sub">${s.sub}</div></div>
+      <div class="phone"><div class="screen"><div class="device">${SCREENS[i]}</div></div></div>
+    </div></div>`).join('');
+
+  async function downloadAll(){
+    const root=document.documentElement, prev=getComputedStyle(root).getPropertyValue('--preview-scale');
+    root.style.setProperty('--preview-scale','1');
+    const slides=document.querySelectorAll('.slide');
+    for(let i=0;i<slides.length;i++){
+      const c=await html2canvas(slides[i],{width:1080,height:1920,scale:1,useCORS:true,backgroundColor:null,logging:false});
+      const a=document.createElement('a'); a.href=c.toDataURL('image/png');
+      a.download=String(i+1).padStart(2,'0')+'-'+slides[i].dataset.name+'.png'; a.click();
+      await new Promise(r=>setTimeout(r,350));
+    }
+    root.style.setProperty('--preview-scale',prev||'0.34');
+  }
+</script>
+</body>
+</html>
