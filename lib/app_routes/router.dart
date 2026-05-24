@@ -46,6 +46,7 @@ import '../presentation/PostAdds/PetAdScreen.dart';
 import '../presentation/PostAdds/PropertiesAdScreen.dart';
 import 'package:classifieds/presentation/views/ProductsListScreen.dart';
 import '../presentation/authentication/LoginScreen.dart';
+import '../presentation/views/TermsConditionsScreen.dart';
 import '../presentation/authentication/OTPScreen.dart';
 import '../presentation/views/BlockedAccountScreen.dart';
 import '../presentation/views/ChatScreen.dart';
@@ -197,6 +198,11 @@ final GoRouter appRouter = GoRouter(
       path: '/email_login',
       pageBuilder: (context, state) =>
           buildSlideTransitionPage(EmailLoginscreen(), state),
+    ),
+    GoRoute(
+      path: '/terms',
+      pageBuilder: (context, state) =>
+          buildSlideTransitionPage(const TermsConditionsScreen(), state),
     ),
     GoRoute(
       path: '/otp',

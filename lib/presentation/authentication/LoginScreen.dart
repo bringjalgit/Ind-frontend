@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -47,6 +48,10 @@ class _LoginscreenState extends State<Loginscreen>
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  // Opens the in-app Terms & Conditions page from the legal fine print.
+  late final TapGestureRecognizer _termsRecognizer =
+      TapGestureRecognizer()..onTap = () => context.push('/terms');
+
   /// false → Mobile mode (default). true → Email mode.
   bool _isEmailMode = false;
 
@@ -69,6 +74,7 @@ class _LoginscreenState extends State<Loginscreen>
     _phoneController.dispose();
     _emailController.dispose();
     _sheenCtrl.dispose();
+    _termsRecognizer.dispose();
     super.dispose();
   }
 
@@ -945,6 +951,7 @@ class _LoginscreenState extends State<Loginscreen>
         children: [
           TextSpan(
             text: 'Terms & Conditions',
+            recognizer: _termsRecognizer,
             style: TextStyle(
               color: textColor,
               fontSize: 11,

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/services/ApiClient.dart';
@@ -52,6 +53,16 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
   bool _agreedToTerms = false;
   bool _isActivating = false;
   String? _errorMessage;
+
+  // Opens the in-app Terms & Conditions page from the consent row.
+  late final TapGestureRecognizer _termsRecognizer =
+      TapGestureRecognizer()..onTap = () => context.push('/terms');
+
+  @override
+  void dispose() {
+    _termsRecognizer.dispose();
+    super.dispose();
+  }
 
   // 2026-05-17 — Sole exposed mode is "Smart Assist" (Sell with AI).
   // Backend id remains `disabled` for wire compatibility with the
@@ -541,6 +552,7 @@ class _SWAChatModeWizardScreenState extends State<SWAChatModeWizardScreen> {
                   const TextSpan(text: 'I agree to '),
                   TextSpan(
                     text: 'Smart Assist Terms',
+                    recognizer: _termsRecognizer,
                     style: TextStyle(
                       color: t.accent,
                       fontWeight: FontWeight.w600,

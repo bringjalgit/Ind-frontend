@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,6 +21,17 @@ class EmailLoginscreen extends StatefulWidget {
 class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCountdownMixin {
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  // Opens the in-app Terms & Conditions page from the legal fine print.
+  late final TapGestureRecognizer _termsRecognizer =
+      TapGestureRecognizer()..onTap = () => context.push('/terms');
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _termsRecognizer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -300,6 +312,7 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
                         children: [
                           TextSpan(
                             text: "Terms & Conditions",
+                            recognizer: _termsRecognizer,
                             style: AppTextStyles.bodySmall(Colors.white)
                                 .copyWith(
                                   fontWeight: FontWeight.w700,
