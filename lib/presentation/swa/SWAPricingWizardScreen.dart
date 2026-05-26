@@ -129,7 +129,14 @@ class _SWAPricingWizardScreenState extends State<SWAPricingWizardScreen> {
     return Scaffold(
       backgroundColor: t.bg,
       appBar: _buildTopBar(t, 'Price Range'),
-      body: SafeArea(
+      // Tap-outside-to-dismiss: iOS numeric keypad has no Done key, so
+      // without this the keyboard covers the Continue button and the
+      // seller is stuck. Tapping any non-input area unfocuses the
+      // current TextField, which closes the keyboard.
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
           child: Column(
@@ -178,6 +185,7 @@ class _SWAPricingWizardScreenState extends State<SWAPricingWizardScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
       bottomNavigationBar: _buildBottomBar(t),
