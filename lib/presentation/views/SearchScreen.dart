@@ -110,7 +110,9 @@ class _SearchScreenState extends State<SearchScreen> {
     if (_selectedLat != null && _selectedLng != null) {
       _applyFiltersAndFetch();
     } else {
-      context.read<ProductsCubit2>().getProducts(search: widget.search_text);
+      context
+          .read<ProductsCubit2>()
+          .getProducts(search: widget.search_text, expand: true);
     }
 
     _speech = stt.SpeechToText();
@@ -193,7 +195,14 @@ class _SearchScreenState extends State<SearchScreen> {
                 if (_voiceText.isNotEmpty) {
                   context
                       .read<ProductsCubit2>()
-                      .getProducts(search: _voiceText)
+                      .getProducts(
+                        search: _voiceText,
+                        locationKey:
+                            (_selectedLat != null && _selectedLng != null)
+                            ? "${_selectedLat}, ${_selectedLng}"
+                            : null,
+                        expand: true,
+                      )
                       .then((_) {
                         setState(() {
                           searchController.text = _voiceText;
@@ -489,9 +498,9 @@ class _SearchScreenState extends State<SearchScreen> {
                                                         "/products_details?listingId=${product.id}&subcategory_id=${product.subCategory?.id}",
                                                       );
                                                   if (shouldRefresh == true) {
-                                                    context
-                                                        .read<ProductsCubit2>()
-                                                        .getProducts();
+                                                    // Preserve search text +
+                                                    // location + expanding sort.
+                                                    _applyFiltersAndFetch();
                                                   }
                                                 },
                                               );
@@ -861,6 +870,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ? maxPriceController.text
           : _selectedRange.value.end.toInt().toString(),
       locationKey: locationKey,
+      expand: true,
     );
   }
 

@@ -48,9 +48,16 @@ class _LoginscreenState extends State<Loginscreen>
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Opens the in-app Terms & Conditions page from the legal fine print.
+  // Opens the in-app Terms & Conditions page from the consent line.
   late final TapGestureRecognizer _termsRecognizer =
       TapGestureRecognizer()..onTap = () => context.push('/terms');
+
+  // Opens the in-app Privacy Policy page from the consent line.
+  late final TapGestureRecognizer _privacyRecognizer =
+      TapGestureRecognizer()..onTap = () => context.push('/privacy');
+
+  /// Consent gate — must be ticked before OTP can be sent (Terms + Privacy).
+  bool _agreedToTerms = false;
 
   /// false → Mobile mode (default). true → Email mode.
   bool _isEmailMode = false;
@@ -75,10 +82,18 @@ class _LoginscreenState extends State<Loginscreen>
     _emailController.dispose();
     _sheenCtrl.dispose();
     _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
     super.dispose();
   }
 
   void _onSendOtpPressed() {
+    if (!_agreedToTerms) {
+      CustomSnackBar.show(
+        context,
+        'Please accept the Terms & Conditions to continue',
+      );
+      return;
+    }
     if (_isEmailMode) {
       final email = _emailController.text.trim().toLowerCase();
       if (email.isEmpty) {
@@ -454,9 +469,9 @@ class _LoginscreenState extends State<Loginscreen>
           const SizedBox(height: 10),
           _buildHelper(),
           const SizedBox(height: 16),
-          _buildSendOtpButton(isDark, textColor),
+          _buildConsentCheckbox(textColor),
           const SizedBox(height: 14),
-          _buildLegal(textColor),
+          _buildSendOtpButton(isDark, textColor),
         ],
       ),
     );
@@ -939,30 +954,74 @@ class _LoginscreenState extends State<Loginscreen>
     );
   }
 
-  Widget _buildLegal(Color textColor) {
-    return Text.rich(
-      TextSpan(
-        text: 'By continuing, you agree to our ',
-        style: const TextStyle(
-          color: _mute,
-          fontSize: 11,
-          height: 1.5,
-        ),
-        children: [
-          TextSpan(
-            text: 'Terms & Conditions',
-            recognizer: _termsRecognizer,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              decoration: TextDecoration.underline,
+  /// Required consent gate. The user must tick this before an OTP can be
+  /// sent (enforced in [_onSendOtpPressed]). Tapping the row toggles the box;
+  /// the Terms / Privacy words open their in-app pages via recognizers.
+  Widget _buildConsentCheckbox(Color textColor) {
+    return InkWell(
+      onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: _agreedToTerms ? _brandBlue : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: _agreedToTerms ? _brandBlue : _mute,
+                  width: 1.8,
+                ),
+              ),
+              child: _agreedToTerms
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
             ),
-          ),
-          const TextSpan(text: '.'),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  text: 'I agree to the ',
+                  style: const TextStyle(
+                    color: _mute,
+                    fontSize: 11.5,
+                    height: 1.45,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: 'Terms & Conditions',
+                      recognizer: _termsRecognizer,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    const TextSpan(text: ' and '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      recognizer: _privacyRecognizer,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-      textAlign: TextAlign.center,
     );
   }
 

@@ -6,10 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:go_router/go_router.dart';
+import 'package:another_flushbar/flushbar.dart';
+import 'package:app_badge_plus/app_badge_plus.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import '../data/cubit/Notifications/notifications_cubit.dart';
+import '../utils/AppLogger.dart';
 import '../utils/NotificationIntent.dart';
 import '../utils/constants.dart';
+import 'ApiClient.dart';
 import 'FcmTokenManager.dart';
 
 class NotificationService {
@@ -35,14 +41,43 @@ class NotificationService {
     await _handleColdStartLaunch();
     await _configureForegroundPresentation();
     _setupFirebaseListeners();
-    // Subscribe to OS-initiated FCM token rotation. Without this, a
-    // rotated token (iOS does this regularly; Android less often) is
-    // never resynced — the backend keeps sending pushes to the dead
-    // old token and everything silently drops. For now the refreshed
-    // token is only cached in [FcmTokenManager.lastToken]; a future
-    // step will add a POST /app/device-token endpoint so the new
-    // token lands on the User row without requiring a fresh login.
-    FcmTokenManager.startAutoRefresh();
+    // Subscribe to OS-initiated FCM token rotation. The backend now
+    // exposes POST /app/register-fcm-token (authenticated, idempotent)
+    // so we wire the refreshed token straight there — no fresh login
+    // required. Without this, a rotated token (iOS does it regularly,
+    // Android less often, plus GMS updates / Clear-data / reinstall)
+    // would silently render the user unreachable until they re-logged.
+    FcmTokenManager.startAutoRefresh(
+      onRefresh: (newToken) {
+        // Fire-and-forget — ApiClient swallows errors and the next
+        // cold start / rotation will retry anyway.
+        ApiClient.registerFcmToken(newToken);
+      },
+    );
+
+    // Cold-start sync. Covers two leak paths:
+    //   • Users whose server-side fcm_token went stale because
+    //     onTokenRefresh fired before this listener was wired
+    //     (i.e., older app versions that didn't have a register-
+    //     fcm-token endpoint).
+    //   • Users whose original /verify-otp call landed with a null
+    //     fcm_token because Firebase hadn't provisioned by then —
+    //     ensureFcmToken now waits up to 8s with retry, and the
+    //     result is posted to the backend on each launch.
+    // Fire-and-forget; never blocks app initialization.
+    // ignore: unawaited_futures
+    _coldStartRegisterFcmToken();
+  }
+
+  Future<void> _coldStartRegisterFcmToken() async {
+    try {
+      final token = await FcmTokenManager.ensureFcmToken();
+      if (token != null && token.isNotEmpty) {
+        await ApiClient.registerFcmToken(token);
+      }
+    } catch (e) {
+      AppLogger.error('[fcm] cold-start register failed: $e');
+    }
   }
 
   // -------------------- PERMISSIONS --------------------
@@ -166,28 +201,68 @@ class NotificationService {
     debugPrint("📥 🔔 Foreground message received");
     debugPrint(message.toMap().toString());
 
-    // Suppress OS popup for chat messages while app is in foreground —
-    // the WebSocket already pushes the new message + unread count to the
-    // chat list cubit, which updates the badge in real time.
-    final type = message.data['type']?.toString();
-    if (type == 'chat_message') {
-      return;
+    // App is in the FOREGROUND → show an in-app heads-up banner (Flushbar)
+    // for ALL types, instead of an OS notification. Chat used to be fully
+    // suppressed here, but the backend already skips the chat push when the
+    // user is actively viewing that exact thread — so any chat push that
+    // reaches us is for a thread they're NOT looking at, worth a banner. The
+    // OS notification still shows when backgrounded (background handler).
+    final title =
+        (message.data['title'] ?? message.notification?.title)?.toString() ?? '';
+    final body =
+        (message.data['body'] ?? message.notification?.body)?.toString() ?? '';
+
+    if (title.isNotEmpty) {
+      _showInAppBanner(title, body, message.data);
     }
 
-    // Data-only payload (preferred — prevents duplicate notifications)
-    final title = message.data['title']?.toString();
-    final body = message.data['body']?.toString();
+    // Keep the launcher app-icon badge in sync with the server's unified count.
+    refreshAppBadge();
 
-    if (title != null && title.isNotEmpty) {
-      showDataNotification(title, body ?? '', message.data);
-      return;
-    }
+    // Refresh the IN-APP notification inbox so the bell badge updates the
+    // instant a foreground push arrives — not only on app-resume/cold-start.
+    // Production apps bump the count live. navigatorKey sits above the bloc
+    // providers, so this reaches the global NotificationsCubit.
+    try {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) ctx.read<NotificationsCubit>().getNotifications();
+    } catch (_) {}
+  }
 
-    // Fallback: legacy notification payload
-    final notification = message.notification;
-    final android = notification?.android;
-    if (notification != null && android != null) {
-      showNotification(notification, android, message.data);
+  // -------------------- IN-APP BANNER (FOREGROUND) --------------------
+
+  /// Heads-up banner shown over the app when a push arrives while foreground.
+  /// Tapping it routes via the same _navigateFromPushData used for taps.
+  void _showInAppBanner(String title, String body, Map<String, dynamic> data) {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return; // no UI yet (cold start) — nothing to show on
+    Flushbar(
+      title: title,
+      message: body.isNotEmpty ? body : ' ',
+      duration: const Duration(seconds: 4),
+      flushbarPosition: FlushbarPosition.TOP,
+      margin: const EdgeInsets.all(10),
+      borderRadius: BorderRadius.circular(12),
+      backgroundColor: const Color(0xFF1F2733),
+      leftBarIndicatorColor: const Color(0xFF22C55E),
+      icon: const Icon(Icons.notifications_active, color: Colors.white),
+      isDismissible: true,
+      onTap: (_) => _navigateFromPushData(data),
+    ).show(ctx);
+  }
+
+  // -------------------- APP-ICON BADGE --------------------
+
+  /// Refresh the launcher app-icon badge from the server's UNIFIED unread
+  /// count (inbox + chat). Safe to call on push receipt, app resume, and
+  /// after mark-read. No-op where the launcher doesn't support badges.
+  Future<void> refreshAppBadge() async {
+    try {
+      if (!await AppBadgePlus.isSupported()) return;
+      final count = await ApiClient.getUnreadNotificationCount();
+      AppBadgePlus.updateBadge(count); // 0 clears the badge
+    } catch (e) {
+      AppLogger.error('[badge] refresh failed: $e');
     }
   }
 
@@ -228,7 +303,7 @@ class NotificationService {
     final details = NotificationDetails(android: androidDetails);
 
     await _localNotifications.show(
-      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      id: _generateNotificationId(data),
       title: title,
       body: body,
       notificationDetails: details,
@@ -277,7 +352,7 @@ class NotificationService {
     final details = NotificationDetails(android: androidDetails);
 
     await _localNotifications.show(
-      id: notification.hashCode,
+      id: _generateNotificationId(data),
       title: notification.title,
       body: notification.body,
       notificationDetails: details,
@@ -394,6 +469,23 @@ class NotificationService {
     final file = File(filePath);
     await file.writeAsBytes(response.bodyBytes);
     return filePath;
+  }
+
+  /// Stable local-notification id (Android requires a 31-bit int). Prefer the
+  /// backend's notification_id, then the FCM messageId, else a rolling
+  /// counter — replaces the old `remainder(100000)` / `hashCode` schemes that
+  /// collided and silently overwrote notifications.
+  int _idCounter = 0;
+  int _generateNotificationId(Map<String, dynamic> data) {
+    final stable = (data['notification_id'] ??
+            data['notificationId'] ??
+            data['messageId'])
+        ?.toString();
+    if (stable != null && stable.isNotEmpty) {
+      return stable.hashCode & 0x7fffffff; // positive 31-bit
+    }
+    _idCounter = (_idCounter + 1) & 0x7fffffff;
+    return _idCounter;
   }
 
   // ✅ THIS MUST EXIST

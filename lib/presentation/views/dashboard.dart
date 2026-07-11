@@ -20,8 +20,11 @@ import 'package:permission_handler/permission_handler.dart' as OpenAppSettings;
 import 'package:url_launcher/url_launcher.dart';
 import '../../data/cubit/ChatUsers/ChatUsersCubit.dart';
 import '../../data/cubit/ChatUsers/ChatUsersStates.dart';
+import '../../data/cubit/Notifications/notifications_cubit.dart';
+import '../../widgets/PulsingBadge.dart';
 import 'package:classifieds/services/AppConfigService.dart';
 import 'package:classifieds/widgets/AnnouncementDialog.dart';
+import 'package:classifieds/widgets/LoginRequiredSheet.dart';
 
 import '../../data/bloc/internet_status/internet_status_bloc.dart';
 import '../../data/cubit/Location/location_cubit.dart';
@@ -46,7 +49,7 @@ class Dashboard extends StatefulWidget {
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with WidgetsBindingObserver {
   late PageController pageController;
   int _selectedIndex = 0;
   bool isLocationSheetShown = false;
@@ -57,6 +60,7 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkForOptionalUpdate();
@@ -65,7 +69,17 @@ class _DashboardState extends State<Dashboard> {
 
     _selectedIndex = widget.initialTab;
     pageController = PageController(initialPage: _selectedIndex);
+    // Start the subscription badge HIDDEN, then let getData() reveal it only
+    // after the server confirms an active subscription. We never seed it from
+    // the persisted cache — a stale cached value could flash a false
+    // "Subscribed User" badge (the issue reported on older builds).
+    AuthService.hydrateSubscribedNotifier();
     getData();
+
+    // Load the notification inbox (drives the bell badge) + sync the launcher
+    // app-icon badge from the server's unified unread count.
+    context.read<NotificationsCubit>().getNotifications();
+    NotificationService.instance.refreshAppBadge();
 
     // ✅ correct call
     NotificationService.instance.requestPermissions();
@@ -180,8 +194,27 @@ class _DashboardState extends State<Dashboard> {
   @override
   void dispose() {
     debugPrint('DeepLink: dispose, cancelling subscription');
+    WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Back to the foreground (after a UPI app, a push tap, etc.) — refresh
+      // the inbox bell + the launcher app-icon badge from the server.
+      context.read<NotificationsCubit>().getNotifications();
+      NotificationService.instance.refreshAppBadge();
+      // Also re-pull active plans so the "Subscribed User" badge updates on
+      // resume — e.g. returning from the UPI/Razorpay app right after paying —
+      // WITHOUT needing a full app restart (the reported bug). getData() is
+      // guest-guarded and idempotent (socket connect / cubit init are no-ops
+      // when already done), and it routes through
+      // UserActivePlanCubit.getUserActivePlansData() which updates the flag.
+      getData();
+    }
   }
 
   Future<void> getData() async {
@@ -200,9 +233,11 @@ class _DashboardState extends State<Dashboard> {
         // mid-session. await each write so they happen one at a time.
         await AuthService.setPlanStatus(plan.goToPlansPage.toString() ?? "");
         await AuthService.setFreePlanStatus(plan.isFree.toString() ?? "");
-        await AuthService.setSubscribeStatus(
-          plan.plans?.length != 0 ? "true" : "false" ?? "",
-        );
+        // The "Subscribed User" flag is now set inside
+        // UserActivePlanCubit.getUserActivePlansData() from the server's
+        // `has_active_subscription` (stays true even when listing quota is
+        // used up). The old `plans?.length != 0` check here WAS the bug that
+        // dropped the badge for paying users who'd used their quota — removed.
       }
       final userId = await AuthService.getId();
       SocketService.connect(userId ?? "");
@@ -216,7 +251,24 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
-  void onItemTapped(int index) {
+  void onItemTapped(int index) async {
+    // Guest gate — My Ads (1), Chat (2), Profile (3) need an account. Home
+    // (0) is always open. Show the login sheet and stay on the current tab
+    // instead of switching. Logged-in users are unaffected.
+    if (index != 0 && await AuthService.isGuest) {
+      if (!mounted) return;
+      const messages = {
+        1: 'Log in to post and manage your ads.',
+        2: 'Log in to view your messages.',
+        3: 'Log in with your number to access your profile.',
+      };
+      await showLoginRequiredSheet(
+        context,
+        message: messages[index] ?? 'Log in to continue.',
+        redirect: '/dashboard?tab=$index',
+      );
+      return;
+    }
     pageController.jumpToPage(index);
     setState(() {
       _selectedIndex = index;
@@ -324,7 +376,19 @@ class _DashboardState extends State<Dashboard> {
                         ),
                         elevation: 0,
                         backgroundColor: AppColors.primary,
-                        onPressed: () {
+                        onPressed: () async {
+                          // Guest gate — selling requires an account. Prompt
+                          // login instead of opening the category picker.
+                          if (await AuthService.isGuest) {
+                            if (!mounted) return;
+                            await showLoginRequiredSheet(
+                              context,
+                              message:
+                                  'Log in to post a listing and start selling.',
+                              redirect: '/category',
+                            );
+                            return;
+                          }
                           context.push("/category");
                           // context.read<LocationCubit>().checkLocationPermission();
                         },
@@ -387,21 +451,9 @@ class _DashboardState extends State<Dashboard> {
               ),
               if (badge > 0)
                 Positioned(
-                  right: -8,
-                  top: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      badge > 99 ? '99+' : '$badge',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                  right: -10,
+                  top: -6,
+                  child: PulsingBadge(count: badge, minSize: 16, fontSize: 10),
                 ),
             ],
           ),

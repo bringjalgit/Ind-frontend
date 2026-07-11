@@ -10,6 +10,7 @@ import 'package:classifieds/widgets/CommonLoader.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../data/cubit/MyAds/my_ads_cubit.dart';
 import '../services/AuthService.dart';
+import '../data/cubit/Profile/profile_repo.dart';
 import '../presentation/views/SuccessRecapScreen.dart';
 import '../theme/AppTextStyles.dart';
 import '../theme/ThemeHelper.dart';
@@ -30,9 +31,30 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
   final ValueNotifier<String?> userMobileNotifier = ValueNotifier<String?>("");
 
   Future<void> getUserDetails() async {
-    userNameNotifier.value = await AuthService.getName();
-    userEmailNotifier.value = await AuthService.getEmail();
-    userMobileNotifier.value = await AuthService.getMobile();
+    // Source name/email/mobile from the SERVER (current profile), not the local
+    // cache. The cache (AuthService) is written only at login, so after the user
+    // changes their email in Edit Profile it goes stale — which made the Razorpay
+    // checkout prefill (and Razorpay's own confirmation email) use the OLD email.
+    // Fall back to the cache only when the server fetch fails (offline).
+    final profileRepo = context.read<ProfileRepo>();
+    try {
+      final profile = await profileRepo.getProfileDetails();
+      final name = profile?.data?.name;
+      final email = profile?.data?.email;
+      final mobile = profile?.data?.mobile;
+      userNameNotifier.value =
+          (name != null && name.isNotEmpty) ? name : await AuthService.getName();
+      userEmailNotifier.value = (email != null && email.isNotEmpty)
+          ? email
+          : await AuthService.getEmail();
+      userMobileNotifier.value = (mobile != null && mobile.isNotEmpty)
+          ? mobile
+          : await AuthService.getMobile();
+    } catch (_) {
+      userNameNotifier.value = await AuthService.getName();
+      userEmailNotifier.value = await AuthService.getEmail();
+      userMobileNotifier.value = await AuthService.getMobile();
+    }
   }
 
   @override
@@ -60,9 +82,16 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
 
   void _handlePaymentError(PaymentFailureResponse response) {
     AppLogger.log("Payment failed: ${response.message}");
+    // UPI is async: an error/timeout here does NOT prove the money wasn't
+    // debited — the boost can still be captured and activated server-side.
+    // Use a neutral message so the user waits instead of paying again.
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message ?? 'Payment failed'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text(
+            "Payment not confirmed. If any amount was debited, your boost will activate shortly — please don't pay again right away.",
+          ),
+        ),
       );
     }
   }
@@ -85,7 +114,9 @@ class _AdBoostDialogState extends State<AdBoostDialog> {
       'name': userNameNotifier.value,
       'order_id': '$order_id',
       'description': 'purchase',
-      'timeout': 60,
+      // 5 min: UPI collect needs more than 60s; a short timeout force-closed
+      // checkout and reported "failed" while the debit still went through.
+      'timeout': 300,
       'prefill': {
         'contact': userMobileNotifier.value ?? "",
         'email': userEmailNotifier.value ?? "",

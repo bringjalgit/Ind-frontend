@@ -15,6 +15,18 @@ class SocketService {
   static int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 10;
 
+  /// Outbound queue for IDEMPOTENT control messages issued while the socket
+  /// is down. Previously `send()` silently dropped these (see below), so a
+  /// chat opened during a reconnect window never had its `joinRoom`/`markRead`
+  /// delivered → messages stayed unread and the badge never cleared. These
+  /// are safe to replay (re-marking the same messages read is a no-op), so we
+  /// queue and flush them on (re)connect. Non-idempotent actions
+  /// (sendMessage / typing / ping) are still dropped — replaying them would
+  /// duplicate a message or deliver a stale signal.
+  static const Set<String> _queueableActions = {'joinRoom', 'markRead'};
+  static final List<Map<String, dynamic>> _outbox = [];
+  static const int _maxOutbox = 20;
+
   /// Stream controller for WebSocket errors from the backend (rate limit, validation, etc.)
   static final _errorController = StreamController<String>.broadcast();
   static Stream<String> get onError => _errorController.stream;
@@ -82,6 +94,10 @@ class SocketService {
       _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (_) {
         send('ping', {});
       });
+
+      // Replay any joinRoom/markRead that were queued while offline so a
+      // chat opened during a reconnect still gets its messages marked read.
+      _flushOutbox();
     } catch (e) {
       AppLogger.error('WebSocket connect failed: $e');
       _connected = false;
@@ -91,12 +107,39 @@ class SocketService {
 
   /// Send a message with an action
   static void send(String action, Map<String, dynamic> data) {
-    if (_channel == null || !_connected) return;
+    if (_channel == null || !_connected) {
+      // Queue idempotent control messages so they survive a reconnect;
+      // everything else is still dropped when offline.
+      if (_queueableActions.contains(action)) {
+        final encoded = jsonEncode(data);
+        _outbox.removeWhere(
+            (m) => m['action'] == action && jsonEncode(m['data']) == encoded);
+        _outbox.add({'action': action, 'data': data});
+        if (_outbox.length > _maxOutbox) _outbox.removeAt(0);
+      }
+      return;
+    }
     try {
       _channel!.sink.add(jsonEncode({'action': action, ...data}));
     } catch (e) {
       AppLogger.error('WebSocket send error: $e');
     }
+  }
+
+  /// Replay queued idempotent control messages once the socket is back.
+  static void _flushOutbox() {
+    if (_outbox.isEmpty || _channel == null || !_connected) return;
+    final pending = List<Map<String, dynamic>>.from(_outbox);
+    _outbox.clear();
+    for (final m in pending) {
+      try {
+        _channel!.sink.add(jsonEncode(
+            {'action': m['action'], ...(m['data'] as Map<String, dynamic>)}));
+      } catch (e) {
+        AppLogger.error('WebSocket outbox flush error: $e');
+      }
+    }
+    AppLogger.info('WebSocket flushed ${pending.length} queued message(s)');
   }
 
   /// Register a listener for a specific action
@@ -132,6 +175,7 @@ class SocketService {
     _currentUserId = null;
     _reconnectAttempts = 0;
     _listeners.clear();
+    _outbox.clear(); // don't replay a previous user's queued join/mark onto the next session
     AppLogger.info('WebSocket disconnected manually');
   }
 

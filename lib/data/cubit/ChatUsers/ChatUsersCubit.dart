@@ -18,10 +18,13 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
 
   bool get hasNextPage => _hasNextPage;
 
-  // Debounced reload to avoid flooding REST API on rapid WebSocket events
+  // Near-instant reload on WebSocket chat events so the unread badge + red
+  // pulse show up promptly (was 2s, which felt like "no indicator arrives").
+  // Short enough to feel live; still coalesces rapid message bursts into a
+  // single REST call so we don't flood the API.
   void _debouncedReload() {
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(seconds: 2), () => loadChatUsers());
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () => loadChatUsers());
   }
 
   // Store listener references so we can remove only our own callbacks
@@ -108,6 +111,28 @@ class ChatUsersCubit extends Cubit<ChatUsersStates> {
     }
 
     emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
+  }
+
+  /// Optimistically clear the unread badge for ONE thread the instant the
+  /// user opens it — so the mark disappears immediately instead of lingering
+  /// until the next full refresh. Matches both P2P and SWA rows (keyed by the
+  /// other user + listing). The authoritative count still arrives via the
+  /// loadChatUsers() refresh fired when the user returns from the thread, and
+  /// this also drives the bottom-nav Chat badge (it sums these unreadCounts).
+  void markThreadReadLocally(String otherUserId, String listingId) {
+    if (otherUserId.isEmpty) return;
+    var changed = false;
+    for (final c in _chatUsers) {
+      if (c.userId == otherUserId &&
+          c.listingId == listingId &&
+          (c.unreadCount ?? 0) != 0) {
+        c.unreadCount = 0;
+        changed = true;
+      }
+    }
+    if (changed) {
+      emit(ChatUsersLoaded(ChatUsersModel(success: true, data: _chatUsers)));
+    }
   }
 
   @override

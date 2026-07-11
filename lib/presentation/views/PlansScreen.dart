@@ -17,6 +17,7 @@ import '../../data/cubit/Plans/plans_states.dart';
 import '../../data/cubit/UserActivePlans/user_active_plans_cubit.dart';
 import '../../model/PlansModel.dart';
 import '../../services/AuthService.dart';
+import '../../data/cubit/Profile/profile_repo.dart';
 import '../../services/MetaEventTracker.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/AppTextStyles.dart';
@@ -31,7 +32,8 @@ class PlansScreen extends StatefulWidget {
   State<PlansScreen> createState() => _BoostYourSalesScreenState();
 }
 
-class _BoostYourSalesScreenState extends State<PlansScreen> {
+class _BoostYourSalesScreenState extends State<PlansScreen>
+    with WidgetsBindingObserver {
   late Razorpay _razorpay;
   final ValueNotifier<String?> userNameNotifier = ValueNotifier<String?>("");
   final ValueNotifier<String?> userEmailNotifier = ValueNotifier<String?>("");
@@ -40,6 +42,7 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     getUserDetails();
     _razorpay = Razorpay();
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
@@ -52,9 +55,30 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
   }
 
   Future<void> getUserDetails() async {
-    userNameNotifier.value = await AuthService.getName();
-    userEmailNotifier.value = await AuthService.getEmail();
-    userMobileNotifier.value = await AuthService.getMobile();
+    // Source name/email/mobile from the SERVER (current profile), not the local
+    // cache. The cache (AuthService) is written only at login, so after the user
+    // changes their email in Edit Profile it goes stale — which made the Razorpay
+    // checkout prefill (and Razorpay's own confirmation email) use the OLD email.
+    // Fall back to the cache only when the server fetch fails (offline).
+    final profileRepo = context.read<ProfileRepo>();
+    try {
+      final profile = await profileRepo.getProfileDetails();
+      final name = profile?.data?.name;
+      final email = profile?.data?.email;
+      final mobile = profile?.data?.mobile;
+      userNameNotifier.value =
+          (name != null && name.isNotEmpty) ? name : await AuthService.getName();
+      userEmailNotifier.value = (email != null && email.isNotEmpty)
+          ? email
+          : await AuthService.getEmail();
+      userMobileNotifier.value = (mobile != null && mobile.isNotEmpty)
+          ? mobile
+          : await AuthService.getMobile();
+    } catch (_) {
+      userNameNotifier.value = await AuthService.getName();
+      userEmailNotifier.value = await AuthService.getEmail();
+      userMobileNotifier.value = await AuthService.getMobile();
+    }
   }
 
   void _handlePaymentSuccess(PaymentSuccessResponse response) {
@@ -71,6 +95,17 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
 
   void _handlePaymentError(PaymentFailureResponse response) {
     AppLogger.log("❌ Payment failed: ${response.message}");
+    // UPI is async: an error/timeout here does NOT prove the money wasn't
+    // debited — the payment can still be captured and granted server-side
+    // (webhook). Re-check plans instead of declaring failure, and steer the
+    // user to wait rather than pay again (re-paying is what double-charges).
+    if (!mounted) return;
+    context.read<PlansCubit>().getPlans();
+    context.read<UserActivePlanCubit>().getUserActivePlansData();
+    CustomSnackBar1.show(
+      context,
+      "Payment not confirmed. If any amount was debited, your plan will activate automatically in a few minutes — please don't pay again right away.",
+    );
   }
 
   void _handleExternalWallet(ExternalWalletResponse response) {
@@ -78,7 +113,20 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // UPI sends the buyer out to their UPI app; the app can miss Razorpay's
+    // success callback while backgrounded. On resume, re-pull plans so a
+    // payment the webhook already granted shows up without re-paying.
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<PlansCubit>().getPlans();
+      context.read<UserActivePlanCubit>().getUserActivePlansData();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _razorpay.clear();
     super.dispose();
   }
@@ -91,7 +139,10 @@ class _BoostYourSalesScreenState extends State<PlansScreen> {
       'name': userNameNotifier.value,
       'order_id': '$order_id',
       'description': 'purchase',
-      'timeout': 60,
+      // 5 min: UPI collect needs more than 60s; a short timeout force-closed
+      // checkout and reported "failed" while the debit still went through —
+      // the root of the "timed out then captured" double-charge race.
+      'timeout': 300,
       'prefill': {
         'contact': userMobileNotifier.value ?? "",
         'email': userEmailNotifier.value ?? "",

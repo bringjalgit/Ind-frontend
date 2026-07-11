@@ -16,6 +16,7 @@ import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
 import '../../utils/media_query_helper.dart';
 import '../../widgets/CommonLoader.dart';
+import '../../widgets/PulsingBadge.dart';
 import 'ChatScreen.dart';
 
 import 'package:flutter/material.dart';
@@ -266,14 +267,36 @@ class _UserListScreenState extends State<UserListScreen>
                                       final imageParam = Uri.encodeComponent(
                                         user.profileImage ?? '',
                                       );
-                                      context.push(
-                                        '/chat'
-                                        '?receiverId=$id'
-                                        '&listingId=$listingIdStr'
-                                        '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}'
-                                        '&receiverName=$nameParam'
-                                        '&receiverImage=$imageParam',
-                                      );
+                                      // Optimistically clear this thread's
+                                      // unread badge the instant it's opened
+                                      // (works for P2P and SWA rows), then
+                                      // re-fetch the authoritative list when
+                                      // the user returns from the thread. This
+                                      // is why the mark previously only
+                                      // cleared after a tab switch: nothing
+                                      // refreshed the list on pop.
+                                      context
+                                          .read<ChatUsersCubit>()
+                                          .markThreadReadLocally(
+                                            id,
+                                            listingIdStr,
+                                          );
+                                      context
+                                          .push(
+                                            '/chat'
+                                            '?receiverId=$id'
+                                            '&listingId=$listingIdStr'
+                                            '&listingTitle=${Uri.encodeComponent(user.listingTitle ?? "")}'
+                                            '&receiverName=$nameParam'
+                                            '&receiverImage=$imageParam',
+                                          )
+                                          .then((_) {
+                                            if (mounted) {
+                                              context
+                                                  .read<ChatUsersCubit>()
+                                                  .loadChatUsers();
+                                            }
+                                          });
                                     },
                                   ),
                                 ),
@@ -581,23 +604,7 @@ class _ChatCard extends StatelessWidget {
               ),
               if (unreadCount > 0) ...[
                 const SizedBox(width: 8),
-                Container(
-                  constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF25D366),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    unreadCount > 99 ? '99+' : '$unreadCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                PulsingBadge(count: unreadCount),
               ],
             ],
           ),

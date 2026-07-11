@@ -14,6 +14,8 @@ import 'package:classifieds/Components/CustomSnackBar.dart';
 import 'package:classifieds/data/cubit/Register/register_cubit.dart';
 import 'package:classifieds/data/cubit/Register/register_states.dart';
 import 'package:classifieds/services/AuthService.dart';
+import 'package:classifieds/services/ReferralService.dart';
+import 'package:classifieds/utils/constants.dart';
 
 import '../../Components/ShakeWidget.dart';
 import '../../data/cubit/States/states_cubit.dart';
@@ -72,6 +74,7 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen>
   final _nameCtrl = TextEditingController(text: '');
   final _emailCtrl = TextEditingController(text: '');
   final stateController = TextEditingController();
+  final _referralCtrl = TextEditingController();
   final _nameFocus = FocusNode();
   final _emailFocus = FocusNode();
   bool _showStateError = false;
@@ -143,6 +146,7 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen>
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     stateController.dispose();
+    _referralCtrl.dispose();
     _nameFocus.dispose();
     _emailFocus.dispose();
     _sheenCtrl.dispose();
@@ -638,6 +642,29 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen>
               ),
             ),
           ],
+          const SizedBox(height: 12),
+          _buildFieldLabel('REFERRAL CODE (OPTIONAL)'),
+          const SizedBox(height: 8),
+          _buildReferralField(isDark, textColor),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded, size: 14, color: _mute),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Have a friend\'s code? Add it now — you both earn points when '
+                  'you post your first listing. It can only be added here.',
+                  style: TextStyle(
+                    color: textColor.withOpacity(0.6),
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 18),
           _buildSubmitButton(),
           const SizedBox(height: 10),
@@ -888,6 +915,48 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen>
     );
   }
 
+  Widget _buildReferralField(bool isDark, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      decoration: _fieldDeco(isDark),
+      child: Row(
+        children: [
+          const Icon(Icons.card_giftcard_rounded, size: 18, color: _mute),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextFormField(
+              controller: _referralCtrl,
+              textCapitalization: TextCapitalization.characters,
+              textInputAction: TextInputAction.done,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.5,
+              ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                hintText: 'Enter code',
+                hintStyle: TextStyle(
+                  color: _mute,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0,
+                ),
+                contentPadding: EdgeInsets.symmetric(vertical: 13),
+                isDense: true,
+                filled: false,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStateField(bool isDark, Color textColor) {
     final hasValue = stateController.text.trim().isNotEmpty;
     return InkWell(
@@ -936,11 +1005,41 @@ class _RegisterUserDetailsScreenState extends State<RegisterUserDetailsScreen>
           // the stale "true" value and disabled the Post-Ad CTA on
           // freshly-registered users.
           await AuthService.setUserStatus('false');
+          // Apply a referral code entered during registration (optional, one
+          // per account, server-gated). Fire-and-forget so it never blocks the
+          // post-registration navigation; the user is authenticated by now, so
+          // ApiClient attaches the token. Idempotent + errors swallowed inside.
+          final refCode = _referralCtrl.text.trim();
+          if (refCode.isNotEmpty) {
+            ReferralService.apply(refCode);
+          }
           if (!context.mounted) return;
           if (widget.from == 'ad') {
             context.pop();
           } else {
-            context.pushReplacement('/dashboard');
+            // If a guest gate sent the user into the auth flow, return them
+            // to where they were (e.g. the listing or sell screen); else the
+            // usual dashboard.
+            final redirect = AuthService.pendingRedirect;
+            AuthService.pendingRedirect = null;
+            if (redirect != null &&
+                redirect.isNotEmpty &&
+                !redirect.startsWith('/dashboard')) {
+              // Non-dashboard target: context.go() alone would REPLACE the
+              // whole nav stack with just [redirect], leaving no root beneath
+              // — so back popped an empty stack and closed the app. Land on
+              // the dashboard as ROOT, then push the target on top.
+              context.go('/dashboard');
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                navigatorKey.currentContext?.push(redirect);
+              });
+            } else {
+              context.go(
+                redirect != null && redirect.isNotEmpty
+                    ? redirect
+                    : '/dashboard',
+              );
+            }
           }
         } else if (state is RegisterFailure) {
           CustomSnackBar1.show(context, state.error);

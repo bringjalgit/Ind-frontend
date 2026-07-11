@@ -3,793 +3,88 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Terms and Conditions — IndClassifieds</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Terms &amp; Conditions — IND Classifieds</title>
 <style>
-  :root {
-    --bg: #FCFCFA;
-    --surface: #FFFFFF;
-    --ink: #1C1C1A;
-    --ink-soft: #4A4945;
-    --ink-mute: #7A7771;
-    --rule: #E5E2DA;
-    --rule-soft: #EFEDE6;
-    --accent: #8B2E2E;
-    --accent-soft: #F5E9E9;
-    --highlight: #FFF6D6;
-    --max: 1180px;
-    --reading: 720px;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
-  body {
-    font-family: 'Lora', Georgia, 'Times New Roman', serif;
-    font-size: 16px;
-    line-height: 1.7;
-    color: var(--ink);
-    background: var(--bg);
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-
-  /* -------- masthead -------- */
-  .masthead {
-    border-bottom: 1px solid var(--rule);
-    background: var(--surface);
-  }
-  .masthead-inner {
-    max-width: var(--max);
-    margin: 0 auto;
-    padding: 28px 32px 22px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
-    flex-wrap: wrap;
-  }
-  .masthead h1 {
-    font-family: 'Fraunces', 'Times New Roman', serif;
-    font-weight: 600;
-    font-size: clamp(28px, 4vw, 40px);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-    color: var(--ink);
-  }
-  .masthead .eyebrow {
-    font-family: 'Lora', serif;
-    font-size: 12px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--ink-mute);
-    margin-bottom: 8px;
-  }
-  .masthead .meta {
-    font-size: 13px;
-    color: var(--ink-mute);
-    text-align: right;
-    line-height: 1.55;
-  }
-
-  /* -------- layout -------- */
-  .layout {
-    max-width: var(--max);
-    margin: 0 auto;
-    padding: 40px 32px 80px;
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    gap: 56px;
-  }
-
-  /* -------- TOC sidebar -------- */
-  .toc {
-    position: sticky;
-    top: 24px;
-    align-self: start;
-    max-height: calc(100vh - 48px);
-    overflow-y: auto;
-    padding-right: 8px;
-  }
-  .toc-title {
-    font-family: 'Fraunces', serif;
-    font-size: 11px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--ink-mute);
-    font-weight: 600;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--rule);
-  }
-  .toc ol {
-    list-style: none;
-    counter-reset: toc;
-  }
-  .toc li {
-    counter-increment: toc;
-    margin: 2px 0;
-  }
-  .toc a {
-    display: block;
-    padding: 6px 10px 6px 36px;
-    position: relative;
-    font-size: 13.5px;
-    line-height: 1.4;
-    color: var(--ink-soft);
-    text-decoration: none;
-    border-radius: 3px;
-    border-left: 2px solid transparent;
-    transition: color 120ms, background 120ms, border-color 120ms;
-  }
-  .toc a::before {
-    content: counter(toc, decimal-leading-zero);
-    position: absolute;
-    left: 10px;
-    top: 6px;
-    font-family: 'Fraunces', serif;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink-mute);
-    letter-spacing: 0.04em;
-  }
-  .toc a:hover {
-    color: var(--ink);
-    background: var(--rule-soft);
-  }
-  .toc a.active {
-    color: var(--accent);
-    border-left-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .toc a.active::before { color: var(--accent); }
-
-  /* mobile TOC */
-  .toc-mobile { display: none; margin-bottom: 32px; }
-  .toc-mobile summary {
-    cursor: pointer;
-    list-style: none;
-    padding: 14px 16px;
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    font-family: 'Fraunces', serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ink);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .toc-mobile summary::-webkit-details-marker { display: none; }
-  .toc-mobile summary::after {
-    content: '↓';
-    color: var(--ink-mute);
-    font-weight: normal;
-    transition: transform 200ms;
-  }
-  .toc-mobile[open] summary::after { transform: rotate(180deg); }
-  .toc-mobile ol {
-    list-style: none;
-    margin-top: 6px;
-    padding: 12px;
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    counter-reset: tocm;
-  }
-  .toc-mobile li {
-    counter-increment: tocm;
-    padding: 4px 0;
-  }
-  .toc-mobile a {
-    font-size: 14px;
-    color: var(--ink-soft);
-    text-decoration: none;
-    display: block;
-    padding: 6px 8px 6px 36px;
-    position: relative;
-    border-radius: 3px;
-  }
-  .toc-mobile a::before {
-    content: counter(tocm, decimal-leading-zero);
-    position: absolute; left: 8px; top: 6px;
-    font-family: 'Fraunces', serif; font-size: 11px;
-    color: var(--ink-mute);
-  }
-  .toc-mobile a:hover { background: var(--rule-soft); }
-
-  /* -------- content -------- */
-  .content { max-width: var(--reading); }
-  .content > section { padding-top: 8px; margin-top: 40px; }
-  .content > section:first-of-type { margin-top: 0; }
-
-  .content h2 {
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    font-size: 24px;
-    line-height: 1.25;
-    letter-spacing: -0.015em;
-    color: var(--ink);
-    margin-bottom: 18px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--rule);
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-  }
-  .content h2 .num {
-    font-family: 'Fraunces', serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-    font-variant-numeric: tabular-nums;
-    min-width: 30px;
-  }
-
-  .content p {
-    margin: 0 0 14px 0;
-    color: var(--ink-soft);
-    text-align: justify;
-    hyphens: auto;
-  }
-  .content p strong { color: var(--ink); font-weight: 600; }
-
-  .content ul {
-    list-style: none;
-    margin: 0 0 18px 0;
-    padding: 0;
-  }
-  .content ul li {
-    position: relative;
-    padding: 0 0 10px 28px;
-    color: var(--ink-soft);
-    text-align: justify;
-    hyphens: auto;
-  }
-  .content ul li::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 12px;
-    width: 6px;
-    height: 1.5px;
-    background: var(--accent);
-  }
-  .content ul li strong { color: var(--ink); font-weight: 600; }
-
-  /* defined term list */
-  .deflist li::before { display: none; }
-  .deflist li { padding-left: 0; }
-  .deflist .term {
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    color: var(--ink);
-    font-style: italic;
-  }
-
-  /* -------- callouts -------- */
-  .callout {
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-left: 3px solid var(--accent);
-    padding: 18px 22px;
-    margin: 24px 0 32px;
-    font-size: 15px;
-    line-height: 1.65;
-    color: var(--ink);
-  }
-  .callout-eyebrow {
-    font-family: 'Fraunces', serif;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 6px;
-  }
-  .callout p { color: var(--ink); text-align: left; }
-
-  /* -------- grievance card -------- */
-  .grievance-card {
-    background: var(--surface);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    padding: 22px 26px;
-    margin: 18px 0 20px;
-  }
-  .grievance-card dl {
-    display: grid;
-    grid-template-columns: 130px 1fr;
-    gap: 8px 18px;
-    font-size: 14.5px;
-    line-height: 1.55;
-  }
-  .grievance-card dt {
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    color: var(--ink);
-    font-size: 13px;
-    letter-spacing: 0.04em;
-  }
-  .grievance-card dd { color: var(--ink-soft); }
-
-  /* -------- back to top -------- */
-  .to-top {
-    position: fixed;
-    bottom: 32px;
-    right: 32px;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--ink);
-    color: var(--bg);
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 200ms, transform 200ms, background 150ms;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
-    z-index: 10;
-  }
-  .to-top.visible { opacity: 1; transform: translateY(0); }
-  .to-top:hover { background: var(--accent); }
-
-  /* link styling within text */
-  .content a, .grievance-card a {
-    color: var(--accent);
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 2px;
-  }
-  .content a:hover { color: var(--ink); }
-
-  /* anchor offset target highlight */
-  :target h2 { scroll-margin-top: 24px; }
-  .content section.flash h2 .num {
-    background: var(--highlight);
-    padding: 2px 6px;
-    border-radius: 2px;
-  }
-
-  /* footer */
-  .doc-footer {
-    border-top: 1px solid var(--rule);
-    padding: 36px 32px;
-    text-align: center;
-    color: var(--ink-mute);
-    font-size: 13px;
-    background: var(--surface);
-  }
-
-  /* -------- responsive -------- */
-  @media (max-width: 900px) {
-    .layout {
-      grid-template-columns: 1fr;
-      gap: 0;
-      padding: 24px 20px 60px;
-    }
-    .toc { display: none; }
-    .toc-mobile { display: block; }
-    .masthead-inner { padding: 22px 20px 16px; }
-    .masthead .meta { text-align: left; }
-    .content h2 { font-size: 21px; }
-    .content p, .content ul li { text-align: left; hyphens: none; }
-    .grievance-card dl { grid-template-columns: 1fr; gap: 2px 0; }
-    .grievance-card dt { margin-top: 8px; }
-    .to-top { bottom: 20px; right: 20px; }
-  }
+  :root { --ink:#1c2430; --muted:#5b6675; --brand:#1677ff; --line:#e7ebf0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink);
+         line-height:1.55; padding:20px 18px 40px; background:#fff; -webkit-text-size-adjust:100%; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .updated { color:var(--muted); font-size:12.5px; margin-bottom:16px; }
+  .intro { font-size:14px; color:#33404f; background:#f5f8ff; border:1px solid #dbe7ff; border-radius:10px; padding:12px 14px; margin-bottom:18px; }
+  h2 { font-size:15.5px; margin:22px 0 6px; color:var(--ink); }
+  .n { color:var(--brand); font-weight:700; }
+  p, li { font-size:13.5px; color:#2b3442; margin:6px 0; }
+  ul, ol { padding-left:18px; margin:6px 0; }
+  a { color:var(--brand); word-break:break-word; }
+  .foot { margin-top:26px; padding-top:14px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted); }
 </style>
 </head>
 <body>
+  <h1>Terms and Conditions</h1>
+  <div class="updated">IND CLASSIFIEDS · Last updated: 2 July 2026</div>
 
-<header class="masthead">
-  <div class="masthead-inner">
-    <div>
-      <div class="eyebrow">IndClassifieds · Legal</div>
-      <h1>Terms &amp; Conditions of Use</h1>
-    </div>
-    <div class="meta">
-      Last updated 25 May 2026<br>
-      Effective from 01 December 2025
-    </div>
+  <div class="intro">
+    Welcome to IND CLASSIFIEDS! By accessing or using our classified marketplace application (the "App"), you agree to be bound by these Terms and Conditions (the "Terms"). If you do not agree to these Terms, please do not use the App.
   </div>
-</header>
 
-<div class="layout">
+  <h2><span class="n">1.</span> Introduction</h2>
+  <p>IND CLASSIFIEDS provides a platform for users to buy, sell, and trade goods and services (the "Services"). These Terms govern your use of the App and the Services provided through it.</p>
 
-  <!-- Mobile TOC -->
-  <details class="toc-mobile">
-    <summary>Jump to a section</summary>
-    <ol>
-      <li><a href="#s1">Definitions and Interpretation</a></li>
-      <li><a href="#s2">Acceptance of Terms</a></li>
-      <li><a href="#s3">Eligibility</a></li>
-      <li><a href="#s4">Account Registration and Security</a></li>
-      <li><a href="#s5">Nature of the Platform — Intermediary Status</a></li>
-      <li><a href="#s6">Listings — Seller Obligations</a></li>
-      <li><a href="#s7">Buyer Obligations and Due Diligence</a></li>
-      <li><a href="#s8">The “Sell with AI” Feature</a></li>
-      <li><a href="#s9">The “Verified Badge” — Express Clarification</a></li>
-      <li><a href="#s10">Community Features</a></li>
-      <li><a href="#s11">Transactions, Payments and Taxes</a></li>
-      <li><a href="#s12">Prohibited Items, Listings and Conduct</a></li>
-      <li><a href="#s13">Intellectual Property</a></li>
-      <li><a href="#s14">Privacy and Personal Data</a></li>
-      <li><a href="#s15">Disclaimers and No Warranty</a></li>
-      <li><a href="#s16">Limitation of Liability</a></li>
-      <li><a href="#s17">Indemnification by the User</a></li>
-      <li><a href="#s18">Suspension and Termination</a></li>
-      <li><a href="#s19">Governing Law and Dispute Resolution</a></li>
-      <li><a href="#s20">Force Majeure</a></li>
-      <li><a href="#s21">Grievance Officer</a></li>
-      <li><a href="#s22">Miscellaneous</a></li>
-    </ol>
-  </details>
+  <h2><span class="n">2.</span> Eligibility</h2>
+  <p>By using IND CLASSIFIEDS, you represent that you are at least 18 years old and have the legal capacity to enter into this agreement. If you are under 18, you may only use the App under the supervision of a parent or legal guardian.</p>
 
-  <!-- Desktop TOC -->
-  <nav class="toc" aria-label="Table of contents">
-    <div class="toc-title">Contents</div>
-    <ol>
-      <li><a href="#s1">Definitions and Interpretation</a></li>
-      <li><a href="#s2">Acceptance of Terms</a></li>
-      <li><a href="#s3">Eligibility</a></li>
-      <li><a href="#s4">Account Registration and Security</a></li>
-      <li><a href="#s5">Nature of the Platform — Intermediary Status</a></li>
-      <li><a href="#s6">Listings — Seller Obligations</a></li>
-      <li><a href="#s7">Buyer Obligations and Due Diligence</a></li>
-      <li><a href="#s8">The “Sell with AI” Feature</a></li>
-      <li><a href="#s9">The “Verified Badge” — Express Clarification</a></li>
-      <li><a href="#s10">Community Features</a></li>
-      <li><a href="#s11">Transactions, Payments and Taxes</a></li>
-      <li><a href="#s12">Prohibited Items, Listings and Conduct</a></li>
-      <li><a href="#s13">Intellectual Property</a></li>
-      <li><a href="#s14">Privacy and Personal Data</a></li>
-      <li><a href="#s15">Disclaimers and No Warranty</a></li>
-      <li><a href="#s16">Limitation of Liability</a></li>
-      <li><a href="#s17">Indemnification by the User</a></li>
-      <li><a href="#s18">Suspension and Termination</a></li>
-      <li><a href="#s19">Governing Law and Dispute Resolution</a></li>
-      <li><a href="#s20">Force Majeure</a></li>
-      <li><a href="#s21">Grievance Officer</a></li>
-      <li><a href="#s22">Miscellaneous</a></li>
-    </ol>
-  </nav>
+  <h2><span class="n">3.</span> User Responsibilities</h2>
+  <ul>
+    <li><b>Account Information:</b> You must provide accurate and complete information when creating an account. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</li>
+    <li><b>Prohibited Activities:</b> You agree not to engage in any of the following:
+      <ol>
+        <li>Posting false, misleading, or fraudulent content.</li>
+        <li>Violating any local, state, national, or international laws.</li>
+        <li>Uploading any content that contains viruses or other harmful code.</li>
+        <li>Harassing, threatening, or abusing other users.</li>
+      </ol>
+    </li>
+  </ul>
 
-  <main class="content">
+  <h2><span class="n">4.</span> Posting and Selling</h2>
+  <ul>
+    <li><b>Listings:</b> All listings must be accurate and truthful. Misleading listings may be removed, and your account may be suspended.</li>
+    <li><b>Transactions:</b> IND CLASSIFIEDS is not responsible for the quality, safety, legality, or delivery of the items listed by users. All transactions are conducted at the user's own risk.</li>
+    <li><b>Fees:</b> Any applicable fees for listing or selling items will be clearly communicated to you before you incur them.</li>
+  </ul>
 
-    <div class="callout">
-      <div class="callout-eyebrow">Important — read carefully</div>
-      <p>By creating an account, accessing or using IndClassifieds (the “Platform”), you (“You”, “User”) confirm that you have read, understood and agree to be legally bound by these Terms and Conditions (“Terms”), our Privacy Policy and our Community Guidelines, all of which together form a binding agreement between you and Trinetrax Solutions Pvt. Ltd. (“Company”, “We”, “Us”, “Our”). If you do not agree, you must not register for or use the Platform.</p>
-    </div>
+  <h2><span class="n">5.</span> Intellectual Property</h2>
+  <ul>
+    <li><b>Ownership:</b> All content provided by IND CLASSIFIEDS, including but not limited to text, graphics, logos, and software, is the property of IND CLASSIFIEDS or its licensors and is protected by intellectual property laws.</li>
+    <li><b>User Content:</b> By posting content on IND CLASSIFIEDS, you grant us a non-exclusive, royalty-free, perpetual, and worldwide license to use, modify, and display your content in connection with the App.</li>
+  </ul>
 
-    <section id="s1">
-      <h2><span class="num">01</span>Definitions and Interpretation</h2>
-      <p>In these Terms, unless the context otherwise requires, the following terms shall have the meanings ascribed below:</p>
-      <ul class="deflist">
-        <li><span class="term">“Platform”</span> means the mobile application, website and any sub-domains operated by the Company under the brand IndClassifieds, including any future versions, modules, APIs or services made available by the Company.</li>
-        <li><span class="term">“Listing”</span> means any advertisement, offer, post, classified or content uploaded by a Seller on the Platform offering goods, services, opportunities, community invitations or similar.</li>
-        <li><span class="term">“Seller”</span> means a User who creates a Listing on the Platform.</li>
-        <li><span class="term">“Buyer”</span> means a User who views, responds to or transacts in respect of a Listing or interacts in a community module.</li>
-        <li><span class="term">“Sell with AI”</span> means the optional automated assistance feature described in Clause 8 of these Terms.</li>
-        <li><span class="term">“Verified Badge”</span> means the visual indicator described in Clause 9, which signifies that the User has submitted certain identification details and not anything further.</li>
-        <li><span class="term">“Community Features”</span> means the discovery, networking and interest-based modules described in Clause 10, including (without limitation) features such as “Find an Investor”, “Find a Sports/Hobby Partner”, “Local Groups” and similar.</li>
-        <li><span class="term">“Content”</span> means all data, text, photographs, videos, audio, communication, opinions, prices, descriptions and any other material uploaded, transmitted or made available on the Platform by a User.</li>
-        <li><span class="term">“Applicable Law”</span> means the laws of the Republic of India in force from time to time, including but not limited to the Information Technology Act, 2000, the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, the Digital Personal Data Protection Act, 2023, the Consumer Protection Act, 2019 and the Consumer Protection (E-Commerce) Rules, 2020, the Indian Contract Act, 1872, the Bharatiya Nyaya Sanhita, 2023 and any rules, regulations, notifications or directions made thereunder.</li>
-      </ul>
-    </section>
+  <h2><span class="n">6.</span> Privacy Policy</h2>
+  <p>Your use of the IND CLASSIFIEDS App is also governed by our <a href="/privacy">Privacy Policy</a>, which explains how we collect, use, and protect your personal information. Please review the Privacy Policy to understand our practices.</p>
 
-    <section id="s2">
-      <h2><span class="num">02</span>Acceptance of Terms</h2>
-      <p>2.1. These Terms constitute an electronic record in terms of the Information Technology Act, 2000 and the rules thereunder. This document is published and executed in accordance with the provisions of Rule 3(1)(a) and Rule 3(1)(b) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 and does not require any physical or digital signature.</p>
-      <p>2.2. By ticking the “I agree” box, clicking “Sign Up”, “Register” or any equivalent button, or by simply accessing or using the Platform, You expressly accept these Terms and acknowledge that they form a legally binding contract enforceable against You under the Indian Contract Act, 1872.</p>
-      <p>2.3. The Company may, at its sole discretion, update or amend these Terms at any time. Any such amendment shall be effective upon being posted on the Platform. Continued use of the Platform after such amendment shall be deemed acceptance of the amended Terms. It is Your responsibility to review these Terms periodically.</p>
-    </section>
+  <h2><span class="n">7.</span> Disclaimers and Limitation of Liability</h2>
+  <ul>
+    <li><b>As-Is Basis:</b> The App and Services are provided on an "as-is" and "as-available" basis without warranties of any kind, either express or implied.</li>
+    <li><b>No Liability:</b> To the fullest extent permitted by law, IND CLASSIFIEDS disclaims all liability for any damages arising from your use of the App, including but not limited to direct, indirect, incidental, and consequential damages.</li>
+  </ul>
 
-    <section id="s3">
-      <h2><span class="num">03</span>Eligibility</h2>
-      <p>3.1. The Platform is intended exclusively for use by residents of India. By registering, You represent and warrant that You are physically located in and ordinarily reside within the territorial boundaries of India.</p>
-      <p>3.2. You must be a natural person who has attained the age of eighteen (18) years and is competent to contract under Section 11 of the Indian Contract Act, 1872. Minors, persons of unsound mind and persons disqualified from contracting under law shall not register or use the Platform.</p>
-      <p>3.3. If You are registering on behalf of a partnership, company, LLP, sole proprietorship or any other legal entity, You represent and warrant that You are duly authorised to bind such entity to these Terms.</p>
-      <p>3.4. The Company reserves the right to refuse registration, suspend or terminate any account, with or without notice and at its sole discretion, where it has reasonable grounds to believe that the User does not satisfy the eligibility criteria, has provided false information, or has otherwise breached these Terms.</p>
-    </section>
+  <h2><span class="n">8.</span> Termination</h2>
+  <p>IND CLASSIFIEDS reserves the right to terminate or suspend your account at any time, without notice, for conduct that we believe violates these Terms or is harmful to other users of the App.</p>
 
-    <section id="s4">
-      <h2><span class="num">04</span>Account Registration and Security</h2>
-      <p>4.1. To use most features of the Platform, You must register an account by providing accurate, current and complete information, which may include Your name, mobile number, email address, location and (for certain features) identification information such as PAN, Aadhaar reference or other documents.</p>
-      <p>4.2. You are solely responsible for maintaining the confidentiality of Your account credentials (including OTP, password and any biometric authentication), and for all activities that occur under Your account. You agree to immediately notify the Company of any unauthorised use of Your account.</p>
-      <p>4.3. You shall not create more than one account, impersonate any person, use another person’s account, transfer Your account to any third party, or use any automated means (including bots, scripts or scrapers) to access the Platform.</p>
-      <p>4.4. The Company shall not be liable for any loss or damage arising from Your failure to comply with this Clause 4, including any unauthorised access resulting from credentials shared, lost, or compromised by You.</p>
-    </section>
+  <h2><span class="n">9.</span> Changes to Terms</h2>
+  <p>We may modify these Terms at any time. Any changes will be effective immediately upon posting. Your continued use of the App after any such changes constitutes your acceptance of the new Terms.</p>
 
-    <section id="s5">
-      <h2><span class="num">05</span>Nature of the Platform — Intermediary Status</h2>
-      <p>5.1. The Platform is a classifieds and community marketplace which functions purely as an “intermediary” within the meaning of Section 2(1)(w) of the Information Technology Act, 2000. The Platform merely provides a venue where Users may publish, view and respond to Listings and engage with Community Features.</p>
-      <p>5.2. The Company is <strong>NOT</strong> a party to any transaction, contract, communication, exchange, meeting, introduction or arrangement between Users. The Company does not own, sell, resell, control, manage, store, deliver, inspect, authenticate, value, appraise, guarantee, or assure the existence, quality, safety, legality, condition, fitness, authenticity, ownership, title or pricing of any item, service, opportunity or person featured in any Listing or Community Feature.</p>
-      <p>5.3. All contracts for the sale or exchange of goods or services arising from a Listing are executed solely and directly between the Seller and the Buyer. Any dispute arising from such contract is a private dispute between such Users, and the Company shall not be a necessary or proper party to such dispute.</p>
-      <p>5.4. The Company avails of, and shall continue to avail of, the safe-harbour protections set out in Section 79 of the Information Technology Act, 2000 read with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.</p>
-    </section>
+  <h2><span class="n">10.</span> Governing Law and Dispute Resolution</h2>
+  <p>These Terms are governed by the laws of India and the jurisdiction of Delhi, without regard to its conflict of laws principles. Any disputes arising from or relating to these Terms or the App shall be resolved exclusively in the courts of Delhi, India.</p>
 
-    <section id="s6">
-      <h2><span class="num">06</span>Listings — Seller Obligations</h2>
-      <p>6.1. By posting a Listing, the Seller represents and warrants that:</p>
-      <ul>
-        <li>the Seller is the lawful owner of, or duly authorised to sell, the item or service offered;</li>
-        <li>the description, photographs, condition and price stated in the Listing are accurate, complete and not misleading;</li>
-        <li>the Listing complies with all Applicable Law, including any applicable licensing, registration, tax or labelling requirements;</li>
-        <li>the Listing does not infringe any third-party intellectual property, privacy, publicity, contractual or other rights;</li>
-        <li>the item is not a Prohibited Item under Clause 12 of these Terms.</li>
-      </ul>
-      <p>6.2. The Seller is responsible for setting the price, responding to Buyer queries (whether directly or via Sell with AI under Clause 8), arranging inspection or delivery, collecting payment and issuing any invoice or receipt required by Applicable Law (including under the Goods and Services Tax laws, if applicable).</p>
-      <p>6.3. The Company reserves the right (but does not assume the obligation) to review, edit, refuse, delist or remove any Listing at its sole discretion, including for non-compliance with these Terms or Applicable Law, or upon receipt of a complaint or court/government order.</p>
-    </section>
+  <h2><span class="n">11.</span> Indemnification</h2>
+  <p>You agree to indemnify and hold harmless IND CLASSIFIEDS, its affiliates, and its and their respective officers, directors, employees, and agents from any claims, liabilities, damages, and expenses arising out of your use of the App or violation of these Terms.</p>
 
-    <section id="s7">
-      <h2><span class="num">07</span>Buyer Obligations and Due Diligence</h2>
-      <p>7.1. The Buyer acknowledges that the Platform does <strong>NOT</strong> perform inspection, valuation, authentication or background check of any Seller, item or service. The Buyer is solely responsible for conducting independent due diligence before transacting.</p>
-      <p>7.2. Without limiting the generality of the foregoing, the Buyer is advised to:</p>
-      <ul>
-        <li>physically inspect the item (or appoint a qualified expert) before payment;</li>
-        <li>verify the Seller’s ownership, title, identity and the genuineness of any document independently;</li>
-        <li>prefer transactions conducted in safe, public locations during daylight hours;</li>
-        <li>exercise particular caution before making any advance payment, deposit or token amount;</li>
-        <li>not part with original documents (such as RC, title deed, share certificate) without confirmed receipt of full consideration through a verifiable channel.</li>
-      </ul>
-      <p>7.3. The Buyer further acknowledges that prices, descriptions and counter-offers communicated through the Platform — including any communication generated by Sell with AI — are non-binding indications of willingness to deal and do not constitute a binding offer or contract until reduced to writing and unequivocally accepted by the Seller and Buyer in respect of an identified item.</p>
-    </section>
+  <h2><span class="n">12.</span> Contact Information</h2>
+  <p>If you have any questions or concerns about these Terms, please contact us at:<br>
+     Email: <a href="mailto:support@indclassifieds.in">support@indclassifieds.in</a></p>
 
-    <section id="s8">
-      <h2><span class="num">08</span>The “Sell with AI” Feature</h2>
-      <p>8.1. <strong>Description.</strong> “Sell with AI” is an optional rule-based automation tool that the Seller may activate for any Listing. When activated, certain Buyer messages — particularly those relating to price, availability, basic specifications and bargaining — may be responded to automatically by an algorithmic agent operating within parameters set by the Seller or the Company’s default rules. The Seller remains free to take over the conversation manually at any time.</p>
-      <p>8.2. <strong>Acknowledgement and Consent by Buyer.</strong> By using the Platform, the Buyer expressly acknowledges, understands and consents to the following:</p>
-      <ul>
-        <li>messages received in response to a Listing for which “Sell with AI” has been activated MAY be generated, in whole or in part, by an automated system, without further notice or labelling on each individual message;</li>
-        <li>the Buyer may not, at the time of a given message, be able to distinguish between communication from a human Seller and communication from the automated system, and the Buyer voluntarily waives any objection on that ground;</li>
-        <li>an automated response is purely a preliminary indication of the Seller’s general willingness to deal, is subject to confirmation by the Seller, and does not constitute a binding contract;</li>
-        <li>the Buyer shall not rely solely on any automated message for the purpose of making a final purchasing decision and shall conduct independent due diligence as set out in Clause 7.</li>
-      </ul>
-      <p>8.3. <strong>Acknowledgement and Liability of Seller.</strong> The Seller acknowledges that:</p>
-      <ul>
-        <li>the Seller is solely responsible for configuring the parameters of Sell with AI (including the minimum acceptable price, negotiation range and standard responses);</li>
-        <li>any contract concluded through the automated agent on behalf of the Seller shall be deemed to have been concluded by the Seller personally, and the Seller cannot subsequently disclaim such contract on the ground that it was negotiated by an algorithm;</li>
-        <li>the Seller shall not use Sell with AI to engage in deceptive, fraudulent, harassing, discriminatory or unlawful conduct;</li>
-        <li>the Seller indemnifies the Company against any claim arising from the use of Sell with AI on the Seller’s account, on the terms set out in Clause 17.</li>
-      </ul>
-      <p>8.4. <strong>Disclaimer Regarding the Automated System.</strong> The automated system is a rule-based tool and is provided on an “as is” basis. The Company makes no representation or warranty regarding its accuracy, completeness, response time, suitability or freedom from error. The Company shall not be liable for any loss arising from any automated message, including any message which a User claims to be inaccurate, misleading or unauthorised.</p>
-      <p>8.5. <strong>Right to Disable.</strong> The Company may at its sole discretion suspend, modify or discontinue Sell with AI, in whole or in part, at any time without notice and without any liability.</p>
-    </section>
-
-    <section id="s9">
-      <h2><span class="num">09</span>The “Verified Badge” — Express Clarification</h2>
-      <p>9.1. Some Users may display a “Verified Badge” adjacent to their profile or Listing. This Clause 9 sets out the precise and exclusive meaning of such badge. By accepting these Terms, every User expressly acknowledges and agrees to the following:</p>
-      <p>9.2. The Verified Badge signifies, and signifies only, that the User has submitted to the Company certain identification details (which may include the User’s Permanent Account Number (PAN), a photograph, a contact number and/or other personal information) at the time of opting in for the badge. <strong>The Verified Badge does NOT mean:</strong></p>
-      <ul>
-        <li>that the Company has authenticated, validated, cross-checked or confirmed any such details with the Income Tax Department, Unique Identification Authority of India (UIDAI), Ministry of Corporate Affairs, any government registry, any credit bureau, or any third party;</li>
-        <li>that the Company has verified the identity, address, age, occupation, financial standing, criminal record, trustworthiness, reputation or bona fides of the User;</li>
-        <li>that the User is more credible, honest, solvent or reliable than any non-Verified User;</li>
-        <li>that any Listing posted by the User is genuine, accurate, authorised or lawful;</li>
-        <li>any endorsement, recommendation, certification or guarantee of any nature by the Company in respect of the User or the User’s Listings.</li>
-      </ul>
-      <p>9.3. <strong>Buyer Acknowledgement.</strong> Every Buyer expressly acknowledges and agrees that the presence of a Verified Badge shall NOT be relied upon as a substitute for independent due diligence under Clause 7. The Buyer waives any claim against the Company arising from any reliance placed by the Buyer on the Verified Badge alone.</p>
-      <p>9.4. <strong>Seller Acknowledgement.</strong> The Seller represents that all information submitted to obtain the Verified Badge is true, current and belongs to the Seller. The Seller authorises the Company to retain such information in accordance with the Privacy Policy and Applicable Law (including the Digital Personal Data Protection Act, 2023) and to disclose the same to law-enforcement agencies, courts or other statutory authorities pursuant to a lawful request.</p>
-      <p>9.5. <strong>Revocation.</strong> The Company may at its sole discretion withdraw, revoke or refuse to grant a Verified Badge at any time, without liability.</p>
-    </section>
-
-    <section id="s10">
-      <h2><span class="num">10</span>Community Features</h2>
-      <p>10.1. The Platform offers Community Features which allow Users to discover and connect with other Users sharing a common interest, including (without limitation) “Find an Investor”, “Find a Sports / Hobby Partner”, “Find a Co-founder / Collaborator”, “Local Groups” and similar modules. The Company makes the following matters expressly clear:</p>
-      <p>10.2. <strong>No introduction, recommendation or endorsement.</strong> The Company merely facilitates connection between Users on the basis of self-declared interests, profiles and preferences. The Company does not introduce, recommend, vouch for or endorse any User to any other User.</p>
-      <p>10.3. <strong>Investor / Funding-related modules — Special Disclaimer.</strong></p>
-      <ul>
-        <li>The “Find an Investor” module (and any similar module dealing with investment, funding, fund-raising, lending or financial collaboration) is provided solely as a discovery and networking tool. It is NOT an offer, invitation, advertisement or solicitation by the Company to invest in any security, instrument, scheme, opportunity, business or person.</li>
-        <li>The Company is NOT a stockbroker, investment adviser, portfolio manager, merchant banker, alternative investment fund, banking company, non-banking financial company, payment system operator or any other entity registered with or regulated by the Securities and Exchange Board of India (SEBI), the Reserve Bank of India (RBI), the Insurance Regulatory and Development Authority of India (IRDAI) or any similar regulator.</li>
-        <li>Nothing on the Platform shall be construed as financial, investment, legal, tax or accounting advice. Users seeking such advice shall consult qualified professionals.</li>
-        <li>Any negotiation, term-sheet, investment, loan, equity allotment, transfer of funds or any other financial arrangement arising from a connection made via the Platform is the exclusive responsibility of the participating Users. Users must independently ensure compliance with all Applicable Law, including the Companies Act, 2013, SEBI regulations, the Foreign Exchange Management Act, 1999, the Prevention of Money Laundering Act, 2002 and the Income Tax Act, 1961.</li>
-        <li>The Company shall not be liable for any loss, default, fraud, misrepresentation, regulatory non-compliance, or unsuccessful investment arising from such User-to-User dealings.</li>
-      </ul>
-      <p>10.4. <strong>Sports, Hobby and Social meetups.</strong></p>
-      <ul>
-        <li>Users participating in offline meetups (including for badminton, cricket, running, cycling, trekking, cultural or any other activity) do so entirely at their own risk.</li>
-        <li>The Company does not organise, supervise, insure or take any responsibility for such meetups, the venue, equipment, weather conditions, conduct of participants, transportation or any incident, injury, illness, theft or accident occurring before, during or after such meetup.</li>
-        <li>Users are strongly advised to meet in safe public locations, share details of the meetup with a trusted person, carry valid identification, and exercise common-sense personal safety precautions.</li>
-      </ul>
-      <p>10.5. The Company shall have the right (but not the obligation) to moderate, remove or restrict any User, post, group or interaction in any Community Feature for any reason, including for non-compliance with these Terms, the Community Guidelines or Applicable Law.</p>
-    </section>
-
-    <section id="s11">
-      <h2><span class="num">11</span>Transactions, Payments and Taxes</h2>
-      <p>11.1. Unless expressly stated otherwise within a specific feature, the Company does not collect, hold, escrow, route or remit consideration in respect of any transaction between Users. Payment is to be settled directly between the Buyer and the Seller through a method mutually agreed by them.</p>
-      <p>11.2. Where the Platform integrates a third-party payment gateway, wallet, escrow service or shipping aggregator, such service shall be subject to the third party’s own terms and conditions. The Company is not a payment system operator and does not bear responsibility for the success, failure, refund or settlement of any such third-party service.</p>
-      <p>11.3. Each User is solely responsible for the payment of all applicable taxes, levies, duties and statutory dues (including Goods and Services Tax and Income Tax) arising from any transaction, listing or activity on the Platform, and for the issuance of any required invoice, receipt or document.</p>
-      <p>11.4. <strong>Subscription or premium services.</strong> If the Company offers paid subscriptions or premium services (including listing boosts, additional Listings, or enhanced visibility), the applicable fees, billing cycle, renewal mechanism, refund policy and cancellation terms shall be displayed at the time of purchase and shall form part of these Terms. All fees are payable in Indian Rupees and are inclusive or exclusive of GST as expressly stated.</p>
-    </section>
-
-    <section id="s12">
-      <h2><span class="num">12</span>Prohibited Items, Listings and Conduct</h2>
-      <p>12.1. The User shall NOT post, transmit, share, publish or otherwise make available, on the Platform, any Content or Listing that:</p>
-      <ul>
-        <li>is in respect of any item, service or activity prohibited or restricted under Applicable Law, including narcotic drugs and psychotropic substances; firearms, ammunition, explosives and weapons; counterfeit currency; hazardous chemicals or radioactive material; wildlife, ivory, animal parts or banned species; tobacco products to minors; alcohol in violation of state law; sex toys, pornography or obscene material; human organs, blood, tissues, gametes or surrogacy services; lottery tickets and gambling instruments where prohibited; stolen property; chain-marketing or pyramid schemes; multi-level marketing schemes in contravention of the Direct Selling Guidelines; offerings of any unregistered security; cryptocurrency or virtual digital asset services in contravention of the prevailing regulatory framework; smuggled, contraband or untaxed goods; goods on which a court or government authority has placed an attachment, lien or restraint; recalled or banned products;</li>
-        <li>is grossly harmful, harassing, blasphemous, defamatory, obscene, paedophilic, libellous, invasive of another’s privacy (including bodily privacy), insulting or harassing on the basis of gender, hateful, racially or ethnically objectionable, relating to or encouraging money laundering or gambling, harmful to a child, or otherwise inconsistent with or contrary to the laws in force;</li>
-        <li>infringes any patent, trademark, copyright, trade-secret or other proprietary right;</li>
-        <li>violates any law for the time being in force or any judicial order;</li>
-        <li>deceives or misleads the addressee about the origin of a message, knowingly and intentionally communicates any misinformation or information that is patently false or untrue or misleading in nature;</li>
-        <li>impersonates another person, including a public figure;</li>
-        <li>threatens the unity, integrity, defence, security or sovereignty of India, its friendly relations with foreign States, public order, or causes incitement to the commission of any cognisable offence, prevents investigation of any offence, or insults any other nation;</li>
-        <li>contains a software virus or any other computer code, file or program designed to interrupt, destroy, or limit the functionality of the Platform or any computer resource;</li>
-        <li>is patently false and untrue, and is written or published in any form with the intent to mislead or harass any person or entity for financial gain or to cause any injury to any person.</li>
-      </ul>
-      <p>12.2. The User further undertakes not to: (a) scrape, mirror or reverse-engineer any part of the Platform; (b) circumvent any technological measure; (c) interfere with the proper working of the Platform; (d) use the Platform to send unsolicited commercial communication (spam); (e) abuse the Sell with AI feature with malicious prompt-injection attempts or to mislead other Users; (f) submit fake Listings, fake reviews, fake counter-offers or fake community profiles; (g) use the Platform for any purpose other than the lawful purposes contemplated by these Terms.</p>
-      <p>12.3. Breach of this Clause 12 may, in addition to any other remedy, result in immediate suspension or termination of the User’s account, withholding of any pending refund or earnings, reporting to law-enforcement authorities, and civil or criminal proceedings.</p>
-    </section>
-
-    <section id="s13">
-      <h2><span class="num">13</span>Intellectual Property</h2>
-      <p>13.1. All rights, title and interest in and to the Platform, including its source code, design, layout, trademarks, logos, software, databases, compilations, look-and-feel and any improvements or modifications thereto, are and shall remain the exclusive property of the Company and/or its licensors. No User shall acquire any right or interest in the same by reason of these Terms or use of the Platform.</p>
-      <p>13.2. <strong>Licence to User.</strong> The Company grants the User a personal, limited, non-exclusive, non-transferable, non-sublicensable, revocable licence to access and use the Platform solely for the purposes contemplated by these Terms.</p>
-      <p>13.3. <strong>User Content Licence.</strong> The User retains ownership of all User-generated Content posted by the User. However, by posting such Content, the User grants the Company a worldwide, royalty-free, non-exclusive, sub-licensable, perpetual and irrevocable licence to use, host, store, reproduce, modify, adapt, publish, translate, communicate, display, distribute and create derivative works of such Content, solely for the purposes of operating, promoting, improving and providing the Platform and related services. This licence survives termination of the User’s account in respect of Content already posted.</p>
-      <p>13.4. The User represents that the User has all rights necessary to grant the above licence and that the Content does not infringe any third-party right.</p>
-      <p>13.5. <strong>Notice and Take-down.</strong> Any person who believes that Content on the Platform infringes such person’s intellectual property rights may notify the Grievance Officer (Clause 21) with sufficient particulars. The Company shall act in accordance with the timelines and procedure prescribed under the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.</p>
-    </section>
-
-    <section id="s14">
-      <h2><span class="num">14</span>Privacy and Personal Data</h2>
-      <p>14.1. The Company processes personal data of Users in accordance with its Privacy Policy, which is incorporated into these Terms by reference and which the User is requested to read carefully. The Privacy Policy explains the categories of personal data collected, the purposes of processing, the legal basis, retention period, sharing, security measures, and User rights under the Digital Personal Data Protection Act, 2023.</p>
-      <p>14.2. By accepting these Terms, the User provides specific, informed, free, unconditional and unambiguous consent to the processing of personal data (including PAN and other identification details submitted for the Verified Badge, contact details, location data, Listing data and transactional metadata) for the purposes set out in the Privacy Policy.</p>
-      <p>14.3. The User has the right to access, correct, complete, update or erase personal data, withdraw consent and nominate a representative, as more particularly set out in the Privacy Policy, subject to lawful exceptions and overriding statutory obligations of the Company.</p>
-      <p>14.4. The Company may share personal data with law-enforcement authorities, courts, statutory authorities or other governmental agencies pursuant to a lawful order, summons, request or notice.</p>
-    </section>
-
-    <section id="s15">
-      <h2><span class="num">15</span>Disclaimers and No Warranty</h2>
-      <p>15.1. The Platform is provided strictly on an “as is” and “as available” basis. To the maximum extent permitted by Applicable Law, the Company expressly disclaims all representations, warranties and conditions, whether express or implied, including (without limitation) any warranty of merchantability, fitness for a particular purpose, accuracy, completeness, non-infringement, title, uninterrupted operation, freedom from defect, malware, virus or error.</p>
-      <p>15.2. Without limiting the generality of the foregoing, the Company does <strong>NOT</strong> warrant:</p>
-      <ul>
-        <li>the existence, quality, safety, legality, condition, value, authenticity, ownership or title of any item or service offered by any Seller;</li>
-        <li>the truth, accuracy, completeness, currency or reliability of any Listing, Content or User profile;</li>
-        <li>the identity, age, credentials, financial standing, intention or trustworthiness of any User, including any Verified User;</li>
-        <li>the success of any Buyer-Seller transaction, any community connection, or any investor introduction;</li>
-        <li>the uninterrupted, secure or timely availability of the Platform;</li>
-        <li>the accuracy, reliability or appropriateness of any communication generated by the Sell with AI feature.</li>
-      </ul>
-      <p>15.3. The User assumes the entire risk arising from the use of the Platform and from any reliance on Content thereon.</p>
-    </section>
-
-    <section id="s16">
-      <h2><span class="num">16</span>Limitation of Liability</h2>
-      <p>16.1. To the maximum extent permitted by Applicable Law, the Company, its officers, directors, employees, contractors, agents, partners, suppliers and licensors shall <strong>NOT</strong> be liable for any indirect, incidental, special, consequential, punitive or exemplary damages, including (without limitation) loss of profit, loss of revenue, loss of business, loss of opportunity, loss of goodwill, loss of data, business interruption, personal injury, emotional distress, or any damages arising from:</p>
-      <ul>
-        <li>any Listing, Content, transaction, communication, conduct or omission of any User;</li>
-        <li>any item, service, opportunity, investor introduction, community meeting, sports activity or other interaction arising via the Platform;</li>
-        <li>any inaccuracy, error or omission in any Sell with AI message;</li>
-        <li>any reliance placed on the Verified Badge or any User-supplied information;</li>
-        <li>any unauthorised access to or alteration of User Content or User account;</li>
-        <li>any temporary or permanent unavailability of the Platform;</li>
-        <li>any cause beyond the reasonable control of the Company.</li>
-      </ul>
-      <p>16.2. Notwithstanding anything to the contrary, the aggregate liability of the Company to any User in respect of any and all claims arising out of or in connection with these Terms or the Platform shall be limited to the higher of (a) the total amount of fees, if any, actually received by the Company from such User in the twelve (12) months immediately preceding the event giving rise to such liability; or (b) Indian Rupees One Thousand (INR 1,000) only.</p>
-      <p>16.3. The User acknowledges that the disclaimers and limitations set out in Clauses 15 and 16 are reasonable in light of the nature of the Platform (a free or low-fee intermediary service in respect of User-generated Content) and form an essential basis of the bargain.</p>
-      <p>16.4. Nothing in these Terms shall exclude or limit any liability that cannot lawfully be excluded or limited under Applicable Law (such as liability for gross negligence, wilful misconduct or fraud of the Company).</p>
-    </section>
-
-    <section id="s17">
-      <h2><span class="num">17</span>Indemnification by the User</h2>
-      <p>17.1. The User shall, on demand, indemnify, defend and hold harmless the Company, its officers, directors, employees, contractors, agents, partners and licensors (each an “Indemnified Person”) from and against any and all losses, damages, liabilities, claims, demands, actions, suits, proceedings, settlements, fines, penalties, costs and expenses (including reasonable attorneys’ fees) suffered or incurred by any Indemnified Person, arising out of or in connection with:</p>
-      <ul>
-        <li>any breach by the User of these Terms, the Privacy Policy or Applicable Law;</li>
-        <li>any Listing, Content, transaction or communication of the User, including any communication generated through the User’s use of the Sell with AI feature;</li>
-        <li>any infringement of any third-party right (including intellectual property, privacy, publicity or contractual right) by the User;</li>
-        <li>any tax, duty, levy or governmental claim arising from the User’s activity on the Platform;</li>
-        <li>any claim by another User or third party arising from any interaction with, or representation made by, the User on or in connection with the Platform.</li>
-      </ul>
-      <p>17.2. The Company shall have the right (but not the obligation), at its own cost, to assume the exclusive defence and control of any matter otherwise subject to indemnification by the User, in which case the User shall fully cooperate with the Company in asserting any available defence.</p>
-    </section>
-
-    <section id="s18">
-      <h2><span class="num">18</span>Suspension and Termination</h2>
-      <p>18.1. The Company may at any time, with or without notice and at its sole discretion, suspend or terminate the User’s account, restrict access to the Platform, remove or refuse to host any Content, or take any other action that the Company deems necessary, in particular where the Company has reasonable grounds to believe that the User has breached these Terms, has breached Applicable Law, or where required by any governmental, judicial or law-enforcement authority.</p>
-      <p>18.2. The User may discontinue use of the Platform at any time and may request closure of the User’s account by writing to the Grievance Officer in accordance with Clause 21.</p>
-      <p>18.3. <strong>Survival.</strong> Clauses relating to definitions, intellectual property, the Verified Badge clarification, Sell with AI consents, prohibited conduct, privacy, disclaimers, limitation of liability, indemnity, dispute resolution, governing law and these miscellaneous provisions shall survive termination of these Terms or closure of the User’s account.</p>
-    </section>
-
-    <section id="s19">
-      <h2><span class="num">19</span>Governing Law and Dispute Resolution</h2>
-      <p>19.1. These Terms, and any dispute or claim arising out of or in connection with them or their subject matter or formation (including non-contractual disputes or claims), shall be governed by and construed in accordance with the laws of the Republic of India.</p>
-      <p>19.2. <strong>Amicable Resolution.</strong> The parties shall first endeavour, in good faith, to resolve any dispute by amicable discussions. The User shall raise the dispute in writing to the Grievance Officer in accordance with Clause 21.</p>
-      <p>19.3. <strong>Arbitration.</strong> Any dispute, controversy or claim arising out of or relating to these Terms, including the breach, termination or validity thereof, that is not resolved amicably within thirty (30) days of receipt of the written notice, shall be finally settled by arbitration in accordance with the provisions of the Arbitration and Conciliation Act, 1996, by a sole arbitrator appointed by the Company. The seat and venue of arbitration shall be Andhra Pradesh, India. The language of arbitration shall be English. The award shall be final and binding on the parties.</p>
-      <p>19.4. <strong>Jurisdiction.</strong> Subject to Clause 19.3, the courts at Andhra Pradesh alone shall have exclusive jurisdiction in respect of any matter arising out of or in connection with these Terms.</p>
-      <p>19.5. <strong>Consumer rights preserved.</strong> Nothing in this Clause 19 shall affect any non-waivable statutory right of a User who qualifies as a “consumer” under the Consumer Protection Act, 2019 to file a complaint before the appropriate Consumer Disputes Redressal Commission having jurisdiction.</p>
-    </section>
-
-    <section id="s20">
-      <h2><span class="num">20</span>Force Majeure</h2>
-      <p>20.1. The Company shall not be liable for any failure to perform, or delay in performance of, any of its obligations under these Terms caused by an event beyond its reasonable control, including (without limitation) acts of God, natural disaster, epidemic or pandemic, war, civil disturbance, terrorism, government action, change in law, strike, lockout, failure of telecommunication network, internet outage, power failure, cyber-attack or denial-of-service attack.</p>
-    </section>
-
-    <section id="s21">
-      <h2><span class="num">21</span>Grievance Officer</h2>
-      <p>21.1. In compliance with the Information Technology Act, 2000 and the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, the Company has designated the following Grievance Officer to address Users’ grievances:</p>
-      <div class="grievance-card">
-        <dl>
-          <dt>Name</dt>          <dd>Ravi Chandra</dd>
-          <dt>Designation</dt>   <dd>Grievance Officer</dd>
-          <dt>Address</dt>       <dd>[COMPLETE POSTAL ADDRESS OF COMPANY]</dd>
-          <dt>Email</dt>          <dd><a href="mailto:grievance@indclassifieds.in">grievance@indclassifieds.in</a></dd>
-          <dt>Phone</dt>          <dd>+91 9908964047</dd>
-          <dt>Working hours</dt>  <dd>Monday to Friday, 10:00 to 18:00 IST (excluding gazetted holidays)</dd>
-        </dl>
-      </div>
-      <p>21.2. The Grievance Officer shall acknowledge any complaint within twenty-four (24) hours of receipt and shall endeavour to resolve the complaint within fifteen (15) days, subject to such longer period as may be permitted by law for specific categories of complaint.</p>
-      <p>21.3. Complaints relating to alleged infringement of intellectual property, hosting of objectionable Content or violation of privacy must contain sufficient particulars to enable the Company to act, including the URL or in-app reference of the Content, the basis of the complaint, and the complainant’s identification details and authority to complain.</p>
-    </section>
-
-    <section id="s22">
-      <h2><span class="num">22</span>Miscellaneous</h2>
-      <p>22.1. <strong>Entire Agreement.</strong> These Terms, together with the Privacy Policy and any specific feature terms incorporated by reference, constitute the entire agreement between the User and the Company in respect of the subject matter hereof and supersede all prior or contemporaneous understandings.</p>
-      <p>22.2. <strong>Severability.</strong> If any provision of these Terms is held by a court of competent jurisdiction to be invalid, illegal or unenforceable, such provision shall be deemed modified to the minimum extent necessary to make it valid, legal and enforceable, and the remaining provisions shall continue in full force and effect.</p>
-      <p>22.3. <strong>No Waiver.</strong> The failure or delay of the Company to enforce any right or provision shall not constitute a waiver thereof. Any waiver must be in writing and signed by an authorised representative of the Company.</p>
-      <p>22.4. <strong>Assignment.</strong> The User shall not assign any of its rights or obligations under these Terms without the prior written consent of the Company. The Company may freely assign its rights and obligations to any affiliate or successor-in-interest.</p>
-      <p>22.5. <strong>Relationship.</strong> Nothing in these Terms shall be construed as creating a partnership, joint venture, agency, employment or fiduciary relationship between the Company and the User.</p>
-      <p>22.6. <strong>Notices.</strong> The Company may give notice to the User by in-app notification, email or push notification to the contact details on record. Notices to the Company must be sent to the Grievance Officer at the address specified in Clause 21.</p>
-      <p>22.7. <strong>Headings.</strong> The headings used in these Terms are for convenience only and shall not affect their interpretation.</p>
-      <p>22.8. <strong>Language.</strong> These Terms are executed in the English language. Where a translation is provided, the English version shall prevail in the event of any inconsistency.</p>
-    </section>
-
-  </main>
-</div>
-
-<button class="to-top" id="toTop" aria-label="Back to top">↑</button>
-
-<footer class="doc-footer">
-  © Trinetrax Solutions Pvt. Ltd. · CIN [Corporate Identity Number] · https://indclassifieds.in
-</footer>
-
-<script>
-  // Active section highlight in TOC
-  const sections = document.querySelectorAll('.content section[id]');
-  const tocLinks = document.querySelectorAll('.toc a');
-  const linkMap = {};
-  tocLinks.forEach(a => { linkMap[a.getAttribute('href').slice(1)] = a; });
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      const id = entry.target.id;
-      const link = linkMap[id];
-      if (!link) return;
-      if (entry.isIntersecting) {
-        tocLinks.forEach(a => a.classList.remove('active'));
-        link.classList.add('active');
-      }
-    });
-  }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
-
-  sections.forEach(s => observer.observe(s));
-
-  // Back to top
-  const toTop = document.getElementById('toTop');
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 400) toTop.classList.add('visible');
-    else toTop.classList.remove('visible');
-  });
-  toTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
-
-  // Brief flash on the targeted section when arriving via anchor
-  function flashTarget() {
-    const hash = window.location.hash;
-    if (!hash) return;
-    const tgt = document.querySelector(hash);
-    if (!tgt) return;
-    tgt.classList.add('flash');
-    setTimeout(() => tgt.classList.remove('flash'), 1600);
-  }
-  window.addEventListener('hashchange', flashTarget);
-  window.addEventListener('load', flashTarget);
-</script>
-
+  <div class="foot">By using IND CLASSIFIEDS, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.</div>
 </body>
 </html>

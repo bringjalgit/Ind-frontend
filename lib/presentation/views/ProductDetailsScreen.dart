@@ -33,6 +33,7 @@ import '../../utils/AppLauncher.dart';
 import '../../widgets/CommonLoader.dart';
 import '../../widgets/SimilarProducts.dart';
 import '../../widgets/SimilarProductsSection.dart';
+import '../../widgets/LoginRequiredSheet.dart';
 import 'PhotoViewScreen.dart';
 import 'ReportBottomSheet.dart';
 
@@ -63,6 +64,10 @@ class ProductDetailsScreen extends StatefulWidget {
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _didInitFromBloc = false;
   String? mobile_number;
+  // Seller withheld their number (SWA active + hide_phone_from_buyers).
+  // Contact routes to chat instead of attempting a call. See backend
+  // getSingleListingDetails (phone_hidden).
+  bool _phoneHidden = false;
 
   final ValueNotifier<int> _pageNotifier = ValueNotifier<int>(0);
   final PageController _pgCtrl = PageController();
@@ -262,8 +267,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           return _BottomCtaBar(
             onContact: () async {
               if (isGuest) {
-                CustomSnackBar1.show(context, 'Please log in to contact the seller');
-                context.push('/login');
+                showLoginRequiredSheet(context,
+                    message: 'Log in to contact the seller.');
+                return;
+              }
+              // SWA hide-number: the seller chose to be reached only via Smart
+              // Assist chat, so the number was withheld server-side. Steer the
+              // buyer to chat instead of the "number not available" fallback.
+              // Gated on the explicit flag only — an empty number that is still
+              // loading keeps the original retry path below.
+              if (_phoneHidden) {
+                CustomSnackBar1.show(context,
+                    'This seller prefers chat. Start a chat to connect.');
+                context.push(
+                  '/chat'
+                  '?receiverId=$receiverId'
+                  '&listingId=$listingId'
+                  '&listingTitle=${Uri.encodeComponent(listingTitle ?? "")}',
+                );
                 return;
               }
               if (mobile_number != null && mobile_number!.isNotEmpty) {
@@ -289,8 +310,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
             },
             onChat: () {
               if (isGuest) {
-                CustomSnackBar1.show(context, 'Please log in to chat with the seller');
-                context.push('/login');
+                showLoginRequiredSheet(context,
+                    message: 'Log in to chat with the seller.');
                 return;
               }
               context.push(
@@ -344,6 +365,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               receiverName = data.postedBy?.name ?? "";
               receiverImage = data.postedBy?.image ?? "";
               mobile_number = listing.mobileNumber ?? "";
+              _phoneHidden = listing.phoneHidden;
               _isFavorited = listing.isFavorited == true;
 
               // Initialize map position once
@@ -452,7 +474,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                     _RoundIconButton(
                                       icon: Icons.ios_share_rounded,
                                       tooltip: 'Share',
-                                      onTap: () {
+                                      onTap: () async {
+                                        // Guest gate — sharing needs login.
+                                        if (await AuthService.isGuest) {
+                                          if (context.mounted) {
+                                            showLoginRequiredSheet(context,
+                                                message:
+                                                    'Log in to share this listing.');
+                                          }
+                                          return;
+                                        }
                                         if (data.listing != null) {
                                           final shareUrl = generateListingUrl(
                                             data.listing!,
@@ -558,7 +589,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             onPressed: () async {
                               if (await AuthService.isGuest) {
                                 if (context.mounted) {
-                                  context.push('/login');
+                                  showLoginRequiredSheet(context,
+                                      message:
+                                          'Log in to save listings to your wishlist.');
                                 }
                                 return;
                               }
@@ -593,7 +626,16 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                         memberSince: posted?.memberSince,
                         activeListings: posted?.activeListings,
                         soldListings: posted?.soldListings,
-                        onViewProfile: () {
+                        onViewProfile: () async {
+                          // Guest gate — viewing the seller's profile needs login.
+                          if (await AuthService.isGuest) {
+                            if (context.mounted) {
+                              showLoginRequiredSheet(context,
+                                  message:
+                                      "Log in to view the seller's profile.");
+                            }
+                            return;
+                          }
                           final sellerId = posted?.id;
                           if (sellerId == null || sellerId.isEmpty) return;
                           context.push('/seller_profile?userId=$sellerId');

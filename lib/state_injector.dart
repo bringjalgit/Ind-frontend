@@ -53,6 +53,8 @@ import 'package:classifieds/data/cubit/ReportAd/ReportAdRepo.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_cubit.dart';
 import 'package:classifieds/data/cubit/Transections/transactions_repository.dart';
 import 'package:classifieds/data/cubit/UpdateProfile/update_profile_cubit.dart';
+import 'package:classifieds/data/cubit/Notifications/notifications_cubit.dart';
+import 'package:classifieds/data/cubit/Notifications/notifications_repository.dart';
 import 'package:classifieds/data/cubit/UserActivePlans/user_active_plans_cubit.dart';
 import 'package:classifieds/data/cubit/Wishlist/wishlist_cubit.dart';
 import 'package:classifieds/data/cubit/Wishlist/wishlist_repository.dart';
@@ -224,6 +226,9 @@ class StateInjector {
     RepositoryProvider<ProfileRepo>(
       create: (context) =>
           ProfileRepoImpl(remoteDataSource: context.read<RemoteDataSource>()),
+    ),
+    RepositoryProvider<NotificationRepo>(
+      create: (_) => NotificationRepoImpl(),
     ),
     RepositoryProvider<AadhaarRepo>(
       create: (context) =>
@@ -423,6 +428,9 @@ class StateInjector {
     ),
     BlocProvider<ProfileCubit>(
       create: (context) => ProfileCubit(context.read<ProfileRepo>()),
+    ),
+    BlocProvider<NotificationsCubit>(
+      create: (context) => NotificationsCubit(context.read<NotificationRepo>()),
     ),
     BlocProvider<AadhaarCubit>(
       create: (context) => AadhaarCubit(context.read<AadhaarRepo>()),

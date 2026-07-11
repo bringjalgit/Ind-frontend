@@ -54,6 +54,7 @@ abstract class RemoteDataSource {
     String? minPrice,
     String? maxPrice,
     String? locationKey,
+    bool? expand,
   });
   Future<ProductDetailsModel?> getProductDetails(String id);
   // P2P offer recommendation (AI card inside the Make-an-Offer sheet).
@@ -1135,6 +1136,7 @@ class RemoteDataSourceImpl implements RemoteDataSource {
     String? minPrice,
     String? maxPrice,
     String? locationKey,
+    bool? expand,
     required int page,
   }) async {
     try {
@@ -1152,6 +1154,9 @@ class RemoteDataSourceImpl implements RemoteDataSource {
         if (city_id != null && city_id.isNotEmpty) "city_id": city_id,
         if (locationKey != null && locationKey.isNotEmpty)
           "location_key": locationKey,
+        // Smooth-expanding location ranking (browse & search). Home omits
+        // this → backend keeps the strict 50km behavior.
+        if (expand == true) "expand": true,
       };
 
       Response response = await ApiClient.post(

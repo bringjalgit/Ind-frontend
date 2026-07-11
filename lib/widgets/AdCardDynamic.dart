@@ -82,12 +82,37 @@ class AdCardDynamic extends StatelessWidget {
     return 'Expires ${local.day} ${_monthAbbr[local.month - 1]} ${local.year}';
   }
 
+  // Sold date, e.g. "Sold 11 Jul 2026". Shown on a sold card in place of the
+  // posted-ago time. Empty when the listing has no recorded sold date (sold
+  // before the backend started stamping sold_at) — the card then falls back
+  // to the posted-ago time.
+  String _soldText(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return '';
+    final local = d.toLocal();
+    return 'Sold ${local.day} ${_monthAbbr[local.month - 1]} ${local.year}';
+  }
+
+  // Expired date, e.g. "Expired 6 Jul 2026". Shown on an expired card in place
+  // of the posted-ago time — for an expired listing the expiry date (when it
+  // dropped off) is the meaningful date, not when it was posted. Empty when no
+  // expiry date is set; the card then falls back to the posted-ago time.
+  String _expiredText(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return '';
+    final local = d.toLocal();
+    return 'Expired ${local.day} ${_monthAbbr[local.month - 1]} ${local.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     print("mobile number ::${mobile_no}");
     final imageUrl = ad.image ?? '';
     final location = ad.location ?? '';
     final isSold = ad.sold == true;
+    final isExpired = (ad.status ?? '').toLowerCase() == 'expired';
     return _wrapSold(
       isSold,
       Container(
@@ -218,18 +243,29 @@ class AdCardDynamic extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Expiry date on the left, opposite the posted-ago line.
-              // Hidden for sold listings — a sold item's expiry is
-              // meaningless.
+              // Hidden for sold AND expired listings — a sold item's expiry is
+              // meaningless, and an expired item shows "Expired <date>" on the
+              // right instead, so the left would just duplicate it.
               Expanded(
                 child: Text(
-                  ad.sold == true ? '' : _expiryText(ad.expiresListDate),
+                  (ad.sold == true || isExpired) ? '' : _expiryText(ad.expiresListDate),
                   style: AppTextStyles.labelSmall(Colors.grey.shade600),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                _postedText(ad.postedAt),
+                // Time line: prefer the status-relevant date over posted-ago,
+                // whose "a month ago" is stale for a sold/expired item.
+                //  • sold    -> "Sold 11 Jul 2026"
+                //  • expired  -> "Expired 6 Jul 2026" (when it dropped off)
+                //  • else     -> posted-ago (fallback also covers items with
+                //                 no recorded sold/expiry date).
+                (isSold && (ad.soldAt?.isNotEmpty ?? false))
+                    ? _soldText(ad.soldAt)
+                    : (isExpired && (ad.expiresListDate?.isNotEmpty ?? false))
+                        ? _expiredText(ad.expiresListDate)
+                        : _postedText(ad.postedAt),
                 style: AppTextStyles.labelSmall(Colors.grey.shade600),
               ),
             ],

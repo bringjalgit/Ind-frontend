@@ -17,7 +17,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
 # version: 1.1.3+5 #ios
-version: 1.3.3+29 #android
+version: 1.4.3+43 #android
 
 environment:
   sdk: ^3.8.1
@@ -81,6 +81,10 @@ dependencies:
   # mockups/onboarding-mocks.html design (italic gradient on the
   # accent word in "Login to continue your journey.").
   google_fonts: ^6.2.1
+  another_flushbar: ^2.2.4
+  app_badge_plus: ^1.3.1
+  screenshot: ^3.0.0
+  path_provider: ^2.1.6
 
 
 

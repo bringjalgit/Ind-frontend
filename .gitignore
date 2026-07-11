@@ -76,3 +76,9 @@ DerivedData/
 .svn/
 .swiftpm/
 migrate_working_dir/
+.env.bak*
+backups/
+_tmp_*.mjs
+__watch*.mjs
+L1_seller_home_base.png
+V1_home.png

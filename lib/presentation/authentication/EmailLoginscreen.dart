@@ -22,14 +22,22 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
   final TextEditingController _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Opens the in-app Terms & Conditions page from the legal fine print.
+  // Opens the in-app Terms & Conditions page from the consent line.
   late final TapGestureRecognizer _termsRecognizer =
       TapGestureRecognizer()..onTap = () => context.push('/terms');
+
+  // Opens the in-app Privacy Policy page from the consent line.
+  late final TapGestureRecognizer _privacyRecognizer =
+      TapGestureRecognizer()..onTap = () => context.push('/privacy');
+
+  /// Consent gate — must be ticked before OTP can be sent (Terms + Privacy).
+  bool _agreedToTerms = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _termsRecognizer.dispose();
+    _privacyRecognizer.dispose();
     super.dispose();
   }
 
@@ -207,6 +215,13 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
                                           onPressed: (loading || blocked)
                                               ? null
                                               : () {
+                                                  if (!_agreedToTerms) {
+                                                    CustomSnackBar.show(
+                                                      context,
+                                                      'Please accept the Terms & Conditions to continue',
+                                                    );
+                                                    return;
+                                                  }
                                                   final email = _emailController
                                                       .text
                                                       .trim()
@@ -302,26 +317,76 @@ class _EmailLoginscreenState extends State<EmailLoginscreen> with RateLimitCount
 
                     const SizedBox(height: 28),
 
-                    // Terms
-                    Text.rich(
-                      TextSpan(
-                        text: "By continuing, you agree to our ",
-                        style: AppTextStyles.bodySmall(
-                          Colors.white.withOpacity(0.9),
+                    // Consent gate — must tick before an OTP can be sent.
+                    InkWell(
+                      onTap: () =>
+                          setState(() => _agreedToTerms = !_agreedToTerms),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        children: [
-                          TextSpan(
-                            text: "Terms & Conditions",
-                            recognizer: _termsRecognizer,
-                            style: AppTextStyles.bodySmall(Colors.white)
-                                .copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  decoration: TextDecoration.underline,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: _agreedToTerms
+                                    ? Colors.white
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.85),
+                                  width: 1.8,
                                 ),
-                          ),
-                        ],
+                              ),
+                              child: _agreedToTerms
+                                  ? Icon(Icons.check, size: 14, color: accent)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Flexible(
+                              child: Text.rich(
+                                TextSpan(
+                                  text: "I agree to the ",
+                                  style: AppTextStyles.bodySmall(
+                                    Colors.white.withOpacity(0.9),
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: "Terms & Conditions",
+                                      recognizer: _termsRecognizer,
+                                      style: AppTextStyles.bodySmall(
+                                        Colors.white,
+                                      ).copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                    const TextSpan(text: " and "),
+                                    TextSpan(
+                                      text: "Privacy Policy",
+                                      recognizer: _privacyRecognizer,
+                                      style: AppTextStyles.bodySmall(
+                                        Colors.white,
+                                      ).copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                    const TextSpan(text: "."),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
