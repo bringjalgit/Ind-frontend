@@ -14,6 +14,7 @@ abstract class ProductsRepo {
     String? minPrice,
     String? maxPrice,
     String? locationKey,
+    bool? expand,
   });
 }
 
@@ -34,6 +35,7 @@ class ProductsRepoImpl implements ProductsRepo {
     String? minPrice,
     String? maxPrice,
     String? locationKey,
+    bool? expand,
   }) async {
     return await remoteDataSource.getProducts(
       categoryId: categoryId,
@@ -46,6 +48,7 @@ class ProductsRepoImpl implements ProductsRepo {
       maxPrice: maxPrice,
       page: page,
       locationKey: locationKey,
+      expand: expand,
     );
   }
 }

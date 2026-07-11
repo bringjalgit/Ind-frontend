@@ -56,6 +56,14 @@ class APIEndpointUrls {
   static const String delete_my_account = '${chatLambdaUrl}delete-my-account';
   static String get lambda_google_auth => '${BackendResolver.currentBaseUrl}google-auth';
   static String get register_user_details => '${BackendResolver.currentBaseUrl}register-user-details';
+  // Late-registers / re-registers an FCM token for the currently-
+  // authenticated user. Called from NotificationService on every cold
+  // start AND on every FirebaseMessaging.onTokenRefresh event so the
+  // server's User.fcm_token stays in sync with whatever Firebase has
+  // just issued (handles app reinstall, Clear-data, GMS updates,
+  // factory reset, and the long tail of rotation triggers).
+  static String get register_fcm_token => '${BackendResolver.currentBaseUrl}register-fcm-token';
+  static String get deregister_fcm_token => '${BackendResolver.currentBaseUrl}deregister-fcm-token';
 
   // ── Profile (main stack) ─────────────────────────────────────────────────
   static String get get_my_profile_details => '${BackendResolver.currentBaseUrl}get-my-profile-details';
@@ -169,6 +177,22 @@ class APIEndpointUrls {
   static const String get_my_friend_messages = '${chatLambdaUrl}get-my-friend-messages';
   static const String toggle_pin_user = '${chatLambdaUrl}toggle-pin-user';
   static const String toggle_pin_message = '${chatLambdaUrl}toggle-pin-message';
+
+  // ── Notifications (in-app inbox — chat stack) ────────────────────────
+  static const String get_notifications = '${chatLambdaUrl}notifications';
+  static const String notifications_unread_count =
+      '${chatLambdaUrl}notifications/unread-count';
+  static const String notifications_mark_read =
+      '${chatLambdaUrl}notifications/mark-read';
+  static const String notifications_mark_all_read =
+      '${chatLambdaUrl}notifications/mark-all-read';
+
+  // ── Refer & Earn / Rewards (chat stack — Lambda only) ────────────────
+  static const String referral_info = '${chatLambdaUrl}referral/info';
+  static const String referral_list = '${chatLambdaUrl}referral/list';
+  static const String referral_apply = '${chatLambdaUrl}referral/apply';
+  static const String rewards_summary = '${chatLambdaUrl}rewards/summary';
+  static const String rewards_redeem = '${chatLambdaUrl}rewards/redeem';
 
   // ── Sell with AI (SWA — chat stack, Lambda only) ────────────────────
   static String swaActivate(String listingId) =>

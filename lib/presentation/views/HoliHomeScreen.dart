@@ -4,6 +4,8 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/cubit/Notifications/notifications_cubit.dart';
+import '../../data/cubit/Notifications/notifications_states.dart';
 import 'package:classifieds/data/cubit/Dashboard/DashboardCubit.dart';
 import 'package:classifieds/data/cubit/Dashboard/DashboardState.dart';
 import 'package:classifieds/services/AuthService.dart';
@@ -304,6 +306,44 @@ class _HoliHomeScreenState extends State<HoliHomeScreen> with AutomaticKeepAlive
           //   ),
           //   child: Icon(Icons.notifications_active, color: Color(0xff4B5563)),
           // ),
+          BlocBuilder<NotificationsCubit, NotificationStates>(
+            builder: (context, state) {
+              final unread =
+                  state is NotificationLoaded ? state.unreadCount : 0;
+              return IconButton(
+                tooltip: 'Notifications',
+                onPressed: () => context.push('/notifications'),
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(Icons.notifications_outlined, color: textColor),
+                    if (unread > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          constraints: const BoxConstraints(
+                              minWidth: 15, minHeight: 15),
+                          child: Text(
+                            unread > 99 ? '99+' : '$unread',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: BlocListener<LocationCubit, LocationState>(

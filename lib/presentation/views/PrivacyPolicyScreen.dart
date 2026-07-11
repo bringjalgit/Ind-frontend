@@ -3,22 +3,20 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../utils/legal_link_handler.dart';
 
-/// In-app viewer for the Terms & Conditions document.
+/// In-app viewer for the Privacy Policy document.
 ///
-/// Loads the bundled legal HTML (assets/legal/terms-and-conditions.html) into
-/// a WebView so the full styled document — TOC, sections, fonts and the small
-/// helper JS (active-section highlight, back-to-top) — renders faithfully.
-/// JavaScript is enabled for those niceties; the page is local so there is no
-/// remote navigation. Reached from the login screens' "Terms & Conditions"
-/// link and the Smart Assist consent row.
-class TermsConditionsScreen extends StatefulWidget {
-  const TermsConditionsScreen({super.key});
+/// Loads the bundled legal HTML (assets/legal/privacy-policy.html) into a
+/// WebView so the styled document renders faithfully. The page is local, so
+/// there is no remote navigation. Reached from the Profile page and (via the
+/// Privacy link) the login screens.
+class PrivacyPolicyScreen extends StatefulWidget {
+  const PrivacyPolicyScreen({super.key});
 
   @override
-  State<TermsConditionsScreen> createState() => _TermsConditionsScreenState();
+  State<PrivacyPolicyScreen> createState() => _PrivacyPolicyScreenState();
 }
 
-class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
+class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
   late final WebViewController _controller;
   bool _loading = true;
 
@@ -37,7 +35,7 @@ class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
               handleLegalLinkTap(request, context),
         ),
       )
-      ..loadFlutterAsset('assets/legal/terms-and-conditions.html');
+      ..loadFlutterAsset('assets/legal/privacy-policy.html');
   }
 
   @override
@@ -55,7 +53,7 @@ class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text(
-          'Terms & Conditions',
+          'Privacy Policy',
           style: TextStyle(
             color: Color(0xFF1C2430),
             fontWeight: FontWeight.w600,

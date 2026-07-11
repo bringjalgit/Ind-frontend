@@ -84,6 +84,10 @@ class Listing {
   String? state_name;
   bool? sold;
   bool? swaIsActive;
+  /// True when the backend withheld the seller's number because the listing
+  /// is SWA-active with hide_phone_from_buyers ON. The Contact button routes
+  /// to chat instead of attempting a call. Defaults false on older responses.
+  bool phoneHidden = false;
   // Category-level SWA gate. False for Find Investor / Events / Films /
   // Community. ProductDetailsScreen hides the SWAEnableCard +
   // SWADashboardLink for these categories so the owner never sees an
@@ -148,6 +152,7 @@ class Listing {
     status = json['status'];
     sold = json['sold'];
     swaIsActive = json['sell_with_ai_config']?['is_active'] == true;
+    phoneHidden = json['phone_hidden'] == true;
     swaCategoryEligible = json['swa_category_eligible'] != false;
     planTier = json['plan_tier']?.toString();
     stateId = json['state_id'];

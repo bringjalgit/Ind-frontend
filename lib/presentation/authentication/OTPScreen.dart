@@ -17,6 +17,7 @@ import '../../services/FcmTokenManager.dart';
 import '../../services/MetaEventTracker.dart';
 import '../../theme/AppTextStyles.dart';
 import '../../theme/ThemeHelper.dart';
+import '../../utils/constants.dart';
 import 'widgets/RateLimitCountdown.dart';
 
 /// OTP verify screen — 2026-05-17 pixel-faithful rebuild of
@@ -718,9 +719,34 @@ class _OtpscreenState extends State<Otpscreen>
             );
             if (!context.mounted) return;
             if (data.newUser == true) {
+              // New user still completes registration; the pending guest
+              // redirect (if any) is consumed there on success.
               context.pushReplacement('/register?from=otp');
             } else {
-              context.pushReplacement('/dashboard');
+              // Existing user logging in. If a guest gate sent them here,
+              // return to where they were; otherwise the usual dashboard.
+              final redirect = AuthService.pendingRedirect;
+              AuthService.pendingRedirect = null;
+              if (redirect != null &&
+                  redirect.isNotEmpty &&
+                  !redirect.startsWith('/dashboard')) {
+                // Guest gate targeted a NON-dashboard route (e.g. /category,
+                // /products_details, /chat). context.go() alone REPLACES the
+                // whole nav stack with just [redirect], leaving no root — so
+                // the next system-back popped an empty stack and Android
+                // closed the app. Land on the dashboard as the ROOT first,
+                // then layer the target on top so back returns into the app.
+                context.go('/dashboard');
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  navigatorKey.currentContext?.push(redirect);
+                });
+              } else {
+                context.go(
+                  redirect != null && redirect.isNotEmpty
+                      ? redirect
+                      : '/dashboard',
+                );
+              }
             }
             // Fire-and-forget analytics — must run AFTER the
             // navigation so a slow tracker doesn't delay UX.

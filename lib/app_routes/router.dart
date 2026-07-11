@@ -14,6 +14,7 @@ import 'package:classifieds/presentation/views/SplashScreen.dart';
 import 'package:classifieds/presentation/views/ActivePlansScreen.dart';
 import 'package:classifieds/presentation/views/AdvertisementScreen.dart';
 import 'package:classifieds/presentation/views/ContactSupportScreen.dart';
+import 'package:classifieds/presentation/views/ReferralScreen.dart';
 import 'package:classifieds/presentation/views/PlansScreen.dart';
 import 'package:classifieds/presentation/PostAdds/CommunityAdScreen.dart';
 import 'package:classifieds/presentation/PostAdds/EducationalAd.dart';
@@ -55,6 +56,8 @@ import '../presentation/views/FavouritesScreen.dart';
 import '../presentation/views/FilterScreen.dart';
 import '../presentation/views/HoliSplash.dart';
 import '../presentation/views/NotificationScreen.dart';
+import '../presentation/views/PrivacyPolicyScreen.dart';
+import '../presentation/views/PaymentPolicyScreen.dart';
 import '../presentation/views/CategoryScreen.dart';
 import '../presentation/views/PostAdvertisementScreen.dart';
 import '../presentation/views/ProfileScreen.dart';
@@ -104,6 +107,12 @@ final GoRouter appRouter = GoRouter(
       path: '/active_plans',
       pageBuilder: (context, state) {
         return buildSlideTransitionPage(ActivePlansScreen(), state);
+      },
+    ),
+    GoRoute(
+      path: '/refer_and_earn',
+      pageBuilder: (context, state) {
+        return buildSlideTransitionPage(const ReferralScreen(), state);
       },
     ),
     GoRoute(
@@ -203,6 +212,16 @@ final GoRouter appRouter = GoRouter(
       path: '/terms',
       pageBuilder: (context, state) =>
           buildSlideTransitionPage(const TermsConditionsScreen(), state),
+    ),
+    GoRoute(
+      path: '/privacy',
+      pageBuilder: (context, state) =>
+          buildSlideTransitionPage(const PrivacyPolicyScreen(), state),
+    ),
+    GoRoute(
+      path: '/payment-policy',
+      pageBuilder: (context, state) =>
+          buildSlideTransitionPage(const PaymentPolicyScreen(), state),
     ),
     GoRoute(
       path: '/otp',

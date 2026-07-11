@@ -104,11 +104,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Center(
-                          child: FutureBuilder(
-                            future: AuthService.isSubscribedUser,
-                            builder: (context, asyncSnapshot) {
-                              final isSubscribedUser =
-                                  asyncSnapshot.data ?? false;
+                          // Reactive badge: rebuilds the instant the
+                          // subscription flag changes (dashboard refresh, app
+                          // resume, right after payment) instead of only on a
+                          // cold start. The old FutureBuilder read the flag
+                          // once and the PageView keeps this tab alive, so the
+                          // badge used to update only after a full app kill.
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: AuthService.isSubscribedNotifier,
+                            builder: (context, isSubscribedUser, _) {
                               return Stack(
                                 alignment: Alignment.center,
                                 children: [
@@ -336,6 +340,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         _settingsTile(
+                          Icons.card_giftcard,
+                          Colors.amber.shade100,
+                          'Refer & Earn',
+                          isDark,
+                          textColor,
+                          trailing: Icons.arrow_forward_ios,
+                          onTap: () => context.push('/refer_and_earn'),
+                        ),
+                        _settingsTile(
                           Icons.favorite,
                           Colors.red.shade100,
                           'Wishlist',
@@ -416,6 +429,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           trailing: Icons.arrow_forward_ios,
                           onTap: () {
                             context.push("/contact_support");
+                          },
+                        ),
+                        _settingsTile(
+                          Icons.description_outlined,
+                          Colors.indigo.shade100,
+                          'Terms & Conditions',
+                          isDark,
+                          textColor,
+                          trailing: Icons.arrow_forward_ios,
+                          onTap: () {
+                            context.push("/terms");
+                          },
+                        ),
+                        _settingsTile(
+                          Icons.privacy_tip_outlined,
+                          Colors.teal.shade100,
+                          'Privacy Policy',
+                          isDark,
+                          textColor,
+                          trailing: Icons.arrow_forward_ios,
+                          onTap: () {
+                            context.push("/privacy");
+                          },
+                        ),
+                        _settingsTile(
+                          Icons.receipt_long_outlined,
+                          Colors.orange.shade100,
+                          'Payment & Refund Policy',
+                          isDark,
+                          textColor,
+                          trailing: Icons.arrow_forward_ios,
+                          onTap: () {
+                            context.push("/payment-policy");
                           },
                         ),
 

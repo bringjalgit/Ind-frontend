@@ -23,6 +23,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
   String? _minPrice;
   String? _maxPrice;
   String? _locationKey;
+  bool _expand = false;
 
   Future<void> getProducts({
     String? categoryId,
@@ -34,6 +35,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     String? minPrice,
     String? maxPrice,
     String? locationKey,
+    bool? expand,
   }) async {
     emit(Products2Loading());
     _currentPage = 1;
@@ -48,6 +50,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
     _minPrice = minPrice;
     _maxPrice = maxPrice;
     _locationKey = locationKey;
+    _expand = expand ?? false;
 
     try {
       final response = await productsRepo.getProducts(
@@ -60,6 +63,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
         minPrice: _minPrice,
         maxPrice: _maxPrice,
         locationKey: _locationKey,
+        expand: _expand,
         page: _currentPage,
       );
 
@@ -94,6 +98,7 @@ class ProductsCubit2 extends Cubit<ProductsStates2> {
         minPrice: _minPrice,
         maxPrice: _maxPrice,
         locationKey: _locationKey,
+        expand: _expand,
         page: _currentPage,
       );
 

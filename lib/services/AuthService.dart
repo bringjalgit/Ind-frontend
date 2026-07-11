@@ -8,6 +8,7 @@ import '../services/api_endpoint_urls.dart';
 import '../utils/constants.dart';
 import 'SecureStorageService.dart';
 import 'SocketService.dart';
+import 'ApiClient.dart';
 
 /// Auth-state store for the user app.
 ///
@@ -233,6 +234,8 @@ class AuthService {
       _secure.delete(_freePlanStatus),
       _secure.delete(_isSubscribed),
     ]);
+    // Drop the subscription badge immediately on logout.
+    isSubscribedNotifier.value = false;
   }
 
   /// Atomic write of the in-memory cache to storage. Single keystore
@@ -333,10 +336,39 @@ class AuthService {
   static Future<bool> get isEligibleForFree async =>
       (await getFreePlanStatus()) != "false";
 
+  /// Reactive mirror of the subscription flag so the profile "Subscribed User"
+  /// ring + badge update the instant the flag changes — from anywhere
+  /// (dashboard refresh, app resume, right after payment) — instead of only on
+  /// a cold start. The old profile badge used a one-shot FutureBuilder that
+  /// never re-read, which is why the badge only appeared after a full app kill.
+  /// Seeded from storage by [hydrateSubscribedNotifier]; kept live by
+  /// [setSubscribeStatus].
+  static final ValueNotifier<bool> isSubscribedNotifier =
+      ValueNotifier<bool>(false);
+
+  /// Reset the subscription badge to HIDDEN at dashboard start. We deliberately
+  /// do NOT seed it "true" from the persisted cache: a stale cached value —
+  /// left over from an older buggy build (the old null-treated-as-subscribed
+  /// bug) or a subscription that has since lapsed — would flash a FALSE
+  /// "Subscribed User" badge before the server responds. The authoritative
+  /// value is written a moment later by UserActivePlanCubit.getUserActivePlansData()
+  /// from the server's `has_active_subscription`, so the badge appears ONLY
+  /// after the server confirms an active paid subscription. Fail-safe: if that
+  /// fetch fails, the badge stays hidden (never a false positive).
+  static Future<void> hydrateSubscribedNotifier() async {
+    isSubscribedNotifier.value = false;
+  }
+
   static Future<bool> get isSubscribedUser async =>
       (await getSubscriptionStatus()) != "false";
 
   static Future<bool> get isNewUser async => (await getUserStatus()) != "false";
+
+  /// In-memory route a guest was on before a gate sent them to login (e.g.
+  /// a listing detail). The auth flow returns here on success instead of
+  /// the default dashboard, then clears it. Session-scoped, not persisted —
+  /// the whole login round-trip happens within one app run.
+  static String? pendingRedirect;
 
   /// ------------------------
   /// SETTERS
@@ -345,8 +377,12 @@ class AuthService {
   static Future<void> setPlanStatus(String status) =>
       _writeField(_fPlanStatus, status);
 
-  static Future<void> setSubscribeStatus(String status) =>
-      _writeField(_fIsSubscribed, status);
+  static Future<void> setSubscribeStatus(String status) {
+    // Keep the reactive notifier in lockstep with storage so the profile
+    // badge/ring rebuild immediately, wherever this is called from.
+    isSubscribedNotifier.value = status != "false";
+    return _writeField(_fIsSubscribed, status);
+  }
 
   static Future<void> setFreePlanStatus(String status) =>
       _writeField(_fFreePlanStatus, status);
@@ -539,6 +575,14 @@ class AuthService {
   /// ------------------------
 
   static Future<void> logout() async {
+    // Deregister the FCM token server-side FIRST — while the auth token is
+    // still present — so pushes stop reaching this logged-out session / the
+    // next user on a shared device. Awaited so the request goes out before we
+    // wipe the token, but capped at 6s so a bad network can't hang logout.
+    // Non-fatal either way (the token expires server-side regardless).
+    await ApiClient.deregisterFcmToken()
+        .timeout(const Duration(seconds: 6), onTimeout: () {});
+
     // Close the authenticated WebSocket BEFORE clearing tokens so the old
     // user's JWT-backed socket is not left dangling for the next user who
     // signs in on the same device. disconnect() also nulls _currentUserId

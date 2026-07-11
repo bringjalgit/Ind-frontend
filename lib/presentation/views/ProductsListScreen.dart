@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:classifieds/Components/CustomSnackBar.dart';
 import 'package:classifieds/services/AuthService.dart';
+import 'package:classifieds/services/SecureStorageService.dart';
 import '../../Components/CustomAppButton.dart';
 import '../../Components/Shimmers.dart';
 import '../../data/cubit/AddToWishlist/addToWishlistCubit.dart';
@@ -59,6 +60,10 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
   final double _maxPrice = 10000000;
   Timer? _debounce;
 
+  // User's saved location ("lat,lng"), loaded once so both the initial
+  // fetch and the filter-apply fetch rank listings nearest-first.
+  String? _savedLocationKey;
+
   final List<String> _tabs = ["Category", "Price", "Sort By", "States", "City"];
 
   @override
@@ -69,9 +74,7 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
     context.read<CategoriesCubit>().getCategories();
     context.read<SelectStatesCubit>().getSelectStates("");
 
-    context.read<ProductsCubit2>().getProducts(
-      subCategoryId: widget.subCategoryId,
-    );
+    _loadInitialProducts();
 
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
@@ -82,6 +85,23 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
 
     citySearchController.addListener(() => setState(() {}));
     stateSearchController.addListener(() => setState(() {}));
+  }
+
+  // Reads the user's saved location (same key the home feed uses) and
+  // fires the first page in smooth-expanding mode (nearest-first, no 50km
+  // wall). If there's no saved location the backend falls back to its
+  // normal ordering — no regression for fresh installs.
+  Future<void> _loadInitialProducts() async {
+    final savedLatLng =
+        await SecureStorageService.instance.getString('latlngs');
+    _savedLocationKey =
+        (savedLatLng != null && savedLatLng.isNotEmpty) ? savedLatLng : null;
+    if (!mounted) return;
+    context.read<ProductsCubit2>().getProducts(
+          subCategoryId: widget.subCategoryId,
+          locationKey: _savedLocationKey,
+          expand: true,
+        );
   }
 
   @override
@@ -300,6 +320,8 @@ class _ProductsListScreenState extends State<ProductsListScreen> {
                                 city_id: filters["city_id"],
                                 minPrice: filters["minPrice"],
                                 maxPrice: filters["maxPrice"],
+                                locationKey: _savedLocationKey,
+                                expand: true,
                               );
 
                               Navigator.pop(context); // close sheet

@@ -45,6 +45,10 @@ class Data {
   bool? featuredStatus;
   String? status;
   bool? sold;
+  // ISO timestamp of when the listing was marked sold (null if unsold or sold
+  // before the backend started recording it). Drives the "Sold on <date>" line
+  // on the My Ads card in place of the posted-ago time.
+  String? soldAt;
   String? createdAt;
   State? state;
   State? city;
@@ -126,6 +130,7 @@ class Data {
     featuredStatus = json['featured_status'];
     status = json['status'];
     sold = json['sold'];
+    soldAt = json['sold_at']?.toString();
     createdAt = json['created_at'];
     // Lambda returns flat state_name/city_name strings
     state = json['state_name'] != null ? State(name: json['state_name']) : null;
@@ -163,6 +168,7 @@ class Data {
     data['featured_status'] = this.featuredStatus;
     data['status'] = this.status;
     data['sold'] = this.sold;
+    data['sold_at'] = this.soldAt;
     data['created_at'] = this.createdAt;
     if (this.state != null) {
       data['state'] = this.state!.toJson();

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -294,6 +295,67 @@ class ApiClient {
       return await _dio.put(path, data: data);
     } catch (e) {
       return _handleError(e);
+    }
+  }
+
+  /// Late-register an FCM token for the currently-authenticated user.
+  ///
+  /// Backend endpoint: POST /app/register-fcm-token. Idempotent —
+  /// returns instantly with `changed: false` if the token hasn't moved,
+  /// so it's safe to call on every cold start and on every Firebase
+  /// onTokenRefresh event. Non-fatal: all errors are swallowed so the
+  /// notification plumbing never breaks the user flow.
+  ///
+  /// Skipped for guest users (the endpoint requires authentication).
+  static Future<void> registerFcmToken(String fcmToken) async {
+    if (fcmToken.isEmpty) return;
+    try {
+      final isGuest = await AuthService.isGuest;
+      if (isGuest) return;
+      await _dio.post(
+        APIEndpointUrls.register_fcm_token,
+        data: {'fcm_token': fcmToken, 'fcm_type': 'app'},
+      );
+    } catch (e) {
+      debugPrint('[fcm] register-fcm-token failed (non-fatal): $e');
+    }
+  }
+
+  /// Clear the current FCM token server-side on logout so pushes stop reaching
+  /// a logged-out session / the next user on a shared device. Non-fatal — if it
+  /// fails the token expires server-side anyway. Skipped for guests.
+  static Future<void> deregisterFcmToken() async {
+    try {
+      final isGuest = await AuthService.isGuest;
+      if (isGuest) return;
+      final token = await FirebaseMessaging.instance
+          .getToken()
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      if (token == null || token.isEmpty) return;
+      await _dio.post(
+        APIEndpointUrls.deregister_fcm_token,
+        data: {'fcm_token': token},
+      );
+    } catch (e) {
+      debugPrint('[fcm] deregister-fcm-token failed (non-fatal): $e');
+    }
+  }
+
+  /// Fetch the server's UNIFIED unread count (inbox + chat). Drives the
+  /// launcher app-icon badge. Returns 0 on any error / guest (safe default).
+  static Future<int> getUnreadNotificationCount() async {
+    try {
+      final isGuest = await AuthService.isGuest;
+      if (isGuest) return 0;
+      final res = await _dio.get(APIEndpointUrls.notifications_unread_count);
+      final data = res.data;
+      if (data is Map && data['unread_count'] is num) {
+        return (data['unread_count'] as num).toInt();
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('[badge] unread-count failed (non-fatal): $e');
+      return 0;
     }
   }
 

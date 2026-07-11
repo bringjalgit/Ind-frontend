@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -28,6 +29,9 @@ class AadhaarVerificationScreen extends StatefulWidget {
 }
 
 class _AadhaarVerificationScreenState extends State<AadhaarVerificationScreen> {
+  // Aadhaar submission consent — the user must tick this before Submit enables.
+  bool _agreedToConsent = false;
+
   @override
   void initState() {
     super.initState();
@@ -182,6 +186,8 @@ class _AadhaarVerificationScreenState extends State<AadhaarVerificationScreen> {
         const _SectionLabel('GUIDELINES'),
         const SizedBox(height: 10),
         const _GuidelinesCard(),
+        const SizedBox(height: 16),
+        const _ImportantNote(),
         const SizedBox(height: 24),
         const _SectionLabel('UPLOAD DOCUMENTS'),
         const SizedBox(height: 10),
@@ -204,11 +210,17 @@ class _AadhaarVerificationScreenState extends State<AadhaarVerificationScreen> {
           textColor: textColor,
           accentColor: const Color(0xFF22D3EE), // teal
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        _ConsentCheckbox(
+          value: _agreedToConsent,
+          onChanged: (v) => setState(() => _agreedToConsent = v),
+        ),
+        const SizedBox(height: 16),
         _SubmitButton(
           canSubmit: pendingFrontUrl != null &&
               pendingBackUrl != null &&
-              uploadingSide == null,
+              uploadingSide == null &&
+              _agreedToConsent,
           isSubmitting: isSubmitting,
         ),
         const SizedBox(height: 16),
@@ -317,6 +329,7 @@ class _GuidelinesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = [
       'Take a clear photo of both sides of your Aadhaar card.',
+      'Upload the full Aadhaar card — the complete front and back, not cropped or partial.',
       'Make sure all text is readable and the card is fully visible.',
       'Avoid glare, shadows, and cropped edges.',
       'Images are used only for verification and stored securely.',
@@ -385,6 +398,64 @@ class _GuidelineBullet extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Highlighted "Important" callout for the hard requirement that the mobile
+/// number linked to the Aadhaar must match the app-registered number.
+/// Verification is rejected when they differ, so this gets an amber warning
+/// treatment (not a quiet guideline bullet) to make sure users see it before
+/// they upload.
+class _ImportantNote extends StatelessWidget {
+  const _ImportantNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = ThemeHelper.isDarkMode(context);
+    const amber = Color(0xFFF59E0B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: amber.withOpacity(isDark ? 0.12 : 0.10),
+        border: Border.all(color: amber.withOpacity(0.55), width: 1.2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, size: 20, color: amber),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  color: (isDark ? Colors.white : Colors.black)
+                      .withOpacity(0.85),
+                  fontSize: 13.5,
+                  height: 1.45,
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'Important: ',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: amber,
+                    ),
+                  ),
+                  TextSpan(
+                    text:
+                        'The mobile number linked to your Aadhaar must be the '
+                        'same as the mobile number registered with your IND '
+                        'Classifieds account. If they don’t match, your '
+                        'verification will be rejected.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -707,6 +778,103 @@ class _SubmitButton extends StatelessWidget {
 // Replaced by `KycStatusCard` at presentation/views/widgets/kyc_status_card.dart
 // (A·Refined Dark design, theme-adaptive via WizardTokens).
 
+
+/// Consent gate shown above the Submit CTA. The user must tick this before
+/// the button enables — it explicitly captures agreement to Aadhaar
+/// processing and links to the Privacy Policy (/privacy). Stateful so the
+/// Privacy-link tap recognizer is created once and disposed cleanly.
+class _ConsentCheckbox extends StatefulWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _ConsentCheckbox({required this.value, required this.onChanged});
+
+  @override
+  State<_ConsentCheckbox> createState() => _ConsentCheckboxState();
+}
+
+class _ConsentCheckboxState extends State<_ConsentCheckbox> {
+  late final TapGestureRecognizer _privacyTap;
+
+  @override
+  void initState() {
+    super.initState();
+    _privacyTap = TapGestureRecognizer()
+      ..onTap = () => context.push('/privacy');
+  }
+
+  @override
+  void dispose() {
+    _privacyTap.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final on = widget.value;
+    return InkWell(
+      onTap: () => widget.onChanged(!on),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141B24),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF232C38)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 22,
+              height: 22,
+              margin: const EdgeInsets.only(top: 1),
+              decoration: BoxDecoration(
+                color: on ? const Color(0xFF1F6FEB) : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: on ? const Color(0xFF1F6FEB) : const Color(0xFF4B5768),
+                  width: 2,
+                ),
+              ),
+              child: on
+                  ? const Icon(Icons.check, size: 15, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: Color(0xFFC3CCD8),
+                    fontSize: 12.5,
+                    height: 1.5,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text:
+                          'I agree to submit my Aadhaar for identity verification '
+                          'and consent to its processing as described in the ',
+                    ),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: const TextStyle(
+                        color: Color(0xFF4D9BFF),
+                        decoration: TextDecoration.underline,
+                      ),
+                      recognizer: _privacyTap,
+                    ),
+                    const TextSpan(text: '.'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _RejectionBanner extends StatelessWidget {
   final String reason;

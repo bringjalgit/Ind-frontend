@@ -107,13 +107,16 @@ void showPlanBottomSheet({
                         String freeExpiry = "N/A";
 
                         if (states is FreeAdLoaded) {
-                          freeExpiry =
-                              states.freeAdModel.data?.expiryDate
-                                  .toLocal()
-                                  .toString()
-                                  .split(" ")
-                                  .first ??
-                              "N/A";
+                          final expiry =
+                              states.freeAdModel.data?.expiryDate.toLocal();
+                          if (expiry != null) {
+                            // DD-MM-YYYY (e.g. 07-08-2026). The raw ISO
+                            // YYYY-MM-DD read as reversed/confusing to users.
+                            freeExpiry =
+                                "${expiry.day.toString().padLeft(2, '0')}-"
+                                "${expiry.month.toString().padLeft(2, '0')}-"
+                                "${expiry.year}";
+                          }
                         }
 
                         return Padding(
@@ -158,7 +161,13 @@ void showPlanBottomSheet({
                                         Plans(
                                           planName: 'Free Ad',
                                           packageName: 'Basic Free Ad',
-                                          remaining: 1,
+                                          // Real count: one-time free + redeemed
+                                          // 150-pt credits (from the backend).
+                                          // Falls back to 1 on an older backend.
+                                          remaining: state
+                                                  .userActivePlansModel
+                                                  .freeAdsRemaining ??
+                                              1,
                                           endDate: freeExpiry,
                                         ),
                                         textColor,
@@ -219,13 +228,16 @@ void showPlanBottomSheet({
                         String freeExpiry = "N/A";
 
                         if (states is FreeAdLoaded) {
-                          freeExpiry =
-                              states.freeAdModel.data?.expiryDate
-                                  .toLocal()
-                                  .toString()
-                                  .split(" ")
-                                  .first ??
-                              "N/A";
+                          final expiry =
+                              states.freeAdModel.data?.expiryDate.toLocal();
+                          if (expiry != null) {
+                            // DD-MM-YYYY (e.g. 07-08-2026). The raw ISO
+                            // YYYY-MM-DD read as reversed/confusing to users.
+                            freeExpiry =
+                                "${expiry.day.toString().padLeft(2, '0')}-"
+                                "${expiry.month.toString().padLeft(2, '0')}-"
+                                "${expiry.year}";
+                          }
                         }
 
                         return Padding(
@@ -270,7 +282,13 @@ void showPlanBottomSheet({
                                         Plans(
                                           planName: 'Free Ad',
                                           packageName: 'Basic Free Ad',
-                                          remaining: 1,
+                                          // Real count: one-time free + redeemed
+                                          // 150-pt credits (from the backend).
+                                          // Falls back to 1 on an older backend.
+                                          remaining: state
+                                                  .userActivePlansModel
+                                                  .freeAdsRemaining ??
+                                              1,
                                           endDate: freeExpiry,
                                         ),
                                         textColor,

@@ -116,8 +116,11 @@ class _SplashscreenState extends State<Splashscreen>
     //    lands on the login screen.
     final guest = await AuthService.isGuest;
     if (guest) {
+      // No login wall at startup — tokenless users land straight on the
+      // home dashboard and browse as guests. Login is prompted only when
+      // they hit a gated action (chat, contact, sell, profile, etc.).
       if (!mounted) return;
-      context.pushReplacement('/login');
+      context.pushReplacement('/dashboard');
       return;
     }
 
